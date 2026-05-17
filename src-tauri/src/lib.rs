@@ -1,6 +1,8 @@
-// Workstation Rust entry point. Phase 1 scaffold — empty surface.
-// PTY infrastructure lands in Phase 4 (pty.rs + commands).
-// Error types land in Phase 2 (error.rs with thiserror enum).
+// Workstation Rust entry point. PTY infrastructure lands in Phase 4.
+
+pub mod error;
+
+pub use error::{AppError, AppResult};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
