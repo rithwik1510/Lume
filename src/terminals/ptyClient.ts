@@ -1,0 +1,51 @@
+// Thin TS wrapper over the Rust PTY commands. Centralises the invoke calls
+// so the rest of the app talks to a typed surface, not stringly-typed Tauri
+// command names.
+
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type { AppError, PaneId, PtyEvent, Shell } from "@/types";
+
+export interface OpenPtyArgs {
+  paneId: PaneId;
+  shell: Shell;
+  cols: number;
+  rows: number;
+  channel: Channel<PtyEvent>;
+}
+
+/** Spawn a PTY. The Channel receives Data / Exit / Error events. */
+export async function openPty(args: OpenPtyArgs): Promise<void> {
+  await invoke<void>("pty_open", {
+    paneId: args.paneId,
+    shell: args.shell,
+    cols: args.cols,
+    rows: args.rows,
+    channel: args.channel,
+  });
+}
+
+export async function writePty(paneId: PaneId, data: string): Promise<void> {
+  await invoke<void>("pty_write", { paneId, data });
+}
+
+export async function resizePty(
+  paneId: PaneId,
+  cols: number,
+  rows: number
+): Promise<void> {
+  await invoke<void>("pty_resize", { paneId, cols, rows });
+}
+
+export async function killPty(paneId: PaneId): Promise<void> {
+  await invoke<void>("pty_kill", { paneId });
+}
+
+/** Type guard — Tauri rejects with an AppError-shaped object on command failure. */
+export function isAppError(e: unknown): e is AppError {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "kind" in e &&
+    typeof (e as { kind: unknown }).kind === "string"
+  );
+}

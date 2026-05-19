@@ -4,7 +4,7 @@
 
 use serde::Serialize;
 
-#[derive(Debug, thiserror::Error, Serialize)]
+#[derive(Debug, Clone, thiserror::Error, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AppError {
     #[error("pty spawn failed: {reason}")]

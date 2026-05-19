@@ -44,6 +44,21 @@ export interface LayoutState {
   focusedPaneId: PaneId | null;
 }
 
+// ---------- PTY channel events — mirror of Rust PtyEvent (src-tauri/src/pty.rs) ----------
+
+/**
+ * Messages that flow over the per-pane `Channel<PtyEvent>` from Rust → JS.
+ * Three flavours: bytes, lifecycle exit, or an error.
+ *
+ * NOTE: `bytes` arrives as `number[]` because serde_json encodes `Vec<u8>` as
+ * an array of numbers. The xterm sink converts via `new Uint8Array(bytes)`.
+ * Optimising to a binary IPC channel is a v0.2+ optimisation.
+ */
+export type PtyEvent =
+  | { kind: "data"; bytes: number[] }
+  | { kind: "exit"; code: number | null }
+  | { kind: "error"; error: AppError };
+
 // ---------- Errors — mirror of Rust AppError enum (src-tauri/src/error.rs) ----------
 
 /**
