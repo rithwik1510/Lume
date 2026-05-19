@@ -47,6 +47,7 @@ The smallest version that replaces the user's daily Sublime + Windows Terminal +
 ### v0.2 — Tabs + Mac polish (~3-4 weekends)
 - Full multi-Tab (new, close, switch, persist, rename via right-click).
 - Mac-native polish layer: **Mica blur** on the frameless titlebar (the titlebar itself ships in v0.1), spring-easing animations on splitter drag and pane focus transitions, refined fade timing on MD Editor toggle and Quick Viewer slide-in.
+- **Pane scrollbar polish:** auto-hide overlay scrollbars per Terminal Pane, replacing xterm.js's default always-visible viewport scrollbar. Pattern: thin (6px), color-matched to `border` token, opacity 0 by default; opacity 1 on `:hover`, on active `scroll`, or for 1s after the wheel fires. CSS-only fix targeting `.xterm-viewport` + `.xterm-viewport::-webkit-scrollbar*`. Matches iTerm2 / Warp / Mac-native behavior. (Surfaced during Weekend 1 smoothness verification: default scrollbar visible on every pane is visually noisy vs reference apps.)
 - MD Editor polish: unsaved-changes prompt, tab persistence, tab overflow UX.
 - 5 accent presets (amber/blue/green/magenta/red) with hot-reload switching.
 - Top-bar Split menu and Keyboard shortcuts viewer icons.
