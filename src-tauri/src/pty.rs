@@ -66,7 +66,10 @@ pub struct RingBuf {
 
 impl RingBuf {
     pub fn new(cap: usize) -> Self {
-        Self { cap, inner: VecDeque::with_capacity(cap.min(64 * 1024)) }
+        Self {
+            cap,
+            inner: VecDeque::with_capacity(cap.min(64 * 1024)),
+        }
     }
 
     /// Append bytes; if over capacity, drop the oldest until it fits.
@@ -129,9 +132,10 @@ pub struct CommandSpec {
 
 pub fn shell_spec(shell: &Shell) -> CommandSpec {
     match shell {
-        Shell::Pwsh { path }
-        | Shell::Powershell { path }
-        | Shell::Cmd { path } => CommandSpec { program: path.clone(), args: vec![] },
+        Shell::Pwsh { path } | Shell::Powershell { path } | Shell::Cmd { path } => CommandSpec {
+            program: path.clone(),
+            args: vec![],
+        },
         Shell::Wsl { distro } => CommandSpec {
             program: "wsl.exe".to_string(),
             args: vec!["-d".to_string(), distro.clone()],
@@ -165,7 +169,12 @@ pub fn pty_open(
 
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| AppError::spawn(format!("openpty: {e}")))?;
 
     let cmd = build_command(&shell);
@@ -265,11 +274,7 @@ pub fn pty_open(
 }
 
 #[tauri::command]
-pub fn pty_write(
-    pane_id: String,
-    data: String,
-    state: State<'_, PtyRegistry>,
-) -> AppResult<()> {
+pub fn pty_write(pane_id: String, data: String, state: State<'_, PtyRegistry>) -> AppResult<()> {
     let session = state
         .sessions
         .get(&pane_id)
@@ -293,8 +298,13 @@ pub fn pty_resize(
         .get(&pane_id)
         .ok_or_else(|| AppError::not_found(&pane_id))?;
     let m = session.master.lock();
-    m.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
-        .map_err(|e| AppError::resize(e.to_string()))?;
+    m.resize(PtySize {
+        rows,
+        cols,
+        pixel_width: 0,
+        pixel_height: 0,
+    })
+    .map_err(|e| AppError::resize(e.to_string()))?;
     Ok(())
 }
 
@@ -351,7 +361,9 @@ mod tests {
 
     #[test]
     fn shell_spec_wsl_uses_explicit_distro() {
-        let s = Shell::Wsl { distro: "Ubuntu".to_string() };
+        let s = Shell::Wsl {
+            distro: "Ubuntu".to_string(),
+        };
         let spec = shell_spec(&s);
         assert_eq!(spec.program, "wsl.exe");
         assert_eq!(spec.args, vec!["-d".to_string(), "Ubuntu".to_string()]);
@@ -369,9 +381,13 @@ mod tests {
 
     #[test]
     fn shell_spec_powershell_and_cmd_have_no_args() {
-        let p = Shell::Powershell { path: "powershell.exe".into() };
+        let p = Shell::Powershell {
+            path: "powershell.exe".into(),
+        };
         assert!(shell_spec(&p).args.is_empty());
-        let c = Shell::Cmd { path: "cmd.exe".into() };
+        let c = Shell::Cmd {
+            path: "cmd.exe".into(),
+        };
         assert!(shell_spec(&c).args.is_empty());
     }
 }

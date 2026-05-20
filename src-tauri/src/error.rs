@@ -25,23 +25,33 @@ pub enum AppError {
 
 impl AppError {
     pub fn spawn(reason: impl Into<String>) -> Self {
-        Self::PtySpawnFailed { reason: reason.into() }
+        Self::PtySpawnFailed {
+            reason: reason.into(),
+        }
     }
 
     pub fn write(reason: impl Into<String>) -> Self {
-        Self::PtyWriteFailed { reason: reason.into() }
+        Self::PtyWriteFailed {
+            reason: reason.into(),
+        }
     }
 
     pub fn resize(reason: impl Into<String>) -> Self {
-        Self::PtyResizeFailed { reason: reason.into() }
+        Self::PtyResizeFailed {
+            reason: reason.into(),
+        }
     }
 
     pub fn not_found(pane_id: impl Into<String>) -> Self {
-        Self::PtyNotFound { pane_id: pane_id.into() }
+        Self::PtyNotFound {
+            pane_id: pane_id.into(),
+        }
     }
 
     pub fn internal(reason: impl Into<String>) -> Self {
-        Self::Internal { reason: reason.into() }
+        Self::Internal {
+            reason: reason.into(),
+        }
     }
 }
 
@@ -69,7 +79,10 @@ mod tests {
     fn serializes_write_variant() {
         let e = AppError::write("broken pipe");
         let json = serde_json::to_string(&e).expect("serialize");
-        assert_eq!(json, r#"{"kind":"pty_write_failed","reason":"broken pipe"}"#);
+        assert_eq!(
+            json,
+            r#"{"kind":"pty_write_failed","reason":"broken pipe"}"#
+        );
     }
 
     #[test]
