@@ -131,11 +131,15 @@ export function installPtyOrchestrator(): () => void {
   // Cover panes that already exist before we subscribed (HMR / cold-start
   // race where the layout was populated before this listener was attached).
   // killPane is a no-op for ids it doesn't recognise on the Rust side.
+  //
+  // We also dispose the existing xterm Terminal so the next spawn creates
+  // a fresh one. Without this, an already-corrupted Terminal (e.g. one
+  // that ended up in the open()-called-twice state during a prior buggy
+  // build) would persist and the new spawn's bytes would render nowhere.
+  // Scrollback is lost — acceptable cost for HMR/recovery scenarios.
   const initial = getPaneIds(useLayoutStore.getState());
   for (const id of initial) {
     void (async () => {
-      // Best-effort teardown of any prior session, then a fresh spawn that
-      // re-wires the xterm Terminal to a new Channel.
       try {
         await killPty(id);
       } catch {
@@ -143,6 +147,7 @@ export function installPtyOrchestrator(): () => void {
       }
       runtimes.get(id)?.inputDisposer.dispose();
       runtimes.delete(id);
+      disposeTerminal(id);
       void spawnPane(id, defaultShell());
     })();
   }

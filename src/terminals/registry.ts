@@ -68,16 +68,19 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
 /**
  * Attach a previously-created Terminal to a DOM container.
  *
- * Three paths:
- *   1. Same host as before → just re-fit.
- *   2. Different host but Terminal already opened once → MOVE the xterm
- *      root DOM node into the new host. xterm.js's `open()` is documented
- *      to be called once per Terminal; calling it again with a different
- *      parent silently breaks the rendering pipeline (writes still happen
- *      but the canvas/WebGL drawing doesn't propagate). This is exactly
- *      what trips when a split causes React to remount the pane in a new
- *      tree position.
- *   3. First open → standard `term.open(host)` + WebGL init.
+ * Three paths, gated on whether xterm has been opened before. We key off
+ * `term.element` (xterm-internal: null before open(), a real DOM node
+ * after) because it's the canonical "has open() ever been called?" signal.
+ * Earlier this function gated on `entry.attachedTo`, but detach() sets
+ * that to null — meaning after a detach/remount cycle the code fell
+ * through to Path 3 and called open() a second time. xterm.js silently
+ * breaks rendering when you do that: writes still happen internally but
+ * nothing reaches the canvas/WebGL surface. Result: a blank black pane.
+ *
+ *   1. Same host as before → re-fit.
+ *   2. Already opened (term.element exists) but in a different host →
+ *      MOVE the xterm root via appendChild. Never call open() again.
+ *   3. First-ever open → term.open(host) + WebGL init.
  *
  * Returns true if WebGL initialised, false if it threw and we're on the
  * canvas fallback. The Terminal is usable either way.
@@ -92,20 +95,22 @@ export function attach(paneId: PaneId, host: HTMLElement): boolean {
     return entry.webgl !== null;
   }
 
-  // Path 2: moved between hosts. Reparent the xterm root, don't reopen.
-  if (entry.attachedTo !== null && entry.term.element) {
+  // Path 2: xterm has been opened before. Reparent — DO NOT reopen.
+  // term.element is the xterm.js-internal root; it's null until open()
+  // has been called once, and a real DOM node after. This check survives
+  // any number of detach/remount cycles because it doesn't depend on our
+  // own `attachedTo` bookkeeping.
+  if (entry.term.element) {
     host.appendChild(entry.term.element);
     entry.attachedTo = host;
     entry.fit.fit();
     return entry.webgl !== null;
   }
 
-  // Path 3: first open.
+  // Path 3: first-ever open for this Terminal.
   entry.term.open(host);
   entry.attachedTo = host;
 
-  // Initialise WebGL on first attach. If it fails, swallow and fall back to
-  // canvas renderer; DESIGN.md §10 risk #3 mitigation.
   if (!entry.webgl) {
     try {
       const webgl = new WebglAddon();
