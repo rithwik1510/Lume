@@ -1,0 +1,58 @@
+/* Auto-hide overlay scrollbar for xterm.js Terminal Panes.
+ *
+ * Default xterm.js renders a chunky always-visible scrollbar in the
+ * .xterm-viewport. None of our reference apps (iTerm2, Warp, Cursor,
+ * Windows Terminal modern theme) do this. Mac-native behaviour is
+ * "invisible by default; appears on hover or while scrolling; fades out."
+ *
+ * Implementation:
+ *   - Thumb fully transparent at rest.
+ *   - On hover of the entire pane (.xterm:hover) → thumb fades in.
+ *   - Track stays transparent always (no rail).
+ *   - 6 px wide (vertical only — xterm never overflows horizontally).
+ *   - Color matches the amber accent at low opacity so it reads as a
+ *     subtle accent rather than chrome.
+ *   - scrollbar-width: thin handles the Firefox / standard side
+ *     (Tauri's WebView2 is Chromium so the -webkit-* rules carry it,
+ *     but keeping standard rules for forward-compat).
+ */
+
+.xterm .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 220ms ease;
+}
+
+.xterm:hover .xterm-viewport {
+  scrollbar-color: rgba(212, 168, 92, 0.45) transparent;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+  border: none;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 220ms ease;
+}
+
+.xterm:hover .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(212, 168, 92, 0.35);
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 168, 92, 0.65);
+}
+
+/* Horizontal scrollbar should never appear, but if xterm ever emits one
+ * (e.g. via the canvas fallback path) keep it invisible. */
+.xterm .xterm-viewport::-webkit-scrollbar:horizontal {
+  display: none;
+}

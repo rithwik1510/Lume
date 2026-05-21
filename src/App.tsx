@@ -14,13 +14,12 @@ export default function App() {
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
-    const { root: existingRoot, initWithFirstPane, splitPane } = useLayoutStore.getState();
+    const { root: existingRoot, initWithFirstPane } = useLayoutStore.getState();
     if (existingRoot === null) {
-      // Build a 2×2 visual: split right, then split each column down.
+      // One pane at launch — user splits via Ctrl+Alt+→/↓/↑.
+      // The Weekend 1 4-pane bootstrap was smoothness-baseline scaffolding,
+      // not the real product UX.
       initWithFirstPane("pane-1");
-      splitPane("right", "pane-2", "pane-1");
-      splitPane("down", "pane-3", "pane-1");
-      splitPane("down", "pane-4", "pane-2");
     }
     return () => dispose();
   }, []);
