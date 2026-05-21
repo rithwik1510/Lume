@@ -43,29 +43,38 @@ function TerminalPaneImpl({ paneId }: Props) {
     };
     window.addEventListener("keydown", onKeyDown, true);
 
-    // Resize follows the host element. During a splitter drag the observer
-    // fires ~60 times/sec. Calling fit() on each tick triggers a real
-    // term.resize() (xterm reflows whenever the cell grid changes), and the
-    // accumulating reflows ARE the flicker.
+    // Resize follows the host element. Two-tier handling to balance visual
+    // responsiveness against PTY-side stability:
     //
-    // Strategy: do NOT call fit() during the drag. Debounce it to 120 ms
-    // after the last resize event. The visible Panel area still tracks the
-    // drag smoothly (CSS handles that); xterm content gets clipped/expanded
-    // by the parent until the drag settles, then one clean reflow at the
-    // end. resizePty is debounced from the same timer so it only fires once.
+    //  TIER A — visual fit (xterm cell-grid reflow)
+    //     Driven by requestAnimationFrame. fit() runs at most once per
+    //     animation frame during a drag, so xterm content tracks the new
+    //     container size in real time. The CSS containment + pixelated
+    //     rules in xterm-overrides.css mitigate the per-frame redraw
+    //     shimmer that would otherwise be visible.
     //
-    // 120 ms is a touch longer than 100 ms because react-resizable-panels
-    // emits a final onLayout shortly after mouseup; we want our debounce to
-    // outlive that final settle.
-    let resizeTimer: number | null = null;
+    //  TIER B — PTY ioctl (sends SIGWINCH to the shell)
+    //     Debounced to 80 ms after the LAST resize event. The shell (and
+    //     any TUI inside it, like claude-code or vim) only receives ONE
+    //     SIGWINCH per drag — they redraw once, not 60 times. Critical to
+    //     avoid the "multiple stacked Claude Code splashes in scrollback"
+    //     artifact.
+    let fitRaf: number | null = null;
+    let ptyDebounce: number | null = null;
     const onResize = () => {
-      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => {
-        resizeTimer = null;
+      if (fitRaf === null) {
+        fitRaf = requestAnimationFrame(() => {
+          fitRaf = null;
+          fitTerminal(paneId);
+        });
+      }
+      if (ptyDebounce !== null) window.clearTimeout(ptyDebounce);
+      ptyDebounce = window.setTimeout(() => {
+        ptyDebounce = null;
         const dims = fitTerminal(paneId);
         if (!dims) return;
         void resizePty(paneId, dims.cols, dims.rows).catch(() => undefined);
-      }, 120);
+      }, 80);
     };
     const obs = new ResizeObserver(onResize);
     obs.observe(hostRef.current);
@@ -73,7 +82,8 @@ function TerminalPaneImpl({ paneId }: Props) {
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       obs.disconnect();
-      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+      if (fitRaf !== null) cancelAnimationFrame(fitRaf);
+      if (ptyDebounce !== null) window.clearTimeout(ptyDebounce);
       detach(paneId);
     };
   }, [paneId]);
