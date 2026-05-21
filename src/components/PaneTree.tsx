@@ -1,0 +1,147 @@
+// PaneTree — recursive React component that renders a LayoutNode as nested
+// react-resizable-panels groups. Leaves render TerminalPane. Splits render
+// a PanelGroup with two Panels and a PanelResizeHandle in between.
+//
+// Splitter drag flow:
+//   user drags handle
+//     → react-resizable-panels fires onLayout([leftPct, rightPct])
+//     → we compute ratio = leftPct/100
+//     → call useLayoutStore.resizeSplit(firstLeafLeft, firstLeafRight, ratio)
+//     → store applies via tree.resizeSplit (clamped); next render reads new ratio
+//
+// We feed react-resizable-panels both `defaultSize` (initial mount) AND let
+// it become uncontrolled afterwards. Updating `defaultSize` via state would
+// fight the user's drag — the tree IS the source of truth, but we only push
+// it back via resizeSplit when the user drags, not on every render.
+
+import { memo, useCallback, useMemo, useRef } from "react";
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelGroupHandle,
+} from "react-resizable-panels";
+
+import { TerminalPane } from "@/components/TerminalPane";
+import { useLayoutStore } from "@/store/layoutStore";
+import { leaves, type LayoutNode } from "@/store/layout/tree";
+
+interface Props {
+  node: LayoutNode;
+  /** Unique id within the tree — used as PanelGroup id for stable identity. */
+  path: string;
+}
+
+function PaneTreeImpl({ node, path }: Props) {
+  if (node.type === "leaf") {
+    return <LeafFrame paneId={node.paneId} />;
+  }
+  return <SplitFrame node={node} path={path} />;
+}
+
+export const PaneTree = memo(PaneTreeImpl);
+
+// ---------- Leaf rendering ----------
+
+interface LeafFrameProps {
+  paneId: string;
+}
+
+const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
+  const focusedPaneId = useLayoutStore((s) => s.focusedPaneId);
+  const focused = focusedPaneId === paneId;
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        border: focused ? "1px solid #d4a85c" : "1px solid #181818",
+        background: "#0a0a0a",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 4,
+          right: 8,
+          fontSize: 10,
+          color: focused ? "#d4a85c" : "#555",
+          fontFamily: "Inter, sans-serif",
+          userSelect: "none",
+          pointerEvents: "none",
+          zIndex: 1,
+        }}
+      >
+        {paneId}
+      </div>
+      <TerminalPane paneId={paneId} />
+    </div>
+  );
+};
+const LeafFrame = memo(LeafFrameImpl);
+
+// ---------- Split rendering ----------
+
+function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
+  if (node.type !== "split") return null;
+
+  const resizeSplit = useLayoutStore((s) => s.resizeSplit);
+  const groupRef = useRef<ImperativePanelGroupHandle | null>(null);
+
+  // Cache the first leaf on each side of the split. These are the two ids we
+  // pass to resizeSplit so tree.ts can identify which split node to update.
+  // Recomputed only when the subtree shape changes.
+  const [leftAnchor, rightAnchor] = useMemo(() => {
+    const l = leaves(node.left)[0];
+    const r = leaves(node.right)[0];
+    return [l, r] as const;
+  }, [node]);
+
+  const onLayout = useCallback(
+    (sizes: number[]) => {
+      const left = sizes[0];
+      if (left === undefined || leftAnchor === undefined || rightAnchor === undefined) return;
+      const ratio = left / 100;
+      // Skip near-no-ops to avoid feedback loops.
+      if (Math.abs(ratio - node.ratio) < 0.001) return;
+      resizeSplit(leftAnchor, rightAnchor, ratio);
+    },
+    [leftAnchor, rightAnchor, node.ratio, resizeSplit]
+  );
+
+  const direction =
+    node.orientation === "horizontal" ? "horizontal" : "vertical";
+
+  // Default sizes pulled from the tree once. After mount, the user drives sizes.
+  const leftDefault = node.ratio * 100;
+  const rightDefault = 100 - leftDefault;
+
+  return (
+    <PanelGroup
+      direction={direction}
+      onLayout={onLayout}
+      autoSaveId={undefined}
+      id={`pg-${path}`}
+      ref={groupRef}
+      style={{ width: "100%", height: "100%" }}
+    >
+      <Panel defaultSize={leftDefault} minSize={5} maxSize={95}>
+        <PaneTree node={node.left} path={`${path}.L`} />
+      </Panel>
+      <PanelResizeHandle
+        style={{
+          background: "#181818",
+          ...(direction === "horizontal"
+            ? { width: 3, cursor: "col-resize" }
+            : { height: 3, cursor: "row-resize" }),
+        }}
+      />
+      <Panel defaultSize={rightDefault} minSize={5} maxSize={95}>
+        <PaneTree node={node.right} path={`${path}.R`} />
+      </Panel>
+    </PanelGroup>
+  );
+}
