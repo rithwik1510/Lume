@@ -405,9 +405,9 @@ Goal: confirm the stack is viable before sinking real weekends.
 ### Weekend 2 — Tiling
 1. Binary tree pane model in `layoutStore` (with Immer).
 2. `react-resizable-panels` integration; splitter resize sub-pixel smooth.
-3. Split right / up / down via keyboard (Ctrl+Alt+→/↑/↓) and top-bar Split menu popup.
+3. Split right / up / down via keyboard (Ctrl+Alt+→/↑/↓). Top-bar Split menu popup deferred to Weekend 4 alongside the frameless titlebar / top bar; keyboard shortcuts alone satisfy the v0.1 functional requirement until the top bar exists.
 4. Focus model: focused pane owns all keys except global set.
-5. Close behavior: last-pane lock + active-process confirm dialog.
+5. Close behavior: last-pane lock (enforced at `layoutStore.closePane`). Active-process confirm dialog deferred to Weekend 3 — needs shell integration (OSC 7 or process-tree query) to know when a process is actually running vs. the shell sitting at a prompt; fires-every-time confirm is worse UX than no confirm and was rejected.
 6. Vitest tests for pane tree ops (split/close/focus pure functions).
 7. Re-run smoothness test with 4 tiled panes.
 
