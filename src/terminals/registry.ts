@@ -66,9 +66,18 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
 }
 
 /**
- * Attach a previously-created Terminal to a DOM container. Idempotent — calling
- * twice with the same element is a no-op; calling with a different element
- * disposes the prior open() state and re-opens against the new one.
+ * Attach a previously-created Terminal to a DOM container.
+ *
+ * Three paths:
+ *   1. Same host as before → just re-fit.
+ *   2. Different host but Terminal already opened once → MOVE the xterm
+ *      root DOM node into the new host. xterm.js's `open()` is documented
+ *      to be called once per Terminal; calling it again with a different
+ *      parent silently breaks the rendering pipeline (writes still happen
+ *      but the canvas/WebGL drawing doesn't propagate). This is exactly
+ *      what trips when a split causes React to remount the pane in a new
+ *      tree position.
+ *   3. First open → standard `term.open(host)` + WebGL init.
  *
  * Returns true if WebGL initialised, false if it threw and we're on the
  * canvas fallback. The Terminal is usable either way.
@@ -77,12 +86,21 @@ export function attach(paneId: PaneId, host: HTMLElement): boolean {
   const entry = entries.get(paneId);
   if (!entry) throw new Error(`no terminal for paneId=${paneId}`);
 
-  // Already attached to the same host? Just re-fit.
+  // Path 1: same host.
   if (entry.attachedTo === host) {
     entry.fit.fit();
     return entry.webgl !== null;
   }
 
+  // Path 2: moved between hosts. Reparent the xterm root, don't reopen.
+  if (entry.attachedTo !== null && entry.term.element) {
+    host.appendChild(entry.term.element);
+    entry.attachedTo = host;
+    entry.fit.fit();
+    return entry.webgl !== null;
+  }
+
+  // Path 3: first open.
   entry.term.open(host);
   entry.attachedTo = host;
 

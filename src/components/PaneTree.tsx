@@ -56,7 +56,10 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
         position: "relative",
         width: "100%",
         height: "100%",
-        border: focused ? "1px solid #d4a85c" : "1px solid #181818",
+        // Uniform thin border on every pane — focus is shown by the xterm
+        // cursor (visible blink), not by a heavy frame. Splitters already
+        // delineate panes from each other.
+        border: "1px solid #181818",
         background: "#0a0a0a",
         overflow: "hidden",
         boxSizing: "border-box",
@@ -68,7 +71,8 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
           top: 4,
           right: 8,
           fontSize: 10,
-          color: focused ? "#d4a85c" : "#555",
+          // Subtle focus tell on the id badge — no full-pane chrome.
+          color: focused ? "#888" : "#333",
           fontFamily: "Inter, sans-serif",
           userSelect: "none",
           pointerEvents: "none",
