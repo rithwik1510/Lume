@@ -56,3 +56,43 @@
 .xterm .xterm-viewport::-webkit-scrollbar:horizontal {
   display: none;
 }
+
+/* --------------------------------------------------------------------------
+ * Splitter-drag flicker mitigation.
+ *
+ * Symptom: while a user drags a splitter, the text INSIDE adjacent panes
+ * appears to flicker / shimmer. It stops the moment the drag stops.
+ *
+ * Root cause: xterm's WebGL <canvas> elements have explicit pixel
+ * width/height attributes (matching the cell grid), but CSS sizes them
+ * to 100% of their container. When the container resizes every frame
+ * during a splitter drag, the browser rescales the canvas display via
+ * CSS, which means the WebGL framebuffer is sampled with bilinear
+ * filtering each frame at slightly different sub-pixel offsets. That
+ * sub-pixel resampling IS the flicker.
+ *
+ * Mitigations applied:
+ *   1. `contain: layout style paint` on .xterm — tells the browser the
+ *      xterm subtree's layout/paint won't affect its surroundings, so it
+ *      can be composited as a single layer and the inner rescaling
+ *      doesn't cascade.
+ *   2. `image-rendering: pixelated` on the cursor / link / screen canvas
+ *      layers — disables bilinear filtering on the canvas display so
+ *      the sub-pixel resample stops being visible. Pixels stay aligned.
+ *   3. `transform: translateZ(0)` on .xterm — forces GPU compositing
+ *      so transforms are GPU-accelerated and don't trigger software paint.
+ *
+ * These are additive: any one helps, all three together flatten the
+ * visible artifact substantially. Doesn't fully eliminate it (terminals
+ * inherently can't render correctly between cell boundaries during a
+ * drag), but it stops being a "flicker" and becomes a stable visual.
+ * -------------------------------------------------------------------------- */
+
+.xterm {
+  contain: layout style paint;
+  transform: translateZ(0);
+}
+
+.xterm canvas {
+  image-rendering: pixelated;
+}

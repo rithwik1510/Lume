@@ -36,9 +36,18 @@ interface PaneRuntime {
 
 const runtimes = new Map<PaneId, PaneRuntime>();
 
-/** Default shell for Weekend 1 (parameterised in Weekend 3 via config). */
+/**
+ * Default shell for a freshly-spawned pane. Weekend 1+2 hardcoded to
+ * Windows PowerShell — the universal built-in Windows shell. The path
+ * is unqualified; portable-pty's CommandBuilder resolves it via PATH.
+ *
+ * Weekend 3 will replace this with config-driven selection from
+ * `config.toml`'s `default_shell` key, plus proper auto-detection of
+ * pwsh / cmd / WSL distros and a per-pane "Change Shell..." right-click
+ * menu (DESIGN.md §12 W3 #8-9).
+ */
 function defaultShell(): Shell {
-  return { kind: "wsl", distro: "Ubuntu" };
+  return { kind: "powershell", path: "powershell.exe" };
 }
 
 async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
