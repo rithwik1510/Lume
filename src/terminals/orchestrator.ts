@@ -118,10 +118,35 @@ async function killPane(paneId: PaneId): Promise<void> {
  * Install the orchestrator at app boot. Call ONCE from App.tsx. Returns an
  * unsubscriber for tests / hot reload.
  *
- * Diffs against the previous tree's leaf set on every state change. Cheap
- * because trees are small (handful of leaves) and we only walk them on change.
+ * Robustness:
+ *   - On install, walk every existing leaf in the layout. If a leaf has no
+ *     PaneRuntime entry (channel handler), tear down anything stale and
+ *     re-spawn. This makes HMR safe: the OLD orchestrator's channel
+ *     handlers get GC'd when its closures are dropped, but the Rust-side
+ *     PTYs and xterm instances persist. Without this re-spawn, bytes would
+ *     flow from Rust to nowhere and panes would render blank.
+ *   - On subscription, diff added/removed paneIds across state transitions.
  */
 export function installPtyOrchestrator(): () => void {
+  // Cover panes that already exist before we subscribed (HMR / cold-start
+  // race where the layout was populated before this listener was attached).
+  // killPane is a no-op for ids it doesn't recognise on the Rust side.
+  const initial = getPaneIds(useLayoutStore.getState());
+  for (const id of initial) {
+    void (async () => {
+      // Best-effort teardown of any prior session, then a fresh spawn that
+      // re-wires the xterm Terminal to a new Channel.
+      try {
+        await killPty(id);
+      } catch {
+        // ignore — pane may not exist on the Rust side yet
+      }
+      runtimes.get(id)?.inputDisposer.dispose();
+      runtimes.delete(id);
+      void spawnPane(id, defaultShell());
+    })();
+  }
+
   const sub = useLayoutStore.subscribe((state, prev) => {
     const curr = getPaneIds(state);
     const before = getPaneIds(prev);
