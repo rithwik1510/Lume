@@ -23,8 +23,18 @@ import {
 } from "react-resizable-panels";
 
 import { TerminalPane } from "@/components/TerminalPane";
+import { beginResize, endResize } from "@/components/resizeBus";
 import { useLayoutStore } from "@/store/layoutStore";
 import { leaves, type LayoutNode } from "@/store/layout/tree";
+
+/**
+ * Per-pane percentage limits during a splitter drag. Below this each pane
+ * becomes unreadable (text wraps at <10 columns); above this the OTHER
+ * pane is squeezed to the same condition. 15/85 keeps both panes usable
+ * across any reasonable window width.
+ */
+const PANE_MIN_PCT = 15;
+const PANE_MAX_PCT = 85;
 
 interface Props {
   node: LayoutNode;
@@ -150,10 +160,16 @@ function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
       ref={groupRef}
       style={{ width: "100%", height: "100%" }}
     >
-      <Panel defaultSize={leftDefault} minSize={5} maxSize={95}>
+      <Panel defaultSize={leftDefault} minSize={PANE_MIN_PCT} maxSize={PANE_MAX_PCT}>
         <PaneTree node={node.left} path={`${path}.L`} />
       </Panel>
       <PanelResizeHandle
+        onDragging={(isDragging) => {
+          // Body-class toggle + per-pane fit deferral. See resizeBus.ts
+          // header comment for the WebGL canvas-clear root cause.
+          if (isDragging) beginResize();
+          else endResize();
+        }}
         style={{
           background: "#181818",
           ...(direction === "horizontal"
@@ -161,7 +177,7 @@ function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
             : { height: 3, cursor: "row-resize" }),
         }}
       />
-      <Panel defaultSize={rightDefault} minSize={5} maxSize={95}>
+      <Panel defaultSize={rightDefault} minSize={PANE_MIN_PCT} maxSize={PANE_MAX_PCT}>
         <PaneTree node={node.right} path={`${path}.R`} />
       </Panel>
     </PanelGroup>

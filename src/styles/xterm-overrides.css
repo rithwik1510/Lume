@@ -58,41 +58,30 @@
 }
 
 /* --------------------------------------------------------------------------
- * Splitter-drag flicker mitigation.
+ * Splitter-drag flicker fix (root-caused via systematic debugging).
  *
- * Symptom: while a user drags a splitter, the text INSIDE adjacent panes
- * appears to flicker / shimmer. It stops the moment the drag stops.
+ * Earlier attempts (CSS containment, image-rendering: pixelated, rAF-
+ * coalesced fit()) did NOT solve the visible "refresh every frame"
+ * complaint. The real root cause: xterm.js's WebGL renderer resizes its
+ * <canvas> elements on every term.resize() call, and setting
+ * canvas.width / canvas.height on a WebGL canvas CLEARS its framebuffer
+ * per the WebGL spec. With rAF-coalesced fit() that means 60 canvas
+ * clears + full redraws per second during a drag. THAT is the flicker.
  *
- * Root cause: xterm's WebGL <canvas> elements have explicit pixel
- * width/height attributes (matching the cell grid), but CSS sizes them
- * to 100% of their container. When the container resizes every frame
- * during a splitter drag, the browser rescales the canvas display via
- * CSS, which means the WebGL framebuffer is sampled with bilinear
- * filtering each frame at slightly different sub-pixel offsets. That
- * sub-pixel resampling IS the flicker.
+ * The fix: during a splitter drag, hide xterm entirely. fit() + resize
+ * run exactly once at drag-end (driven by resizeBus.onResizeEnd) when
+ * content becomes visible again. One redraw, no visible per-frame clear.
  *
- * Mitigations applied:
- *   1. `contain: layout style paint` on .xterm — tells the browser the
- *      xterm subtree's layout/paint won't affect its surroundings, so it
- *      can be composited as a single layer and the inner rescaling
- *      doesn't cascade.
- *   2. `image-rendering: pixelated` on the cursor / link / screen canvas
- *      layers — disables bilinear filtering on the canvas display so
- *      the sub-pixel resample stops being visible. Pixels stay aligned.
- *   3. `transform: translateZ(0)` on .xterm — forces GPU compositing
- *      so transforms are GPU-accelerated and don't trigger software paint.
- *
- * These are additive: any one helps, all three together flatten the
- * visible artifact substantially. Doesn't fully eliminate it (terminals
- * inherently can't render correctly between cell boundaries during a
- * drag), but it stops being a "flicker" and becomes a stable visual.
+ * Same pattern: VSCode hides terminal content during pane resize;
+ * Figma/Sketch web hide heavy canvas content during layout drag.
  * -------------------------------------------------------------------------- */
 
-.xterm {
-  contain: layout style paint;
-  transform: translateZ(0);
+body.workstation-resizing .xterm {
+  visibility: hidden;
 }
 
-.xterm canvas {
-  image-rendering: pixelated;
+/* While not the flicker fix, keep `contain` to limit layout cascade from
+ * xterm into its ancestors — useful regardless of drag state. */
+.xterm {
+  contain: layout style paint;
 }

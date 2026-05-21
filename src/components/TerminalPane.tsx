@@ -9,6 +9,7 @@
 
 import { memo, useEffect, useRef } from "react";
 
+import { onResizeEnd, isResizing } from "@/components/resizeBus";
 import {
   attach,
   detach,
@@ -43,47 +44,43 @@ function TerminalPaneImpl({ paneId }: Props) {
     };
     window.addEventListener("keydown", onKeyDown, true);
 
-    // Resize follows the host element. Two-tier handling to balance visual
-    // responsiveness against PTY-side stability:
+    // Resize handling — see resizeBus.ts header for the root cause.
     //
-    //  TIER A — visual fit (xterm cell-grid reflow)
-    //     Driven by requestAnimationFrame. fit() runs at most once per
-    //     animation frame during a drag, so xterm content tracks the new
-    //     container size in real time. The CSS containment + pixelated
-    //     rules in xterm-overrides.css mitigate the per-frame redraw
-    //     shimmer that would otherwise be visible.
+    // During a splitter drag, xterm is hidden via body.workstation-resizing
+    // CSS (set by PaneTree's PanelResizeHandle onDragging). No fit / resize
+    // calls run because nothing's visible — the WebGL canvas clear-and-
+    // redraw cycle has nothing to display, so no flicker is possible.
     //
-    //  TIER B — PTY ioctl (sends SIGWINCH to the shell)
-    //     Debounced to 80 ms after the LAST resize event. The shell (and
-    //     any TUI inside it, like claude-code or vim) only receives ONE
-    //     SIGWINCH per drag — they redraw once, not 60 times. Critical to
-    //     avoid the "multiple stacked Claude Code splashes in scrollback"
-    //     artifact.
-    let fitRaf: number | null = null;
-    let ptyDebounce: number | null = null;
+    // Two triggers fire fit() + PTY resize:
+    //   1. ResizeObserver — handles non-drag size changes (window resize,
+    //      manual layout changes). Debounced to 50 ms; if isResizing() is
+    //      true the callback bails because the drag-end path will handle it.
+    //   2. onResizeEnd subscription — fires exactly once at drag-end. Runs
+    //      fit + resizePty immediately so content snaps into place the
+    //      moment the user releases the mouse.
+    let debounceTimer: number | null = null;
+    const runFitAndResize = () => {
+      const dims = fitTerminal(paneId);
+      if (!dims) return;
+      void resizePty(paneId, dims.cols, dims.rows).catch(() => undefined);
+    };
     const onResize = () => {
-      if (fitRaf === null) {
-        fitRaf = requestAnimationFrame(() => {
-          fitRaf = null;
-          fitTerminal(paneId);
-        });
-      }
-      if (ptyDebounce !== null) window.clearTimeout(ptyDebounce);
-      ptyDebounce = window.setTimeout(() => {
-        ptyDebounce = null;
-        const dims = fitTerminal(paneId);
-        if (!dims) return;
-        void resizePty(paneId, dims.cols, dims.rows).catch(() => undefined);
-      }, 80);
+      if (isResizing()) return; // drag-end will handle it
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null;
+        runFitAndResize();
+      }, 50);
     };
     const obs = new ResizeObserver(onResize);
     obs.observe(hostRef.current);
+    const unsubResizeEnd = onResizeEnd(runFitAndResize);
 
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       obs.disconnect();
-      if (fitRaf !== null) cancelAnimationFrame(fitRaf);
-      if (ptyDebounce !== null) window.clearTimeout(ptyDebounce);
+      unsubResizeEnd();
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
       detach(paneId);
     };
   }, [paneId]);
