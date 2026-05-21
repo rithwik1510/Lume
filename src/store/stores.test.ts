@@ -1,10 +1,11 @@
-// Integration tests for the Zustand wrappers. The deep pure-function logic is
-// already covered by layout/pure.test.ts and throttle.test.ts — this file only
-// verifies that the store wires the wrappers together correctly and that the
-// throttle is actually applied in ptyStore.markActivity.
+// Integration tests for the Zustand wrappers. Deep tree-op logic is covered
+// by layout/tree.test.ts and throttle.test.ts — this file only verifies that
+// the layoutStore wires the ops together correctly (focus follows splits,
+// last-pane lock, focus shifts on close) and that the ptyStore throttle is
+// applied in markActivity.
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { useLayoutStore } from "./layoutStore";
+import { useLayoutStore, getPaneIds } from "./layoutStore";
 import { usePtyStore } from "./ptyStore";
 import type { Shell } from "@/types";
 
@@ -13,41 +14,87 @@ const wsl: Shell = { kind: "wsl", distro: "Ubuntu" };
 describe("layoutStore", () => {
   beforeEach(() => useLayoutStore.getState().reset());
 
-  it("addPane + focusPane + moveFocus flow", () => {
+  it("initWithFirstPane creates a single-leaf tree and focuses it", () => {
+    useLayoutStore.getState().initWithFirstPane("p1");
     const s = useLayoutStore.getState();
-    s.addPane("p1");
-    s.addPane("p2");
-    s.addPane("p3");
-    expect(useLayoutStore.getState().paneIds).toEqual(["p1", "p2", "p3"]);
-    expect(useLayoutStore.getState().focusedPaneId).toBe("p3");
+    expect(s.root).toEqual({ type: "leaf", paneId: "p1" });
+    expect(s.focusedPaneId).toBe("p1");
+    expect(getPaneIds(s)).toEqual(["p1"]);
+  });
 
+  it("splitPane chains and shifts focus to the newest pane", () => {
+    const s = useLayoutStore.getState();
+    s.initWithFirstPane("p1");
+    s.splitPane("right", "p2");
+    s.splitPane("down", "p3");
+    expect(useLayoutStore.getState().focusedPaneId).toBe("p3");
+    expect(getPaneIds(useLayoutStore.getState())).toEqual(["p1", "p2", "p3"]);
+  });
+
+  it("splitPane refuses to add a duplicate paneId", () => {
+    const s = useLayoutStore.getState();
+    s.initWithFirstPane("p1");
+    s.splitPane("right", "p2");
+    s.splitPane("right", "p1"); // duplicate — must be ignored
+    expect(getPaneIds(useLayoutStore.getState())).toEqual(["p1", "p2"]);
+  });
+
+  it("focusPane sets focus iff the leaf exists", () => {
+    const s = useLayoutStore.getState();
+    s.initWithFirstPane("p1");
+    s.splitPane("right", "p2");
     s.focusPane("p1");
     expect(useLayoutStore.getState().focusedPaneId).toBe("p1");
-
-    s.moveFocus("next");
-    expect(useLayoutStore.getState().focusedPaneId).toBe("p2");
-
-    s.moveFocus("prev");
+    s.focusPane("ghost");
     expect(useLayoutStore.getState().focusedPaneId).toBe("p1");
   });
 
-  it("removePane shifts focus correctly", () => {
+  it("closePane refuses to close the last leaf (last-pane lock)", () => {
     const s = useLayoutStore.getState();
-    s.addPane("p1");
-    s.addPane("p2");
-    s.removePane("p2");
-    expect(useLayoutStore.getState().focusedPaneId).toBe("p1");
+    s.initWithFirstPane("p1");
+    s.closePane("p1");
+    const after = useLayoutStore.getState();
+    expect(after.root).toEqual({ type: "leaf", paneId: "p1" });
+    expect(after.focusedPaneId).toBe("p1");
+  });
+
+  it("closePane shifts focus to a neighbour when the focused leaf is removed", () => {
+    const s = useLayoutStore.getState();
+    s.initWithFirstPane("p1");
+    s.splitPane("right", "p2");
+    s.splitPane("right", "p3");
+    // Focus is now p3. Closing p3 should shift focus to p2 (its left neighbour).
+    s.closePane("p3");
+    expect(useLayoutStore.getState().focusedPaneId).toBe("p2");
+  });
+
+  it("moveFocus walks the geometric layout", () => {
+    const s = useLayoutStore.getState();
+    s.initWithFirstPane("p1");
+    s.splitPane("right", "p2"); // tree: H(p1, p2), focus p2
+    s.focusPane("p1");
+    s.moveFocus("right");
+    expect(useLayoutStore.getState().focusedPaneId).toBe("p2");
+  });
+
+  it("resizeSplit clamps the ratio to [MIN, MAX]", () => {
+    const s = useLayoutStore.getState();
+    s.initWithFirstPane("p1");
+    s.splitPane("right", "p2");
+    s.resizeSplit("p1", "p2", 0.01); // below MIN
+    const r = useLayoutStore.getState().root;
+    expect(r?.type).toBe("split");
+    if (r?.type !== "split") return;
+    expect(r.ratio).toBeGreaterThanOrEqual(0.05);
   });
 });
 
 describe("ptyStore", () => {
   beforeEach(() => {
-    // Reset both store state and the module-level activity throttle so tests
-    // are deterministic regardless of run order.
     usePtyStore.setState({ panes: {} });
     usePtyStore.getState()._resetActivityThrottle();
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(1_700_000_000_000)); // fixed deterministic clock
+    vi.setSystemTime(new Date(1_700_000_000_000));
   });
   afterEach(() => vi.useRealTimers());
 
@@ -67,7 +114,6 @@ describe("ptyStore", () => {
     s.addPane("p1", wsl);
     s.setStatus("p1", "running");
     expect(usePtyStore.getState().panes["p1"]?.status).toBe("running");
-
     s.setStatus("p1", "errored", "spawn failed");
     expect(usePtyStore.getState().panes["p1"]?.status).toBe("errored");
     expect(usePtyStore.getState().panes["p1"]?.errorReason).toBe("spawn failed");
@@ -85,14 +131,10 @@ describe("ptyStore", () => {
     s.addPane("p1", wsl);
     const t0 = Date.now();
     s.markActivity("p1", t0);
-    const first = usePtyStore.getState().panes["p1"]?.lastActivity;
-    expect(first).toBe(t0);
-
+    expect(usePtyStore.getState().panes["p1"]?.lastActivity).toBe(t0);
     s.markActivity("p1", t0 + 50);
     s.markActivity("p1", t0 + 199);
-    // Throttle window is 200ms; these calls should be dropped.
     expect(usePtyStore.getState().panes["p1"]?.lastActivity).toBe(t0);
-
     s.markActivity("p1", t0 + 200);
     expect(usePtyStore.getState().panes["p1"]?.lastActivity).toBe(t0 + 200);
   });
@@ -103,7 +145,6 @@ describe("ptyStore", () => {
     s.addPane("p2", wsl);
     const t0 = Date.now();
     s.markActivity("p1", t0);
-    // p2's first call goes through even though p1 just emitted
     s.markActivity("p2", t0 + 10);
     expect(usePtyStore.getState().panes["p2"]?.lastActivity).toBe(t0 + 10);
   });

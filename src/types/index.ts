@@ -32,17 +32,12 @@ export interface PaneMetadata {
   errorReason: string | null;
 }
 
-// ---------- Layout (Weekend 1 — flat list; tree lands in Weekend 2) ----------
-
-/**
- * Weekend 1 layout is a flat ordered array of PaneIds. The binary tree lands
- * in Weekend 2 with the tiling work. Keeping it dumb here means we can validate
- * the smoothness baseline without coupling to layout decisions.
- */
-export interface LayoutState {
-  paneIds: PaneId[];
-  focusedPaneId: PaneId | null;
-}
+// ---------- Layout ----------
+// LayoutState was the Weekend 1 flat list type. The Weekend 2 store uses a
+// binary tree; its shape is exported by src/store/layout/tree.ts as LayoutNode.
+// Keeping this type alias here only as a forward-compat shim — anything that
+// still imports LayoutState from "@/types" should migrate to importing the
+// store directly via useLayoutStore.
 
 // ---------- PTY channel events — mirror of Rust PtyEvent (src-tauri/src/pty.rs) ----------
 

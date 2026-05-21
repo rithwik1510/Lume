@@ -16,7 +16,7 @@
 
 import { Channel } from "@tauri-apps/api/core";
 
-import { useLayoutStore } from "@/store/layoutStore";
+import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
 import { usePtyStore } from "@/store/ptyStore";
 import {
   getOrCreateTerminal,
@@ -117,11 +117,16 @@ async function killPane(paneId: PaneId): Promise<void> {
 /**
  * Install the orchestrator at app boot. Call ONCE from App.tsx. Returns an
  * unsubscriber for tests / hot reload.
+ *
+ * Diffs against the previous tree's leaf set on every state change. Cheap
+ * because trees are small (handful of leaves) and we only walk them on change.
  */
 export function installPtyOrchestrator(): () => void {
   const sub = useLayoutStore.subscribe((state, prev) => {
-    const added = state.paneIds.filter((id) => !prev.paneIds.includes(id));
-    const removed = prev.paneIds.filter((id) => !state.paneIds.includes(id));
+    const curr = getPaneIds(state);
+    const before = getPaneIds(prev);
+    const added = curr.filter((id) => !before.includes(id));
+    const removed = before.filter((id) => !curr.includes(id));
     for (const id of added) void spawnPane(id, defaultShell());
     for (const id of removed) void killPane(id);
   });

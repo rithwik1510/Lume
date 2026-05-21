@@ -1,25 +1,33 @@
-// Workstation root. Weekend 1 surface: install the PTY orchestrator and lay
-// out four Terminal Panes in a 2×2 grid for the Smoothness Acceptance Test
-// (DESIGN.md §9). Tiling tree + splitters + sidebar + MD editor land in
-// later weekends. Keeping this dumb on purpose.
+// Workstation root. Weekend 2 W2-P1 bridge: the layoutStore is now binary-tree
+// based, but the actual render-via-splitters UI lands in W2-P2. For now we
+// keep rendering panes in a flat grid driven by `leaves(root)` so the existing
+// 4-pane smoothness baseline still works while we land the tree underneath.
 
 import { useEffect } from "react";
 
 import { TerminalPane } from "@/components/TerminalPane";
-import { useLayoutStore } from "@/store/layoutStore";
+import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 
 const INITIAL_PANE_IDS = ["p1", "p2", "p3", "p4"] as const;
 
 export default function App() {
-  const paneIds = useLayoutStore((s) => s.paneIds);
+  const paneIds = useLayoutStore(getPaneIds);
   const focusedPaneId = useLayoutStore((s) => s.focusedPaneId);
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
-    const { addPane, paneIds: existing } = useLayoutStore.getState();
-    for (const id of INITIAL_PANE_IDS) {
-      if (!existing.includes(id)) addPane(id);
+    const { root, initWithFirstPane, splitPane } = useLayoutStore.getState();
+    if (root === null) {
+      // First pane bootstraps the tree as a single leaf.
+      const [first, ...rest] = INITIAL_PANE_IDS;
+      if (first === undefined) return;
+      initWithFirstPane(first);
+      // Subsequent panes split the focused pane to the right. For a 2x2 visual
+      // we'd alternate right / down — W2-P2 will replace this with a proper
+      // initial layout. For now the flat-grid render below is independent of
+      // the tree's actual shape.
+      for (const id of rest) splitPane("right", id);
     }
     return () => dispose();
   }, []);
