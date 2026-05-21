@@ -43,30 +43,29 @@ function TerminalPaneImpl({ paneId }: Props) {
     };
     window.addEventListener("keydown", onKeyDown, true);
 
-    // Resize follows the host element. During a splitter drag this fires
-    // 60+ times per second, which without coalescing causes xterm to reflow
-    // and the PTY to take an IPC round-trip on every frame → visible flicker.
+    // Resize follows the host element. During a splitter drag the observer
+    // fires ~60 times/sec. Calling fit() on each tick triggers a real
+    // term.resize() (xterm reflows whenever the cell grid changes), and the
+    // accumulating reflows ARE the flicker.
     //
-    // Mitigations:
-    //   1. fit() coalesced to one call per requestAnimationFrame — visual
-    //      reflow runs at most at the display's refresh rate.
-    //   2. resizePty() (the IPC round-trip + portable-pty ioctl) debounced
-    //      to 100 ms AFTER the last resize event. The PTY only needs the
-    //      final size once the user releases the splitter.
-    let fitRafId: number | null = null;
-    let resizeIpcTimer: number | null = null;
+    // Strategy: do NOT call fit() during the drag. Debounce it to 120 ms
+    // after the last resize event. The visible Panel area still tracks the
+    // drag smoothly (CSS handles that); xterm content gets clipped/expanded
+    // by the parent until the drag settles, then one clean reflow at the
+    // end. resizePty is debounced from the same timer so it only fires once.
+    //
+    // 120 ms is a touch longer than 100 ms because react-resizable-panels
+    // emits a final onLayout shortly after mouseup; we want our debounce to
+    // outlive that final settle.
+    let resizeTimer: number | null = null;
     const onResize = () => {
-      if (fitRafId !== null) return;
-      fitRafId = requestAnimationFrame(() => {
-        fitRafId = null;
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        resizeTimer = null;
         const dims = fitTerminal(paneId);
         if (!dims) return;
-        if (resizeIpcTimer !== null) window.clearTimeout(resizeIpcTimer);
-        resizeIpcTimer = window.setTimeout(() => {
-          resizeIpcTimer = null;
-          void resizePty(paneId, dims.cols, dims.rows).catch(() => undefined);
-        }, 100);
-      });
+        void resizePty(paneId, dims.cols, dims.rows).catch(() => undefined);
+      }, 120);
     };
     const obs = new ResizeObserver(onResize);
     obs.observe(hostRef.current);
@@ -74,8 +73,7 @@ function TerminalPaneImpl({ paneId }: Props) {
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       obs.disconnect();
-      if (fitRafId !== null) cancelAnimationFrame(fitRafId);
-      if (resizeIpcTimer !== null) window.clearTimeout(resizeIpcTimer);
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
       detach(paneId);
     };
   }, [paneId]);

@@ -14,7 +14,7 @@
 // fight the user's drag — the tree IS the source of truth, but we only push
 // it back via resizeSplit when the user drags, not on every render.
 
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Panel,
   PanelGroup,
@@ -104,14 +104,32 @@ function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
     return [l, r] as const;
   }, [node]);
 
+  // onLayout fires on every drag tick (~60/sec). If we update the Zustand
+  // store on each tick, the whole PaneTree re-renders 60 times/sec — second-
+  // order layout churn that contributes to the splitter-drag flicker.
+  //
+  // Strategy: debounce the store update to 120 ms after the drag settles.
+  // react-resizable-panels owns the Panel sizes internally during the drag
+  // (it's uncontrolled after mount). We only persist the final ratio.
+  const debouncedStore = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (debouncedStore.current !== null) window.clearTimeout(debouncedStore.current);
+    };
+  }, []);
+
   const onLayout = useCallback(
     (sizes: number[]) => {
-      const left = sizes[0];
-      if (left === undefined || leftAnchor === undefined || rightAnchor === undefined) return;
-      const ratio = left / 100;
-      // Skip near-no-ops to avoid feedback loops.
-      if (Math.abs(ratio - node.ratio) < 0.001) return;
-      resizeSplit(leftAnchor, rightAnchor, ratio);
+      if (debouncedStore.current !== null) window.clearTimeout(debouncedStore.current);
+      debouncedStore.current = window.setTimeout(() => {
+        debouncedStore.current = null;
+        const left = sizes[0];
+        if (left === undefined || leftAnchor === undefined || rightAnchor === undefined) return;
+        const ratio = left / 100;
+        // Skip near-no-ops to avoid feedback loops on settle.
+        if (Math.abs(ratio - node.ratio) < 0.001) return;
+        resizeSplit(leftAnchor, rightAnchor, ratio);
+      }, 120);
     },
     [leftAnchor, rightAnchor, node.ratio, resizeSplit]
   );
