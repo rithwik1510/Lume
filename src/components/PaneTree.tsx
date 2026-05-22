@@ -28,13 +28,15 @@ import { useLayoutStore } from "@/store/layoutStore";
 import { leaves, type LayoutNode } from "@/store/layout/tree";
 
 /**
- * Per-pane percentage limits during a splitter drag. Below this each pane
- * becomes unreadable (text wraps at <10 columns); above this the OTHER
- * pane is squeezed to the same condition. 15/85 keeps both panes usable
- * across any reasonable window width.
+ * Per-pane percentage limits during a splitter drag. Below the minimum
+ * each pane gets too narrow for real shell output (wraps at <30 columns);
+ * above the maximum the OTHER pane hits the same condition. 25/75 keeps
+ * both panes comfortably usable across any reasonable window width —
+ * tighter than the original 15/85 because squeezing a pane to 15% turns
+ * out to be cramped enough that nobody actually wants to leave it there.
  */
-const PANE_MIN_PCT = 15;
-const PANE_MAX_PCT = 85;
+const PANE_MIN_PCT = 25;
+const PANE_MAX_PCT = 75;
 
 interface Props {
   node: LayoutNode;
