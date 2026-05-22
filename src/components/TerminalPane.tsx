@@ -46,10 +46,15 @@ function TerminalPaneImpl({ paneId }: Props) {
 
     // Resize handling — see resizeBus.ts header for the root cause.
     //
-    // During a splitter drag, xterm is hidden via body.workstation-resizing
-    // CSS (set by PaneTree's PanelResizeHandle onDragging). No fit / resize
-    // calls run because nothing's visible — the WebGL canvas clear-and-
-    // redraw cycle has nothing to display, so no flicker is possible.
+    // During a splitter drag we deliberately do NOT call fit(). xterm.js's
+    // WebGL renderer writes canvas.width / canvas.height inside its
+    // handleResize() (verified against @xterm/addon-webgl/src/WebglRenderer.ts),
+    // and writing to a WebGL canvas's pixel dimensions clears its framebuffer
+    // per the WebGL spec. Doing that 60 times per second is the flicker.
+    // Skipping fit() during the drag keeps the canvas dimensions stable, so
+    // no clear, so no flicker. xterm content stays at its old pixel size
+    // while the wrapper grows / shrinks around it — content is still visible
+    // and the brief mismatch is the same pattern VSCode / JetBrains / Warp use.
     //
     // Two triggers fire fit() + PTY resize:
     //   1. ResizeObserver — handles non-drag size changes (window resize,

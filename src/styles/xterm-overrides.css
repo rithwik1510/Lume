@@ -62,26 +62,36 @@
  *
  * Earlier attempts (CSS containment, image-rendering: pixelated, rAF-
  * coalesced fit()) did NOT solve the visible "refresh every frame"
- * complaint. The real root cause: xterm.js's WebGL renderer resizes its
- * <canvas> elements on every term.resize() call, and setting
- * canvas.width / canvas.height on a WebGL canvas CLEARS its framebuffer
- * per the WebGL spec. With rAF-coalesced fit() that means 60 canvas
- * clears + full redraws per second during a drag. THAT is the flicker.
+ * complaint. The real root cause is in xterm.js's WebGL renderer
+ * (verified against node_modules/@xterm/addon-webgl/src/WebglRenderer.ts):
+ * handleResize() writes canvas.width / canvas.height on every term.resize()
+ * call, and writing to a WebGL canvas's pixel dimensions CLEARS its
+ * framebuffer per the WebGL spec. With per-frame fit() during a drag that
+ * means ~60 canvas clears + full redraws per second. THAT is the flicker.
  *
- * The fix: during a splitter drag, hide xterm entirely. fit() + resize
- * run exactly once at drag-end (driven by resizeBus.onResizeEnd) when
- * content becomes visible again. One redraw, no visible per-frame clear.
+ * The actual fix lives in TerminalPane's ResizeObserver: it bails when
+ * resizeBus.isResizing() is true, so fit() never fires during a drag, so
+ * canvas.width is never written, so the framebuffer is never cleared.
+ * fit() + PTY resize fire EXACTLY ONCE at drag-end via the
+ * resizeBus.onResizeEnd subscription. Same pattern VSCode / JetBrains /
+ * Warp use for heavy canvas content during pane drag.
  *
- * Same pattern: VSCode hides terminal content during pane resize;
- * Figma/Sketch web hide heavy canvas content during layout drag.
+ * During the drag the xterm canvases keep their previous pixel dimensions
+ * (xterm explicitly sets .xterm-screen's CSS width/height to those pixels
+ * too). The .xterm wrapper grows/shrinks around them, so the user sees
+ * the OLD content stay put while the wrapper changes size — a brief
+ * visual mismatch that's far less jarring than hiding xterm entirely.
+ * Content reflows once at drag-end.
+ *
+ * NOTE: an earlier iteration of this fix ALSO hid xterm via
+ * `body.workstation-resizing .xterm { visibility: hidden }`. That worked
+ * but produced a black-out during every drag, which the user reported as
+ * "screen goes black when sliding." Removed because the ResizeObserver
+ * bail above is already sufficient to prevent the canvas-clear flicker.
  * -------------------------------------------------------------------------- */
 
-body.workstation-resizing .xterm {
-  visibility: hidden;
-}
-
-/* While not the flicker fix, keep `contain` to limit layout cascade from
- * xterm into its ancestors — useful regardless of drag state. */
+/* `contain` limits the xterm subtree's layout/paint cascade so resizing the
+ * wrapper doesn't trigger reflow in ancestors. Useful regardless of drag. */
 .xterm {
   contain: layout style paint;
 }

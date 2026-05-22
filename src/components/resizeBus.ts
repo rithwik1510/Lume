@@ -9,16 +9,28 @@
 //   No amount of CSS containment fixes it because the clear is inside
 //   the canvas, not in CSS sampling.
 //
-// The correct architecture: hide xterm visually during the drag (so the
-// per-frame clear-and-redraw isn't visible), then fit + resize exactly
-// once on drag-end. This is the same pattern VSCode, Figma, Sketch use
-// for heavy canvas content during pane resize.
+// The correct architecture: don't call fit() during a drag at all, then
+// fit + PTY-resize exactly once on drag-end. This is the same pattern
+// VSCode, JetBrains, and Warp use for heavy canvas content during pane
+// resize.
 //
 // This file is the imperative bus that PaneTree's PanelResizeHandle uses
-// to signal drag start/end to all TerminalPanes simultaneously. A module-
-// level counter lets nested splits compose correctly (e.g. if multiple
-// drag sessions are conceptually active, the body class stays set until
-// all of them have ended).
+// to signal drag start/end to all TerminalPanes simultaneously:
+//
+//   - isResizing() — TerminalPane's ResizeObserver checks this and bails
+//     when true, so fit() never fires mid-drag. This is the load-bearing
+//     fix for the flicker.
+//   - onResizeEnd subscription — fires once when all drags settle, so
+//     each TerminalPane fits + sends SIGWINCH in the same frame the
+//     final size is known.
+//   - body class — toggled for CSS hooks. Currently unused; an earlier
+//     iteration used it to hide xterm via `visibility: hidden`, but that
+//     produced a black-out during drag and was removed in favour of the
+//     bail-only approach.
+//
+// A module-level refcount lets nested splits compose correctly (e.g. if
+// multiple drag sessions are conceptually active, the body class and the
+// "is resizing" flag stay set until all of them have ended).
 
 const BODY_CLASS = "workstation-resizing";
 
