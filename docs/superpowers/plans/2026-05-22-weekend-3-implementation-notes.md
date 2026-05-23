@@ -43,7 +43,13 @@ Categories to capture:
 
 ## Phase 2 — Sidebar with file tree, filter, new-file, watcher
 
-_to be filled in_
+- **Deviation:** `sidebarStore` stores `entries` as a `Map` and `expanded` as a `Set`. Immer doesn't proxy Map/Set drafts unless the MapSet plugin is loaded — the first test run failed with `[Immer] The plugin for 'MapSet' has not been loaded`. Fix: added `import { enableMapSet } from "immer"; enableMapSet();` at module top-level in `sidebarStore.ts`. The plan didn't anticipate this because `layoutStore` (the reference store) only uses plain objects/arrays inside Immer. Calling `enableMapSet` is idempotent, so re-imports are safe. Added a comment explaining why.
+- **FYI:** `cargo fmt --check` failed on first pass — the plan's `fs.rs` source had `.map_err(|e| AppError::Internal { reason: ... })` on a single line which rustfmt wants block-formatted, and the `assert_eq!(names, vec![...])` line wrapped. Ran `cargo fmt --all` to apply; no semantic change.
+- **FYI:** `cargo clippy --all-targets -D warnings` passed clean on both `fs.rs` and `file_watcher.rs` as written — no unused-dep warnings from `notify` / `dirs`. (Confirms the controller's note that adding `which = "6.0"` would have failed clippy; skipped as instructed.)
+- **Decision:** Wired the file-watcher `useEffect` into `Sidebar.tsx` in the same write as Task 2.6 (instead of editing the file again in Task 2.8 step 4). The plan presents Task 2.8 step 4 as a separate edit, but the resulting file is identical either way. One write, one mental model.
+- **FYI:** `Channel<FsEvent>` in Tauri 2.11 is `Clone` (Arc-backed) — the plan's `Arc::new(channel)` + `chan_clone = channel.clone()` pattern works but is technically redundant (Arc-wrapping a Clone). Kept as written since it doesn't hurt and matches the plan verbatim.
+- **FYI:** Tauri 2.1 was requested in `Cargo.toml`; cargo resolved to `tauri 2.11.2`. `tauri::ipc::Channel<T>::new()` on the JS side works fine with this resolution — the `Channel` constructor + `onmessage` setter API used in `fileWatcher.ts` matches the 2.x-line behavior.
+- **FYI:** No `mdStore` import anywhere in Phase 2 code — verified by `grep -r mdStore src/` returning nothing. `.md` file clicks in `SidebarTree.tsx` are a documented no-op until Phase 4. New-file action in `Sidebar.tsx` writes the file to disk and lets the watcher refresh the tree; Phase 4 will tack on the "open in MD editor" call.
 
 ---
 

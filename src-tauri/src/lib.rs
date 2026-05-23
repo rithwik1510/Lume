@@ -1,6 +1,8 @@
 // Workstation Rust entry point.
 
 pub mod error;
+pub mod file_watcher;
+pub mod fs;
 pub mod pty;
 
 pub use error::{AppError, AppResult};
@@ -46,11 +48,17 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(pty::PtyRegistry::default())
+        .manage(file_watcher::FileWatcherState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_open,
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            crate::fs::list_dir,
+            crate::fs::read_text_file,
+            crate::fs::write_text_file,
+            crate::fs::home_dir,
+            crate::file_watcher::watch_workspace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running workstation");

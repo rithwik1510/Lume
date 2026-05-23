@@ -1,0 +1,118 @@
+/* Sidebar visual design. Inherits all colour from theme.css tokens. */
+
+.sidebar {
+  width: 240px;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg-0);
+  user-select: none;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+}
+
+.filter {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-0);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 4px var(--space-2);
+  outline: none;
+}
+
+.filter::placeholder {
+  color: var(--fg-2);
+}
+
+.filter:focus {
+  border-color: var(--accent-dim);
+}
+
+.iconButton {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--fg-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.iconButton:hover {
+  background: var(--bg-2);
+  color: var(--fg-0);
+}
+
+.tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-1) 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding-right: var(--space-2);
+  color: var(--fg-0);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.row:hover {
+  background: var(--bg-2);
+}
+
+.row.selected {
+  background: var(--accent-alpha);
+}
+
+.row.dim {
+  color: var(--fg-2);
+}
+
+.chevron {
+  width: 16px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--fg-2);
+  font-size: 10px;
+}
+
+.chevron.placeholder {
+  visibility: hidden;
+}
+
+.icon {
+  width: 16px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--fg-1);
+  font-size: 12px;
+  margin-right: var(--space-1);
+}
+
+.label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

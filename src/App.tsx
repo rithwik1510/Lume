@@ -1,10 +1,11 @@
-// Workstation root. Weekend 2: render the layoutStore tree via PaneTree (nested
-// react-resizable-panels). Bootstrap 4 panes on first mount so the smoothness
-// baseline is comparable to the Weekend 1 setup, but now through real splits.
+// Workstation root. Phase 2: horizontal flex layout with the Sidebar on the
+// left and the Tiling Area (PaneTree) filling the rest. The Sidebar manages
+// its own width via CSS module; the tiling area takes flex: 1.
 
 import { useEffect } from "react";
 
 import { PaneTree } from "@/components/PaneTree";
+import { Sidebar } from "@/components/Sidebar";
 import { useLayoutStore } from "@/store/layoutStore";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -33,25 +34,29 @@ export default function App() {
         width: "100vw",
         height: "100vh",
         background: "var(--bg-0)",
-        padding: 1,
+        display: "flex",
+        flexDirection: "row",
         boxSizing: "border-box",
       }}
     >
-      {root === null ? (
-        <div
-          style={{
-            color: "var(--fg-2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-          }}
-        >
-          empty layout
-        </div>
-      ) : (
-        <PaneTree node={root} path="root" />
-      )}
+      <Sidebar />
+      <div style={{ flex: 1, position: "relative", padding: 1, minWidth: 0 }}>
+        {root === null ? (
+          <div
+            style={{
+              color: "var(--fg-2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            empty layout
+          </div>
+        ) : (
+          <PaneTree node={root} path="root" />
+        )}
+      </div>
     </div>
   );
 }
