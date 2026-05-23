@@ -1,0 +1,38 @@
+/* DESIGN.md §5 — "Amber on Black" palette. Single source of truth for
+ * colour tokens. Anything that needs a colour should reference these
+ * variables, not a raw hex. v0.2's accent presets swap only --accent* —
+ * everything else stays. */
+
+:root {
+  /* Surfaces */
+  --bg-0: #0a0a0a;
+  --bg-1: #111111;
+  --bg-2: #1a1a1a;
+  --bg-3: #222222;
+
+  /* Foreground */
+  --fg-0: #e6e6e6;
+  --fg-1: #9a9a9a;
+  --fg-2: #6a6a6a;
+  --fg-heading: #ffffff;
+
+  /* Amber accent */
+  --accent: #d4a85c;
+  --accent-alpha: rgba(212, 168, 92, 0.3);
+  --accent-dim: #a07c3f;
+
+  /* State */
+  --error: #e85a5a;
+  --success: #7fc26b;
+
+  /* Chrome */
+  --border: #222222;
+
+  /* Geometry — small set of utility tokens used by component CSS */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+}

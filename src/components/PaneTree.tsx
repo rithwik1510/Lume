@@ -71,8 +71,8 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
         // Uniform thin border on every pane — focus is shown by the xterm
         // cursor (visible blink), not by a heavy frame. Splitters already
         // delineate panes from each other.
-        border: "1px solid #181818",
-        background: "#0a0a0a",
+        border: "1px solid var(--border)",
+        background: "var(--bg-0)",
         overflow: "hidden",
         boxSizing: "border-box",
       }}
@@ -84,7 +84,7 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
           right: 8,
           fontSize: 10,
           // Subtle focus tell on the id badge — no full-pane chrome.
-          color: focused ? "#888" : "#333",
+          color: focused ? "var(--fg-1)" : "var(--fg-2)",
           fontFamily: "Inter, sans-serif",
           userSelect: "none",
           pointerEvents: "none",
@@ -173,7 +173,7 @@ function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
           else endResize();
         }}
         style={{
-          background: "#181818",
+          background: "var(--border)",
           ...(direction === "horizontal"
             ? { width: 3, cursor: "col-resize" }
             : { height: 3, cursor: "row-resize" }),

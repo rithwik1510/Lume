@@ -26,7 +26,9 @@ Categories to capture:
 
 ## Phase 0 — Theme tokens + CSS modules typing
 
-_to be filled in as Phase 0 lands_
+- **FYI:** The plan states to add `import "@/styles/theme.css"` to `src/main.tsx` BEFORE the existing CSS imports (xterm-overrides.css and @xterm/xterm/css/xterm.css). In reality those two CSS imports live in `src/terminals/registry.ts`, not in `main.tsx`. `main.tsx` had no CSS imports at all. The theme import was added as the first line of `main.tsx` as instructed — it loads before `registry.ts` is imported transitively, so load order is preserved.
+- **FYI:** Four hex codes in `src/terminals/registry.ts` (`#0a0a0a`, `#e8e8e8`, `#d4a85c`, `#d4a85c33`) were not substituted. These are xterm.js `ITheme` constructor arguments — the Terminal object's internal colour palette, not DOM CSS. CSS variables cannot be read by the xterm.js JS API, so these must remain as raw hex. They were not in the plan's substitution list.
+- **FYI:** `grep -RE "#[0-9a-fA-F]{3,6}" src/` after the substitutions reports hits only in `src/styles/theme.css` (the token definitions) and `src/terminals/registry.ts` (xterm ITheme, as noted above). No hits in xterm-overrides.css.
 
 ---
 

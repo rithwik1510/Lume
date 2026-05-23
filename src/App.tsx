@@ -32,7 +32,7 @@ export default function App() {
       style={{
         width: "100vw",
         height: "100vh",
-        background: "#0a0a0a",
+        background: "var(--bg-0)",
         padding: 1,
         boxSizing: "border-box",
       }}
@@ -40,7 +40,7 @@ export default function App() {
       {root === null ? (
         <div
           style={{
-            color: "#555",
+            color: "var(--fg-2)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
