@@ -1,4 +1,5 @@
 import "@/styles/theme.css";
+import "@/styles/fonts.css";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 

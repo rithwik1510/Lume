@@ -43,7 +43,7 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
   if (existing) return existing.term;
 
   const term = new Terminal({
-    fontFamily: '"JetBrains Mono", Consolas, "Courier New", monospace',
+    fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'JetBrains Mono Variable, Consolas, monospace',
     fontSize: 14,
     lineHeight: 1.2,
     cursorBlink: true,

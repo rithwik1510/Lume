@@ -1,0 +1,18 @@
+/* Bundle two font families inside the binary. @fontsource-variable ships
+ * variable woff2 files so we get all weights from one file per family.
+ * System fallbacks are listed in DESIGN.md §5. */
+
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+
+:root {
+  --font-ui: "Inter Variable", -apple-system, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "Consolas", "Cascadia Mono", ui-monospace, monospace;
+}
+
+html, body, #root {
+  font-family: var(--font-ui);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

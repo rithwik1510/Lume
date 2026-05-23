@@ -34,7 +34,10 @@ Categories to capture:
 
 ## Phase 1 — Bundle Inter + JetBrains Mono
 
-_to be filled in_
+- **FYI:** `npm install` was performed by the controller (not by this agent) because the API was overloaded during initial dispatch. Packages arrived at: `@fontsource-variable/inter@5.2.8`, `@fontsource-variable/jetbrains-mono@5.2.8`.
+- **Decision:** Verified that both packages ship an `index.css` entry point before writing `fonts.css`. Directory listing confirmed `index.css` exists in both `node_modules/@fontsource-variable/inter/` and `node_modules/@fontsource-variable/jetbrains-mono/`. The plan's `@import` paths (`@fontsource-variable/inter/index.css` and `@fontsource-variable/jetbrains-mono/index.css`) were used as-is — no deviation needed.
+- **FYI:** `registry.ts` `fontFamily` option updated from the hard-coded string `'"JetBrains Mono", Consolas, "Courier New", monospace'` to `getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'JetBrains Mono Variable, Consolas, monospace'`. This reads the CSS token at Terminal creation time so the xterm instance always mirrors the design token.
+- **FYI:** `npm install` reported 6 vulnerabilities. These are pre-existing dev-dependency noise (not blocking, not introduced by this phase).
 
 ---
 
