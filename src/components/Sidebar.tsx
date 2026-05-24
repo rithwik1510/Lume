@@ -18,6 +18,8 @@ export function Sidebar() {
   const setWorkspaceFolder = useSidebarStore((s) => s.setWorkspaceFolder);
   const storeEntries = useSidebarStore((s) => s.storeEntries);
   const openMdTab = useMdStore((s) => s.openMdTab);
+  const mdEditorMode = useMdStore((s) => s.mdEditorMode);
+  const setMdEditorMode = useMdStore((s) => s.setMdEditorMode);
 
   useEffect(() => {
     if (workspaceFolder === null) {
@@ -72,6 +74,13 @@ export function Sidebar() {
           value={filterText}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <button
+          className={`${styles.iconButton} ${mdEditorMode === "full" ? styles.active : ""}`}
+          title={mdEditorMode === "full" ? "Close MD Editor (Ctrl+E)" : "Open MD Editor (Ctrl+E)"}
+          onClick={() => setMdEditorMode(mdEditorMode === "full" ? "off" : "full")}
+        >
+          🗎
+        </button>
         <button className={styles.iconButton} title="New .md file" onClick={onNewFile}>
           ＋
         </button>
