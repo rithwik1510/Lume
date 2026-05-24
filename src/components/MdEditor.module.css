@@ -6,6 +6,42 @@
   flex-direction: column;
   background: var(--bg-0);
 }
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  height: 28px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  box-sizing: border-box;
+}
+.toggle {
+  background: transparent;
+  color: var(--fg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.toggle:hover {
+  color: var(--fg-0);
+  border-color: var(--accent-dim);
+}
+.toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.toggleActive {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  background: var(--bg-2);
+}
 .body {
   flex: 1;
   min-height: 0;

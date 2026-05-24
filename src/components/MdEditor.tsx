@@ -1,5 +1,5 @@
 // src/components/MdEditor.tsx
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import styles from "@/components/MdEditor.module.css";
 import { buildEditor } from "@/codemirror/setup";
@@ -13,8 +13,13 @@ export function MdEditor() {
   const tab = useMdStore((s) => s.tabs.find((t) => t.id === activeTabId) ?? null);
   const setTabContent = useMdStore((s) => s.setTabContent);
 
+  // Preview pane toggle (DESIGN.md §3 "toggleable via a button in the MD Editor
+  // toolbar"). Default open; hiding gives the editor the full width and skips
+  // the markdown-it render entirely — useful when the preview feels redundant
+  // or when scrolling the source freely without the preview tagging along.
+  const [previewOpen, setPreviewOpen] = useState(true);
+
   const editorHostRef = useRef<HTMLDivElement | null>(null);
-  const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const editorViewRef = useRef<EditorView | null>(null);
 
   // Build / rebuild editor when active tab changes. Intentionally NOT depending
@@ -37,32 +42,25 @@ export function MdEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab?.id]);
 
-  // Scroll sync: editor → preview via percentage. rAF-coalesced.
-  useEffect(() => {
-    const view = editorViewRef.current;
-    if (!view || !previewScrollRef.current) return;
-    let raf: number | null = null;
-    const handler = () => {
-      if (raf !== null) return;
-      raf = requestAnimationFrame(() => {
-        raf = null;
-        const scroller = view.scrollDOM;
-        const previewEl = previewScrollRef.current;
-        if (!previewEl) return;
-        const pct = scroller.scrollTop / Math.max(1, scroller.scrollHeight - scroller.clientHeight);
-        previewEl.scrollTop = pct * Math.max(0, previewEl.scrollHeight - previewEl.clientHeight);
-      });
-    };
-    view.scrollDOM.addEventListener("scroll", handler, { passive: true });
-    return () => {
-      view.scrollDOM.removeEventListener("scroll", handler);
-      if (raf !== null) cancelAnimationFrame(raf);
-    };
-  }, [tab?.id]);
+  // Editor↔preview scroll sync intentionally NOT wired in v0.1. DESIGN.md §3
+  // calls it "best-effort"; the percentage-based sync we shipped originally
+  // felt disorienting because preview height rarely matches editor height
+  // (rendered HTML is much shorter than source markdown). Independent scroll
+  // is the v0.1 ergonomic; smarter source-mapped sync is deferred to v0.2.
 
   return (
     <div className={styles.root}>
       <MdEditorTabStrip />
+      <div className={styles.toolbar}>
+        <button
+          className={`${styles.toggle} ${previewOpen ? styles.toggleActive : ""}`}
+          onClick={() => setPreviewOpen((o) => !o)}
+          title={previewOpen ? "Hide preview pane" : "Show preview pane"}
+          disabled={tab === null}
+        >
+          {previewOpen ? "Hide Preview" : "Show Preview"}
+        </button>
+      </div>
       <div className={styles.body}>
         {tab === null ? (
           <div className={styles.empty}>No file open · Ctrl+O to open</div>
@@ -71,9 +69,11 @@ export function MdEditor() {
             <div className={styles.editor}>
               <div className={styles.cm} ref={editorHostRef} />
             </div>
-            <div className={styles.preview}>
-              <MdEditorPreview source={tab.content} containerRef={previewScrollRef} />
-            </div>
+            {previewOpen && (
+              <div className={styles.preview}>
+                <MdEditorPreview source={tab.content} />
+              </div>
+            )}
           </>
         )}
       </div>
