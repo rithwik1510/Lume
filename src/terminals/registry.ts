@@ -10,11 +10,13 @@
 // Lifecycle is driven by layoutStore subscription in the PTY orchestrator.
 
 import { Terminal } from "@xterm/xterm";
+import type { IDisposable } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import "@/styles/xterm-overrides.css";
 
+import { registerMdLinkProvider } from "@/terminals/mdLinkProvider";
 import type { PaneId } from "@/types";
 
 interface TerminalEntry {
@@ -22,6 +24,7 @@ interface TerminalEntry {
   fit: FitAddon;
   webgl: WebglAddon | null;
   attachedTo: HTMLElement | null;
+  linkDisposable: IDisposable | null;
 }
 
 const entries = new Map<PaneId, TerminalEntry>();
@@ -61,7 +64,13 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
   const fit = new FitAddon();
   term.loadAddon(fit);
 
-  entries.set(paneId, { term, fit, webgl: null, attachedTo: null });
+  entries.set(paneId, {
+    term,
+    fit,
+    webgl: null,
+    attachedTo: null,
+    linkDisposable: null,
+  });
   return term;
 }
 
@@ -111,6 +120,11 @@ export function attach(paneId: PaneId, host: HTMLElement): boolean {
   entry.term.open(host);
   entry.attachedTo = host;
 
+  // Register the MD-link provider exactly once per Terminal instance, on
+  // the first-mount path. Reparent (Path 2) doesn't re-register — the
+  // provider is bound to the Terminal, not the DOM host.
+  entry.linkDisposable = registerMdLinkProvider(entry.term, paneId);
+
   if (!entry.webgl) {
     try {
       const webgl = new WebglAddon();
@@ -142,6 +156,11 @@ export function detach(paneId: PaneId): void {
 export function disposeTerminal(paneId: PaneId): void {
   const entry = entries.get(paneId);
   if (!entry) return;
+  try {
+    entry.linkDisposable?.dispose();
+  } catch {
+    // ignore
+  }
   try {
     entry.webgl?.dispose();
   } catch {

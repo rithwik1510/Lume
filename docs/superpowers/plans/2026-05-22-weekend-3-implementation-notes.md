@@ -82,7 +82,13 @@ Categories to capture:
 
 ## Phase 5 — Ctrl+Click MD Link in terminals opens Quick Viewer
 
-_to be filled in_
+- **Deviation:** Plan's `mdLinkProvider.ts` `activate` callback reads `usePtyStore.getState().panes.get(paneId)?.cwd`, but `ptyStore.panes` is a `Record<PaneId, PaneMetadata>` (plain object), not a `Map`. Changed to bracket access: `usePtyStore.getState().panes[paneId]`. Same `meta?.cwd ?? null` fallback chain works. Documented inline with a comment.
+- **Deviation:** Dropped the plan's trailing `as ILinkProvider` structural cast on `buildMdLinkProvider`'s return. The object literal already conforms to `ILinkProvider` (xterm.js v5.5 — `provideLinks(bufferLineNumber, callback)` callback form). The function's `: ILinkProvider` return type annotation provides structural checking without the cast. Typecheck clean.
+- **Decision:** Registered the link provider on **Path 3** of `attach()` in `registry.ts` — the "first-ever open for this Terminal" branch, immediately after `entry.term.open(host)` and before WebGL init. Path 1 (same host re-fit) and Path 2 (reparent existing xterm root) do NOT re-register — the disposable stays bound to the Terminal across detach/reattach cycles, which is correct because the Terminal instance itself persists.
+- **Decision:** `disposeTerminal` calls `entry.linkDisposable?.dispose()` BEFORE `entry.webgl?.dispose()` and `entry.term.dispose()`, each in its own `try { ... } catch {}` to keep failures isolated. Per the plan's "BEFORE `entry.term.dispose()`" instruction.
+- **FYI:** `registry.ts` `TerminalEntry` now has a 5th field `linkDisposable: IDisposable | null`. `getOrCreateTerminal` initialises it to `null`; `attach` Path 3 fills it; `disposeTerminal` clears it. `IDisposable` imported from `@xterm/xterm` as a type-only import.
+- **FYI:** All verification gates clean on first pass. `npm test -- --run` = **90 passing** (83 + 7 new in `mdLinkProvider.test.ts`). `npm run typecheck`, `cargo test --lib` (14 passing, unchanged), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all -- --check` all clean.
+- **FYI — v0.1 limitation (per plan):** Relative-path Ctrl+Click resolves through `meta.cwd`, but `ptyStore` leaves `cwd` as `null` until OSC 7 shell-integration lands in v0.2. So in v0.1 only absolute paths (Windows `C:\...\foo.md` or POSIX `/...foo.md`) Ctrl+Click reliably. Relative paths underline but no-op on click. Documented as deferred.
 
 ---
 
