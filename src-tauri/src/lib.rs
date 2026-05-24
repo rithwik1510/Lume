@@ -4,6 +4,7 @@ pub mod error;
 pub mod file_watcher;
 pub mod fs;
 pub mod pty;
+pub mod shell_detect;
 
 pub use error::{AppError, AppResult};
 
@@ -59,6 +60,7 @@ pub fn run() {
             crate::fs::write_text_file,
             crate::fs::home_dir,
             crate::file_watcher::watch_workspace,
+            crate::shell_detect::detect_shells,
         ])
         .run(tauri::generate_context!())
         .expect("error while running workstation");

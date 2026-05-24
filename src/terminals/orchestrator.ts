@@ -27,7 +27,30 @@ import {
   fitTerminal,
 } from "@/terminals/registry";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
+import { detectShells } from "@/lib/shellsClient";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
+
+/**
+ * Module-level cache of shells discovered at boot. Populated by the
+ * `detectShells` call kicked off inside `installPtyOrchestrator`. Empty until
+ * the promise resolves; the right-click menu will simply have no shell options
+ * until then. See DESIGN.md §12 W3 #8.
+ */
+let detectedShells: Shell[] = [];
+
+export function getDetectedShells(): Shell[] {
+  return detectedShells;
+}
+
+export async function changeShell(paneId: PaneId, shell: Shell): Promise<void> {
+  // Tear down existing PTY then re-spawn with the new shell. The xterm
+  // Terminal stays alive in the registry (so scrollback is preserved
+  // through the swap — the new PTY's first bytes append after the old
+  // content). Caller is responsible for not interleaving shell swaps
+  // for the same paneId.
+  await killPty(paneId).catch(() => undefined);
+  await spawnPane(paneId, shell);
+}
 
 interface PaneRuntime {
   /** Disposer for the xterm onData handler — closes the JS→PTY input wire. */
@@ -50,7 +73,7 @@ function defaultShell(): Shell {
   return { kind: "powershell", path: "powershell.exe" };
 }
 
-async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
+export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
   // 1. Create/get the Terminal in the registry. Doesn't open into a DOM
   //    container yet — the TerminalPane component handles attach().
   const term = getOrCreateTerminal(paneId);
@@ -169,5 +192,18 @@ export function installPtyOrchestrator(): () => void {
     for (const id of added) void spawnPane(id, defaultShell());
     for (const id of removed) void killPane(id);
   });
+
+  // Boot-time shell auto-detection. Fire-and-forget — the right-click menu
+  // reads from `detectedShells` and renders an empty submenu until this
+  // resolves. Failure (e.g. detect_shells returns no shells on this host) is
+  // logged but non-fatal; users can keep using the default shell.
+  void detectShells()
+    .then((shells) => {
+      detectedShells = shells;
+    })
+    .catch((err) => {
+      console.error("detectShells failed", err);
+    });
+
   return sub;
 }

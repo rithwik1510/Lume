@@ -4,6 +4,7 @@
 
 import { useEffect } from "react";
 
+import { ContextMenu } from "@/components/ContextMenu";
 import { PaneTree } from "@/components/PaneTree";
 import { Sidebar } from "@/components/Sidebar";
 import { useLayoutStore } from "@/store/layoutStore";
@@ -57,6 +58,7 @@ export default function App() {
           <PaneTree node={root} path="root" />
         )}
       </div>
+      <ContextMenu />
     </div>
   );
 }

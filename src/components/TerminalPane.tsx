@@ -7,7 +7,7 @@
 // React.memo'd because re-renders should be cheap (no per-byte work happens
 // here — bytes flow Channel → registry.writeToTerminal directly).
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 
 import { onResizeEnd, isResizing } from "@/components/resizeBus";
 import {
@@ -18,7 +18,10 @@ import {
   resetMouseModes,
 } from "@/terminals/registry";
 import { resizePty } from "@/terminals/ptyClient";
+import { changeShell, getDetectedShells } from "@/terminals/orchestrator";
+import { useContextMenuStore } from "@/store/contextMenuStore";
 import { useLayoutStore } from "@/store/layoutStore";
+import { shellLabel } from "@/lib/shellsClient";
 import type { PaneId } from "@/types";
 
 interface Props {
@@ -96,9 +99,26 @@ function TerminalPaneImpl({ paneId }: Props) {
     focusTerminal(paneId);
   };
 
+  // Right-click → context menu with a "Change Shell…" submenu listing every
+  // shell detected at boot (DESIGN.md §12 W3 #8-#9). The submenu is empty
+  // until `detectShells` resolves; harmless — user just gets an empty submenu.
+  const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const shells = getDetectedShells();
+    const submenu = shells.map((s) => ({
+      label: shellLabel(s),
+      onClick: () => void changeShell(paneId, s),
+    }));
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, [
+      { label: "Change Shell…", submenu },
+    ]);
+  };
+
   return (
     <div
       onMouseDown={onMouseDown}
+      onContextMenu={onContextMenu}
       style={{
         position: "relative",
         width: "100%",

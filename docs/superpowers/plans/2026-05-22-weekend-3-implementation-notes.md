@@ -55,7 +55,14 @@ Categories to capture:
 
 ## Phase 3 — Shell auto-detection + per-pane Change Shell menu
 
-_to be filled in_
+- **FYI:** `which = "6.0"` resolved as expected; cargo did warn that `which 8.0.2` is available, but pinned v6.0 per the plan. Build clean, clippy clean.
+- **Deviation:** `shell_detect.rs` needed `#[cfg(target_os = "windows")]` on the `use std::process::Command;` line. Without the cfg-guard, clippy on non-Windows targets would flag the import as unused (the non-Windows `detect_wsl_distros` stub doesn't use it). Confirmed clippy clean on Windows with the guard in place.
+- **Decision:** `Shell` type in `src/types/index.ts` already matched the Rust `ShellDescriptor` JSON shape exactly (`kind` snake_case discriminant, `path` / `distro` variants). No changes needed — `shellsClient.shellLabel` switch is exhaustive against the existing union.
+- **Decision:** `killPty` is already exported from `@/terminals/ptyClient` (Phase 1+), so the plan's import works verbatim. No deviation.
+- **Decision:** Placed the boot-time `void detectShells().then(...)` call inside `installPtyOrchestrator()` AFTER the `useLayoutStore.subscribe(...)` assignment and immediately before `return sub;`. That's the single subscribe in the function — matches the plan's "immediately after the existing subscribe" instruction.
+- **Deviation:** `TerminalPane.tsx` did not have `React` in scope (only named imports `memo, useEffect, useRef`). Imported `type MouseEvent as ReactMouseEvent` from `react` and typed the handler as `ReactMouseEvent<HTMLDivElement>` rather than `React.MouseEvent<...>`. Plan's `e: React.MouseEvent<HTMLDivElement>` would have required a default-import refactor; this is the smaller change.
+- **FYI:** `cargo test --lib` count is now 14 (was 13 in Phase 2). 1 new test: `shell_detect::tests::detect_shells_includes_at_least_one_on_test_host`. On Windows host `cmd.exe` is always found via `which`, so the assertion passes.
+- **FYI:** `npm test -- --run` count is now 79 (was 76). 3 new in `src/store/contextMenuStore.test.ts`.
 
 ---
 
