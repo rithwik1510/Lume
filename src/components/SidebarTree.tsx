@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { SidebarRow } from "@/components/SidebarRow";
+import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore, COLLAPSED_DIRS } from "@/store/sidebarStore";
 import { listDir } from "@/lib/fsClient";
 
@@ -17,6 +18,7 @@ export function SidebarTree({ path, depth }: Props) {
   const matchesFilter = useSidebarStore((s) => s.matchesFilter);
   const toggleExpanded = useSidebarStore((s) => s.toggleExpanded);
   const storeEntries = useSidebarStore((s) => s.storeEntries);
+  const openMdInQuickViewer = useMdStore((s) => s.openMdInQuickViewer);
 
   useEffect(() => {
     if (entries === undefined) {
@@ -38,9 +40,11 @@ export function SidebarTree({ path, depth }: Props) {
           const onClick = () => {
             if (entry.is_dir) {
               toggleExpanded(entry.path);
+            } else if (entry.name.endsWith(".md")) {
+              void openMdInQuickViewer(entry.path).catch((err) => {
+                console.error("openMdInQuickViewer failed", err);
+              });
             }
-            // .md file clicks are a no-op in Phase 2; Phase 4 wires them
-            // into the Quick Viewer once mdStore exists.
           };
           return (
             <div key={entry.path}>

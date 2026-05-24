@@ -6,6 +6,7 @@ import { useEffect } from "react";
 
 import styles from "@/components/Sidebar.module.css";
 import { SidebarTree } from "@/components/SidebarTree";
+import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { homeDir, listDir, writeTextFile } from "@/lib/fsClient";
 import { watchWorkspace } from "@/lib/fileWatcher";
@@ -16,6 +17,7 @@ export function Sidebar() {
   const setFilter = useSidebarStore((s) => s.setFilter);
   const setWorkspaceFolder = useSidebarStore((s) => s.setWorkspaceFolder);
   const storeEntries = useSidebarStore((s) => s.storeEntries);
+  const openMdTab = useMdStore((s) => s.openMdTab);
 
   useEffect(() => {
     if (workspaceFolder === null) {
@@ -48,8 +50,9 @@ export function Sidebar() {
     const path = `${workspaceFolder}/${name.endsWith(".md") ? name : `${name}.md`}`;
     try {
       await writeTextFile(path, "");
-      // Phase 4 will open this in the MD Editor; for Phase 2 the file
-      // simply exists on disk and shows up in the tree via the file watcher.
+      // Per CONTEXT.md Sidebar header: ＋ New File opens the new .md in MD
+      // Editor Full View, NOT the Quick Viewer.
+      await openMdTab(path);
     } catch (e) {
       console.error("new file failed", e);
     }

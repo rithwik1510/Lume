@@ -18,6 +18,7 @@
 import { useEffect } from "react";
 
 import { useLayoutStore } from "@/store/layoutStore";
+import { useMdStore } from "@/store/mdStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
 
 // ---------- PaneId generator ----------
@@ -76,6 +77,20 @@ function closeFocused(): boolean {
   return true;
 }
 
+function toggleQuickViewer(): boolean {
+  const qv = useMdStore.getState().quickViewer;
+  if (qv.open) {
+    useMdStore.getState().closeQuickViewer();
+  } else if (qv.path !== null) {
+    // Reopen the last file if one was previously loaded; otherwise no-op.
+    void useMdStore
+      .getState()
+      .openMdInQuickViewer(qv.path)
+      .catch((err) => console.error("openMdInQuickViewer failed", err));
+  }
+  return true;
+}
+
 const SHORTCUTS: Shortcut[] = [
   // Splits — Ctrl+Alt+arrow
   { match: (e) => isCtrlAlt(e) && e.key === "ArrowRight", run: () => splitFromFocused("right") },
@@ -87,6 +102,14 @@ const SHORTCUTS: Shortcut[] = [
   { match: (e) => isCtrlOnly(e) && e.key === "ArrowLeft", run: () => moveFocus("left") },
   { match: (e) => isCtrlOnly(e) && e.key === "ArrowUp", run: () => moveFocus("up") },
   { match: (e) => isCtrlOnly(e) && e.key === "ArrowDown", run: () => moveFocus("down") },
+
+  // Toggle MD Quick Viewer — Ctrl+Shift+M (must come before Ctrl+W so the
+  // narrower shift-modifier match isn't shadowed).
+  {
+    match: (e) =>
+      e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "M" || e.key === "m"),
+    run: () => toggleQuickViewer(),
+  },
 
   // Close — Ctrl+W
   { match: (e) => isCtrlOnly(e) && (e.key === "w" || e.key === "W"), run: () => closeFocused() },

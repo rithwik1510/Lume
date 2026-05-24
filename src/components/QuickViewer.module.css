@@ -1,0 +1,45 @@
+/* src/components/QuickViewer.module.css */
+.root {
+  height: 100%;
+  background: var(--bg-0);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--fg-1);
+}
+
+.title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dirty {
+  color: var(--accent);
+  margin-right: var(--space-1);
+}
+
+.close {
+  background: transparent;
+  color: var(--fg-1);
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 var(--space-1);
+}
+.close:hover { color: var(--fg-0); }
+
+.editor {
+  flex: 1;
+  min-height: 0;
+}

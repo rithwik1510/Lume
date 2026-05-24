@@ -68,7 +68,15 @@ Categories to capture:
 
 ## Phase 4 — MD Quick Viewer Panel with CodeMirror 6
 
-_to be filled in_
+- **FYI — resolved dep versions:** `codemirror@6.0.2`, `@codemirror/state@6.6.0`, `@codemirror/view@6.43.0`, `@codemirror/commands@6.10.3`, `@codemirror/lang-markdown@6.5.0`, `@codemirror/language@6.12.3`, `@codemirror/language-data@6.5.2`, `@codemirror/theme-one-dark@6.1.3`, `markdown-it@14.1.1`, `dompurify@3.4.5`, devDeps `@types/markdown-it@14.1.2`, `@types/dompurify@3.0.5`. 61 + 4 packages added to lockfile.
+- **FYI:** `npm audit` reports 6 vulnerabilities (5 moderate, 1 critical) — pre-existing dev-dep noise plus the new transitive surface; `npm audit fix --force` would be a breaking-change risk and was not run, per the prompt's "do not run npm audit fix" instruction.
+- **Deviation:** `QuickViewer.tsx`'s `useEffect` that rebuilds the editor on `path` change intentionally omits `content` and `setContent` from the dep array. Added `// eslint-disable-next-line react-hooks/exhaustive-deps` immediately above the `[path]` dep line to keep ESLint happy without re-creating the editor on every keystroke. The trailing `// intentionally not depending on content` comment is preserved as the load-bearing semantic note.
+- **Decision:** placed the Ctrl+Shift+M `toggleQuickViewer` shortcut as a dedicated `SHORTCUTS` entry above the `Ctrl+W` entry, matching the plan's "before the Ctrl+W branch" instruction. The match predicate explicitly checks `e.shiftKey` so the narrower modifier combo isn't shadowed by `isCtrlOnly` on `Ctrl+W`. Used `useMdStore.getState()` from inside the run function — no reactive selectors inside the keydown handler, consistent with how the rest of the shortcuts module reads state.
+- **Decision:** `Sidebar.tsx`'s new-file flow now `await openMdTab(path)` after `writeTextFile(path, "")` per CONTEXT.md (Sidebar header — ＋ opens in MD Editor Full View, not Quick Viewer). The Phase 2 placeholder comment was replaced by a 2-line rationale comment pointing at CONTEXT.md.
+- **FYI:** `SidebarTree.tsx`'s `.md` click branch routes to `openMdInQuickViewer` per DESIGN.md §3 — opposite of the new-file flow above. The two paths are intentionally split.
+- **FYI:** `App.tsx` PanelGroup id is `pg-root-h`. The inner `Panel`'s `defaultSize` flips between 75 (with QuickViewer) and 100 (without). React mounts/unmounts the resize handle + right panel based on `quickViewerOpen`. The `PaneTree` PanelGroup ids inside the leaf are unrelated; no collision.
+- **FYI:** All verification gates clean on first pass after the implementation. `npm test -- --run` = **83 passing** (79 + 4 new in `mdStore.test.ts`). `npm run typecheck`, `cargo test --lib` (14 passing, unchanged), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all -- --check` all clean — no rework required.
+- **FYI — bundle size:** `@codemirror/language-data` pulls grammars on demand and adds ~1-2MB of language-mode JS to the front-end bundle. Expected per the plan; not slimmed. Will surface in the production-build phase but does not affect dev or test runs.
 
 ---
 
