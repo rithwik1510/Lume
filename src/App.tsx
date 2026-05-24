@@ -4,11 +4,19 @@
 //
 // Phase 4: the tiling area is itself a horizontal PanelGroup so the MD Quick
 // Viewer can dock on the right (default 25%, min 20%, max 60%) when open.
+//
+// Phase 6: when MD Editor mode is "full", the entire central area (Tiling Area
+// + MD Quick Viewer PanelGroup) is replaced by the <MdEditor /> per CONTEXT.md:
+// "When the MD Editor is in Full View, the Tiling Area + MD Quick Viewer area
+// are replaced by a single full-width CodeMirror 6 editor with the open MD
+// Tabs across the top. The Sidebar remains visible." The Sidebar and the
+// ContextMenu portal stay mounted alongside.
 
 import { useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ContextMenu } from "@/components/ContextMenu";
+import { MdEditor } from "@/components/MdEditor";
 import { PaneTree } from "@/components/PaneTree";
 import { QuickViewer } from "@/components/QuickViewer";
 import { Sidebar } from "@/components/Sidebar";
@@ -20,6 +28,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 export default function App() {
   const root = useLayoutStore((s) => s.root);
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
+  const mdMode = useMdStore((s) => s.mdEditorMode);
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
@@ -49,35 +58,39 @@ export default function App() {
     >
       <Sidebar />
       <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-        <PanelGroup direction="horizontal" id="pg-root-h">
-          <Panel defaultSize={quickViewerOpen ? 75 : 100} minSize={40}>
-            {root === null ? (
-              <div
-                style={{
-                  color: "var(--fg-2)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
-                }}
-              >
-                empty layout
-              </div>
-            ) : (
-              <PaneTree node={root} path="root" />
+        {mdMode === "full" ? (
+          <MdEditor />
+        ) : (
+          <PanelGroup direction="horizontal" id="pg-root-h">
+            <Panel defaultSize={quickViewerOpen ? 75 : 100} minSize={40}>
+              {root === null ? (
+                <div
+                  style={{
+                    color: "var(--fg-2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                  }}
+                >
+                  empty layout
+                </div>
+              ) : (
+                <PaneTree node={root} path="root" />
+              )}
+            </Panel>
+            {quickViewerOpen && (
+              <>
+                <PanelResizeHandle
+                  style={{ width: 3, background: "var(--border)", cursor: "col-resize" }}
+                />
+                <Panel defaultSize={25} minSize={20} maxSize={60}>
+                  <QuickViewer />
+                </Panel>
+              </>
             )}
-          </Panel>
-          {quickViewerOpen && (
-            <>
-              <PanelResizeHandle
-                style={{ width: 3, background: "var(--border)", cursor: "col-resize" }}
-              />
-              <Panel defaultSize={25} minSize={20} maxSize={60}>
-                <QuickViewer />
-              </Panel>
-            </>
-          )}
-        </PanelGroup>
+          </PanelGroup>
+        )}
       </div>
       <ContextMenu />
     </div>

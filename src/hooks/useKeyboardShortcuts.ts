@@ -91,6 +91,62 @@ function toggleQuickViewer(): boolean {
   return true;
 }
 
+// Ctrl+E — toggle MD Editor Full View. Fires regardless of current mode.
+function toggleMdMode(): boolean {
+  const cur = useMdStore.getState().mdEditorMode;
+  useMdStore.getState().setMdEditorMode(cur === "full" ? "off" : "full");
+  return true;
+}
+
+// Ctrl+O — prompt for an absolute path and open it as an MD Editor tab.
+// v0.1 uses window.prompt; a native Tauri dialog is v0.2 polish (DESIGN.md §3).
+function openMdFromPrompt(): boolean {
+  const path = window.prompt("Open .md file (absolute path)");
+  if (path && path.trim().length > 0) {
+    void useMdStore
+      .getState()
+      .openMdTab(path.trim())
+      .catch((err) => console.error("openMdTab failed", err));
+  }
+  return true;
+}
+
+// Ctrl+S — save the active MD Editor tab. Returns false when not in MD Full
+// View so other Ctrl+S handlers (none in v0.1, but defensive) can still fire.
+function saveActiveMdTab(): boolean {
+  if (useMdStore.getState().mdEditorMode !== "full") return false;
+  const active = useMdStore.getState().activeTabId;
+  if (active === null) return false;
+  void useMdStore.getState().saveMdTab(active);
+  return true;
+}
+
+// Ctrl+W — close the active MD Editor tab when in Full View. Returns false
+// otherwise so the existing close-pane handler keeps working.
+function closeActiveMdTab(): boolean {
+  if (useMdStore.getState().mdEditorMode !== "full") return false;
+  const active = useMdStore.getState().activeTabId;
+  if (active === null) return false;
+  useMdStore.getState().closeMdTab(active);
+  return true;
+}
+
+// Ctrl+Tab — cycle MD Editor tabs forward. Only fires in Full View; otherwise
+// returns false so the keystroke falls through to native tab order.
+function cycleMdTabs(): boolean {
+  if (useMdStore.getState().mdEditorMode !== "full") return false;
+  const { tabs, activeTabId, setActiveTab } = useMdStore.getState();
+  if (tabs.length === 0) return false;
+  const idx = tabs.findIndex((t) => t.id === activeTabId);
+  const next = tabs[(idx + 1) % tabs.length];
+  setActiveTab(next.id);
+  return true;
+}
+
+function isMdFullMode(): boolean {
+  return useMdStore.getState().mdEditorMode === "full";
+}
+
 const SHORTCUTS: Shortcut[] = [
   // Splits — Ctrl+Alt+arrow
   { match: (e) => isCtrlAlt(e) && e.key === "ArrowRight", run: () => splitFromFocused("right") },
@@ -111,7 +167,39 @@ const SHORTCUTS: Shortcut[] = [
     run: () => toggleQuickViewer(),
   },
 
-  // Close — Ctrl+W
+  // ---- MD Editor Full View shortcuts (Phase 6) ----
+  // These must come BEFORE the Ctrl+W close-pane entry so MD-gated handlers
+  // win when in Full View. When not in Full View, the `match` predicates for
+  // Ctrl+S / Ctrl+W / Ctrl+Tab return false so the loop falls through to the
+  // pane-level Ctrl+W (and Ctrl+S / Ctrl+Tab become no-ops, matching v0.1).
+
+  // Ctrl+E — toggle MD Editor mode (fires unconditionally)
+  { match: (e) => isCtrlOnly(e) && (e.key === "e" || e.key === "E"), run: () => toggleMdMode() },
+
+  // Ctrl+O — open .md file via prompt (fires unconditionally)
+  { match: (e) => isCtrlOnly(e) && (e.key === "o" || e.key === "O"), run: () => openMdFromPrompt() },
+
+  // Ctrl+S — save active MD tab (gated on Full View)
+  {
+    match: (e) => isCtrlOnly(e) && (e.key === "s" || e.key === "S") && isMdFullMode(),
+    run: () => saveActiveMdTab(),
+  },
+
+  // Ctrl+W — close active MD tab (gated on Full View; existing Ctrl+W
+  // close-pane entry below still handles the non-MD case)
+  {
+    match: (e) => isCtrlOnly(e) && (e.key === "w" || e.key === "W") && isMdFullMode(),
+    run: () => closeActiveMdTab(),
+  },
+
+  // Ctrl+Tab — cycle MD tabs (gated on Full View)
+  {
+    match: (e) => isCtrlOnly(e) && e.key === "Tab" && isMdFullMode(),
+    run: () => cycleMdTabs(),
+  },
+
+  // Close — Ctrl+W (pane close; runs when NOT in MD Full View because the
+  // MD-gated entry above will have matched first otherwise)
   { match: (e) => isCtrlOnly(e) && (e.key === "w" || e.key === "W"), run: () => closeFocused() },
 ];
 
