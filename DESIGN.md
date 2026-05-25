@@ -32,7 +32,7 @@ The smallest version that replaces the user's daily Sublime + Windows Terminal +
 
 - Tiled Terminal Panes with smooth split (right/up/down) and splitter resize.
 - MD Editor Full View (Ctrl+E) with simple multi-file tabs, defaulting to a rendered HTML view (markdown-it + DOMPurify); a pen icon in the top-right toolbar toggles to a CodeMirror source editor with line numbers ON.
-- MD Quick Viewer (right Panel, ~25% width default, resizable) triggered by Sidebar click, MD Link Ctrl+Click in a terminal, top-bar icon, or Ctrl+Shift+M. Quick Viewer is single-column source view (no separate preview pane — it's already narrow).
+- MD Quick Viewer (right Panel, ~25% width default, resizable) triggered by Sidebar click, MD Link Ctrl+Click in a terminal, top-bar icon, or Ctrl+Shift+M. **Read-only rendered view** (markdown-it + DOMPurify) — no editing surface. A pencil icon in the Quick Viewer header opens the file in the MD Editor Full View as a tab; that's the path for sustained editing. Single editing surface across the app keeps the model simple and removes any sync risk between two editing views of the same file.
 - Sidebar with file tree rooted at the Workspace Folder.
 - Shell auto-detection: pwsh, powershell.exe, cmd.exe, **all installed WSL distros**.
 - Config file (`~/.workstation/config.toml`) with hot reload via `notify`.
@@ -119,7 +119,7 @@ A **pen icon (`✎`)** sits in the top-right of the MD Editor toolbar. In view m
 - **React 18 + Vite + TypeScript** front-end
 - **Zustand** state library (see [ADR 0001](docs/adr/0001-frontend-stack.md))
 - **xterm.js** + `@xterm/addon-webgl` + `@xterm/addon-fit` for Terminal Panes
-- **CodeMirror 6** (vanilla, no React wrapper) for MD Editor and MD Quick Viewer; bundle `@codemirror/lang-markdown` + nested language support for ~10 common languages (js/ts, py, rust, go, bash, json, yaml, toml, html, css, sql)
+- **CodeMirror 6** (vanilla, no React wrapper) for MD Editor Full View edit mode only; bundle `@codemirror/lang-markdown` + nested language support for ~10 common languages (js/ts, py, rust, go, bash, json, yaml, toml, html, css, sql). Quick Viewer is read-only rendered HTML — no CM instance there.
 - **`markdown-it`** for the MD Editor's HTML Preview Pane. Locked config: `markdown-it({ html: false, linkify: true, breaks: true })` to prevent XSS via embedded HTML in markdown. `html: false` is non-negotiable — the Preview Pane renders inside the Tauri webview, which has Tauri command access. **DOMPurify** runs on markdown-it's output as defense-in-depth before injecting into the DOM. **Preview re-render is debounced to 250ms** after the last keystroke (avoids 50-100ms parse stalls on large docs). **Editor↔preview scroll sync uses `requestAnimationFrame`** to coalesce scroll events (a raw `scroll` event listener firing 60+Hz with `getBoundingClientRect` calls forces layout thrash).
 - **`portable-pty`** (Rust crate) for PTY management
 - **`notify`** (Rust crate) for config file watching
@@ -417,7 +417,7 @@ Goal: confirm the stack is viable before sinking real weekends.
 7. Re-run smoothness test with 4 tiled panes.
 
 ### Weekend 3 — Markdown + Preview + Sidebar + Shell support
-1. CodeMirror 6 integration (vanilla) for MD Editor Full View and MD Quick Viewer.
+1. CodeMirror 6 integration (vanilla) for MD Editor Full View edit mode (Quick Viewer is rendered-only).
 2. Inter + JetBrains Mono font loading (bundled woff2).
 3. MD Editor Tab Strip with simple tabs (no persistence, no unsaved-prompt for v0.1).
 4. MD Editor Full View: single-pane body that toggles between rendered HTML view (markdown-it + DOMPurify, default) and CodeMirror source edit mode via a pen icon in the top-right toolbar. Tab switches reset the mode to view.

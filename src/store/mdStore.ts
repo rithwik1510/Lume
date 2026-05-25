@@ -16,7 +16,6 @@ export interface QuickViewerState {
   open: boolean;
   path: string | null;
   content: string;
-  dirty: boolean;
 }
 
 export type MdEditorMode = "off" | "full";
@@ -27,10 +26,9 @@ export interface MdStoreState {
   activeTabId: string | null;
   quickViewer: QuickViewerState;
 
-  // Quick Viewer
+  // Quick Viewer — read-only rendered HTML. Editing happens in MD Editor
+  // Full View (openMdTab) to keep a single editing surface across the app.
   openMdInQuickViewer: (path: string) => Promise<void>;
-  setQuickViewerContent: (content: string) => void;
-  saveQuickViewer: () => Promise<void>;
   closeQuickViewer: () => void;
 
   // MD Editor Full View (used in Phase 6)
@@ -53,31 +51,17 @@ export const useMdStore = create<MdStoreState>()(
       mdEditorMode: "off",
       tabs: [],
       activeTabId: null,
-      quickViewer: { open: false, path: null, content: "", dirty: false },
+      quickViewer: { open: false, path: null, content: "" },
 
       openMdInQuickViewer: async (path) => {
         const content = await readTextFile(path);
         set((s) => {
-          s.quickViewer = { open: true, path, content, dirty: false };
-        });
-      },
-      setQuickViewerContent: (content) => {
-        set((s) => {
-          s.quickViewer.content = content;
-          s.quickViewer.dirty = true;
-        });
-      },
-      saveQuickViewer: async () => {
-        const qv = get().quickViewer;
-        if (qv.path === null) return;
-        await writeTextFile(qv.path, qv.content);
-        set((s) => {
-          s.quickViewer.dirty = false;
+          s.quickViewer = { open: true, path, content };
         });
       },
       closeQuickViewer: () => {
         set((s) => {
-          s.quickViewer = { open: false, path: null, content: "", dirty: false };
+          s.quickViewer = { open: false, path: null, content: "" };
         });
       },
 
@@ -140,7 +124,7 @@ export const useMdStore = create<MdStoreState>()(
           s.mdEditorMode = "off";
           s.tabs = [];
           s.activeTabId = null;
-          s.quickViewer = { open: false, path: null, content: "", dirty: false };
+          s.quickViewer = { open: false, path: null, content: "" };
         }),
     })),
     { name: "mdStore" }

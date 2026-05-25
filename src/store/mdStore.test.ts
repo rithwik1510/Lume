@@ -22,18 +22,14 @@ describe("mdStore — Quick Viewer", () => {
     expect(s.quickViewer.open).toBe(true);
     expect(s.quickViewer.path).toBe("/tmp/x.md");
     expect(s.quickViewer.content).toBe("contents of /tmp/x.md");
-    expect(s.quickViewer.dirty).toBe(false);
   });
 
-  it("setQuickViewerContent marks dirty", () => {
-    useMdStore.getState().setQuickViewerContent("new content");
-    expect(useMdStore.getState().quickViewer.content).toBe("new content");
-    expect(useMdStore.getState().quickViewer.dirty).toBe(true);
-  });
-
-  it("closeQuickViewer resets state", () => {
-    useMdStore.getState().setQuickViewerContent("x");
+  it("closeQuickViewer resets state", async () => {
+    await useMdStore.getState().openMdInQuickViewer("/tmp/x.md");
     useMdStore.getState().closeQuickViewer();
-    expect(useMdStore.getState().quickViewer.open).toBe(false);
+    const s = useMdStore.getState();
+    expect(s.quickViewer.open).toBe(false);
+    expect(s.quickViewer.path).toBeNull();
+    expect(s.quickViewer.content).toBe("");
   });
 });
