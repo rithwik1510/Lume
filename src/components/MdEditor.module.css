@@ -1,8 +1,9 @@
 /* src/components/MdEditor.module.css
  *
  * Single-pane layout (DESIGN.md §3). The body shows EITHER the rendered
- * view OR the CodeMirror editor — never both at once. The toolbar above
- * the body holds the pen icon that toggles between them. */
+ * view OR the CodeMirror editor — never both at once. The pen icon
+ * floats absolutely in the body's top-right corner so it sits inside
+ * the MD Editor, not in a separate toolbar bar. */
 
 .root {
   width: 100%;
@@ -12,68 +13,84 @@
   background: var(--bg-0);
 }
 
-.toolbar {
+.body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  height: 32px;
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-ui);
-  box-sizing: border-box;
+  flex-direction: column;
 }
 
-/* Pen button: outlined when in view mode, amber/filled when in edit. The
- * outlined state uses --fg-1 so the icon is legible against --bg-1 without
- * pulling focus away from the content below. */
+/* Floating pen toggle. Lives ABOVE the editor/view in z-order; uses a
+ * subtle two-layer shadow for depth (matches Mac native float-button
+ * conventions) so the icon reads as an action surface, not part of the
+ * content. Sized large enough to comfortably hit (~36px). */
 .penButton {
-  width: 28px;
-  height: 24px;
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: var(--bg-2);
   color: var(--fg-1);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
   padding: 0;
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  /* Two-layer shadow: a tight 1px for crisp edge contrast + a softer
+   * bloom for elevation. Reads as a raised surface against --bg-0. */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.32);
+  transition:
+    color 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .penButton:hover {
   color: var(--fg-0);
+  background: var(--bg-3);
   border-color: var(--accent-dim);
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.6),
+    0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
-.penButton:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.penButton:active {
+  transform: translateY(0);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
+/* Active = edit mode is on. Amber color + amber-tinted bloom so the user
+ * can read the state at a glance even without hovering. */
 .penActive {
   color: var(--accent);
+  background: var(--bg-3);
   border-color: var(--accent-dim);
-  background: var(--bg-2);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.55),
+    0 0 16px rgba(212, 168, 92, 0.32);
 }
 
 .penActive:hover {
   color: var(--accent);
   border-color: var(--accent);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.6),
+    0 0 22px rgba(212, 168, 92, 0.5);
 }
 
-.body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Editor and view fill the whole body — no side-by-side. */
+/* Editor and view fill the whole body. */
 .editor,
 .view {
   flex: 1;
