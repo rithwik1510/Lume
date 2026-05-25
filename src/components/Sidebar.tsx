@@ -29,6 +29,50 @@ export function Sidebar() {
 
   useEffect(() => {
     if (workspaceFolder === null) return;
+
+    // Coalesce + filter watcher events. Without this, watching the user's
+    // home folder recursively floods the renderer on Windows because
+    // AppData / .git / node_modules / browser caches / IDE indexers all
+    // generate FS noise. Each raw event becomes a Tauri IPC call into
+    // listDir + a store update + a re-render — easily hundreds per second
+    // on a busy machine, which shows up to the user as "(not responding)".
+    //
+    // Two-layer guard:
+    //   (a) Drop events whose path is inside a well-known noisy directory.
+    //   (b) Coalesce remaining events by their PARENT dir and flush at most
+    //       once per 300ms — many events on the same dir collapse into a
+    //       single listDir.
+    const NOISE_PATTERNS = [
+      /[/\\]AppData[/\\]/i,
+      /[/\\]\.git([/\\]|$)/i,
+      /[/\\]node_modules([/\\]|$)/i,
+      /[/\\]\.cache([/\\]|$)/i,
+      /[/\\]\.turbo([/\\]|$)/i,
+      /[/\\]\.next([/\\]|$)/i,
+      /[/\\]target([/\\]|$)/i,
+      /[/\\]dist([/\\]|$)/i,
+      /[/\\]build([/\\]|$)/i,
+      /[/\\]\.venv([/\\]|$)/i,
+      /[/\\]__pycache__([/\\]|$)/i,
+    ];
+
+    const pendingDirs = new Set<string>();
+    let flushTimer: number | null = null;
+    const flush = () => {
+      flushTimer = null;
+      const dirs = Array.from(pendingDirs);
+      pendingDirs.clear();
+      for (const dir of dirs) {
+        void listDir(dir)
+          .then((es) => storeEntries(dir, es))
+          .catch(() => undefined);
+      }
+    };
+    const schedule = () => {
+      if (flushTimer !== null) return;
+      flushTimer = window.setTimeout(flush, 300);
+    };
+
     watchWorkspace(workspaceFolder, (e) => {
       if (e.kind === "rescan") {
         void listDir(workspaceFolder)
@@ -36,12 +80,11 @@ export function Sidebar() {
           .catch(() => undefined);
         return;
       }
+      if (NOISE_PATTERNS.some((p) => p.test(e.path))) return;
       const parent = e.path.replace(/[/\\][^/\\]+$/, "");
-      if (parent.length > 0) {
-        void listDir(parent)
-          .then((es) => storeEntries(parent, es))
-          .catch(() => undefined);
-      }
+      if (parent.length === 0) return;
+      pendingDirs.add(parent);
+      schedule();
     });
   }, [workspaceFolder, storeEntries]);
 
