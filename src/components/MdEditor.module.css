@@ -1,4 +1,9 @@
-/* src/components/MdEditor.module.css */
+/* src/components/MdEditor.module.css
+ *
+ * Single-pane layout (DESIGN.md §3). The body shows EITHER the rendered
+ * view OR the CodeMirror editor — never both at once. The toolbar above
+ * the body holds the pen icon that toggles between them. */
+
 .root {
   width: 100%;
   height: 100%;
@@ -6,63 +11,83 @@
   flex-direction: column;
   background: var(--bg-0);
 }
+
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
-  padding: 4px var(--space-3);
-  height: 28px;
+  padding: 0 var(--space-3);
+  height: 32px;
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
   font-family: var(--font-ui);
   box-sizing: border-box;
 }
-.toggle {
+
+/* Pen button: outlined when in view mode, amber/filled when in edit. The
+ * outlined state uses --fg-1 so the icon is legible against --bg-1 without
+ * pulling focus away from the content below. */
+.penButton {
+  width: 28px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: var(--fg-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 2px var(--space-2);
-  font-family: var(--font-ui);
-  font-size: 12px;
   cursor: pointer;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
-.toggle:hover {
+
+.penButton:hover {
   color: var(--fg-0);
   border-color: var(--accent-dim);
 }
-.toggle:disabled {
+
+.penButton:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.toggleActive {
+
+.penActive {
   color: var(--accent);
   border-color: var(--accent-dim);
   background: var(--bg-2);
 }
+
+.penActive:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .body {
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
 }
-.editor {
+
+/* Editor and view fill the whole body — no side-by-side. */
+.editor,
+.view {
   flex: 1;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
 }
+
 .cm {
   flex: 1;
   min-height: 0;
 }
-.preview {
-  flex: 1;
-  min-width: 0;
-}
+
 .empty {
   flex: 1;
   display: flex;

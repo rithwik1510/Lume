@@ -31,7 +31,7 @@ Build iteratively. Each version is daily-driveable before the next is started.
 The smallest version that replaces the user's daily Sublime + Windows Terminal + ad-hoc workflow.
 
 - Tiled Terminal Panes with smooth split (right/up/down) and splitter resize.
-- MD Editor Full View (Ctrl+E) with simple multi-file tabs, line numbers ON, and a live HTML preview pane (markdown-it) side-by-side with the editor (toggleable, default open, 50/50 split).
+- MD Editor Full View (Ctrl+E) with simple multi-file tabs, defaulting to a rendered HTML view (markdown-it + DOMPurify); a pen icon in the top-right toolbar toggles to a CodeMirror source editor with line numbers ON.
 - MD Quick Viewer (right Panel, ~25% width default, resizable) triggered by Sidebar click, MD Link Ctrl+Click in a terminal, top-bar icon, or Ctrl+Shift+M. Quick Viewer is single-column source view (no separate preview pane — it's already narrow).
 - Sidebar with file tree rooted at the Workspace Folder.
 - Shell auto-detection: pwsh, powershell.exe, cmd.exe, **all installed WSL distros**.
@@ -103,6 +103,12 @@ The smallest version that replaces the user's daily Sublime + Windows Terminal +
 **Folder rendering:** folders whose names appear in `config.toml`'s `sidebar.collapsed_dirs` list (default: `node_modules`, `.git`, `__pycache__`, `target`, `dist`, `build`, `.venv`, `.next`, `.turbo`, `.cache`) render as collapsed by default. Children are NOT rendered until the user clicks to expand. Once expanded for the session, children render normally. This avoids the "Sidebar hangs because home folder contains a 5000-file node_modules" failure mode without needing tree virtualization. Virtualization can land in v0.2 if the lazy approach hurts. Other folders auto-expand at most one level deep on initial load to keep the tree readable.
 
 **MD Editor Full View** replaces the Tiling Area + Quick Viewer area when active. The Sidebar remains visible. MD Editor Tab Strip sits at the top of the editor area (NOT spanning the Sidebar).
+
+The body shows **one pane at a time** in one of two modes:
+- **View mode** (default): rendered HTML via `markdown-it` + DOMPurify. Read-only.
+- **Edit mode**: CodeMirror 6 source editor with markdown syntax highlighting + line numbers.
+
+A **pen icon (`✎`)** sits in the top-right of the MD Editor toolbar. In view mode it's outlined; click → switch to edit mode and the icon goes amber/filled. Click again → back to view mode. Tab switches reset the mode to view. The early v0.1 side-by-side editor+preview layout (50/50 split, scroll-synced) was replaced with this single-pane toggle because the rendered-HTML height never matched the source height — the percentage-based scroll sync was disorienting and the duplicated content felt cluttered. The single-pane toggle reads as one document with two viewing modes, like Obsidian or Bear.
 
 ---
 
@@ -178,7 +184,7 @@ src/store/
 |---|---|---|---|
 | UI (labels, top bar, status bar, sidebar, tabs, toasts, buttons) | **Inter** with system fallback (`-apple-system`, `Segoe UI Variable`) | 13px most, 12px status bar | Open-source equivalent of Anthropic's Styrene. Shipped as woff2 inside the binary, ~150KB. |
 | Terminal pane (xterm.js content) | **JetBrains Mono** with system fallback (`Consolas`) | 14px (configurable) | Monospace mandatory for terminal output. |
-| MD Editor body (prose, headings, lists, blockquotes) | **Inter** | 15px, line-height 1.6 | The "editor-and-preview" feel — sans-serif body reads like Notion/Bear/Obsidian's modern themes. |
+| MD Editor body (prose, headings, lists, blockquotes) | **Inter** | 15px, line-height 1.6 | Same family in both view mode and edit mode so toggling between them feels like a mode switch, not a font change. Reads like Notion/Bear/Obsidian's modern themes. |
 | MD Editor code blocks (fenced ` ``` `) | **JetBrains Mono** | 14px | Monospace earns its place only in actual code. |
 | `config.toml` opened in MD Editor | **JetBrains Mono** | 14px | Treated as structured code (file extension routing). |
 
@@ -204,11 +210,10 @@ ring_buffer_mb = 8              # per-pane scrollback memory cap
 
 [md_editor]
 soft_wrap = true
-line_numbers = true            # MD Editor Full View is a real editor; numbers help
+line_numbers = true            # Line numbers shown in MD Editor edit mode
 indent_spaces = 2
 trim_trailing_whitespace_on_save = true
-preview_pane_default_open = true   # Live HTML preview pane in Full View
-preview_split_pct = 50             # Editor/preview split when preview is open
+default_mode = "view"          # "view" (rendered HTML, default) or "edit" (CodeMirror source)
 
 [quick_viewer]
 width_pct = 25                  # default Panel width
@@ -415,7 +420,7 @@ Goal: confirm the stack is viable before sinking real weekends.
 1. CodeMirror 6 integration (vanilla) for MD Editor Full View and MD Quick Viewer.
 2. Inter + JetBrains Mono font loading (bundled woff2).
 3. MD Editor Tab Strip with simple tabs (no persistence, no unsaved-prompt for v0.1).
-4. MD Editor live HTML preview pane (markdown-it) side-by-side with the editor; toggle button; resizable splitter; best-effort scroll sync.
+4. MD Editor Full View: single-pane body that toggles between rendered HTML view (markdown-it + DOMPurify, default) and CodeMirror source edit mode via a pen icon in the top-right toolbar. Tab switches reset the mode to view.
 5. MD Quick Viewer as resizable right Panel (default 25%, min 250px, max 60%).
 6. Ctrl+Click MD Link detection in terminals via xterm.js `registerLinkProvider`.
 7. File tree Sidebar with filter input and new-file icon.

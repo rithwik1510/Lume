@@ -33,12 +33,16 @@ The main area of the Workstation that contains all Panes. Sits between the Sideb
 _Avoid_: Grid, workspace, main pane, central area.
 
 **MD Editor** (Full View):
-A dedicated top-level mode of the Workstation, distinct from the Tiling Area. Holds CodeMirror 6 editor instances for sustained markdown reading/writing in Inter 15px (sans-serif body; JetBrains Mono only for fenced code blocks). Line numbers ON by default. Has a live HTML **Preview Pane** (markdown-it rendering) side-by-side with the editor; default open, 50/50 split, resizable splitter between them, toggleable via a button in the MD Editor toolbar. Best-effort scroll-sync between editor and preview. Supports multiple files open simultaneously via tabs along the top. Has its own file picker (Ctrl+O — opens an OS file dialog so any file on disk can be opened, not just files in the Sidebar). Entered/exited via a top-left button or Ctrl+E. While in MD Editor mode, terminals continue running in the background but the Tiling Area is not visible.
+A dedicated top-level mode of the Workstation, distinct from the Tiling Area. Each open file lives in an **MD Editor Tab**. The body shows ONE pane at a time, in one of two modes:
+- **View mode** (default): the tab's markdown rendered to HTML via `markdown-it` (linkify on) and sanitized through DOMPurify before injection (DESIGN.md §4 #10). Inter 15px sans-serif body, JetBrains Mono for fenced code blocks. Read-only — clicks don't edit.
+- **Edit mode**: CodeMirror 6 source editor with markdown syntax highlighting and line numbers ON.
+
+A **pen icon (`✎`)** in the top-right MD Editor toolbar toggles between modes. The icon is outlined in view mode and amber/filled in edit mode. Tab switches reset the mode to view. Supports multiple files open simultaneously via tabs along the top. Has its own file picker (Ctrl+O — opens an OS file dialog so any file on disk can be opened, not just files in the Sidebar). Entered/exited via a top-left button or Ctrl+E. While in MD Editor mode, terminals continue running in the background but the Tiling Area is not visible. The early v0.1 side-by-side editor+preview layout was replaced with this single-pane toggle (height mismatch + disorienting scroll sync); the single-pane toggle reads as one document with two viewing modes, like Obsidian or Bear.
 _Avoid_: MD pane, editor view, document mode, notes mode.
 
-**MD Preview Pane**:
-The HTML-rendered preview of the currently active MD Editor Tab, displayed beside the editor inside the MD Editor Full View. Rendered via `markdown-it` with GFM extensions. Headings, lists, code blocks (with syntax-highlighted nested language), tables, blockquotes, and links all render as HTML. Click a heading in the preview → editor jumps to that line. Scrolling the editor scrolls the preview to the matching line (best-effort, via source-map data attributes). Toggleable open/closed via a button in the MD Editor's local toolbar; default open. Preview Pane only exists inside MD Editor Full View — the MD Quick Viewer is single-column source view (no preview pane).
-_Avoid_: Rendered view, output pane, reading view.
+**MD Editor View Mode** (replaces the earlier "MD Preview Pane" concept):
+The rendered-HTML mode of an MD Editor Tab. Renders the tab's markdown via `markdown-it` with linkify enabled, sanitized through DOMPurify before injection. Headings, lists, code blocks (with syntax-highlighted nested language), tables, blockquotes, and links all render as HTML. Read-only — there is no inline editing in view mode; users switch to **edit mode** via the pen icon. Default mode for every newly-opened MD Editor Tab.
+_Avoid_: Preview pane (the side-by-side concept is gone), reading view, output pane, MD Quick Viewer (separate surface — see below).
 
 **MD Editor Tab**:
 One file open in the MD Editor. Tabs display the file name and a `●` if there are unsaved changes. Ctrl+Tab cycles tabs. Ctrl+W closes the focused tab (v0.1: silently discards unsaved changes with a small toast warning; v0.2 will add an unsaved-prompt).

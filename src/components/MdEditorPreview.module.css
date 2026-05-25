@@ -7,56 +7,63 @@
   font-family: var(--font-ui);
   font-size: 15px;
   line-height: 1.6;
+  /* No max-width here — .root is the scroller and fills the body. The reading
+   * column lives in .inner so long lines don't span the full window width on
+   * wide monitors (~70-character measure is the readable target). */
+}
+.inner {
+  max-width: 760px;
+  margin: 0 auto;
   padding: var(--space-4);
 }
-.root h1, .root h2, .root h3, .root h4, .root h5, .root h6 {
+.inner h1, .inner h2, .inner h3, .inner h4, .inner h5, .inner h6 {
   color: var(--fg-heading);
   font-weight: 600;
   margin-top: 1.4em;
   margin-bottom: 0.5em;
   line-height: 1.25;
 }
-.root h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
-.root h2 { font-size: 1.4em; }
-.root h3 { font-size: 1.15em; }
-.root p { margin: 0.5em 0; }
-.root a { color: var(--accent); text-decoration: none; }
-.root a:hover { text-decoration: underline; }
-.root code {
+.inner h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+.inner h2 { font-size: 1.4em; }
+.inner h3 { font-size: 1.15em; }
+.inner p { margin: 0.5em 0; }
+.inner a { color: var(--accent); text-decoration: none; }
+.inner a:hover { text-decoration: underline; }
+.inner code {
   font-family: var(--font-mono);
   font-size: 0.9em;
   background: var(--bg-2);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
 }
-.root pre {
+.inner pre {
   background: var(--bg-2);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   overflow-x: auto;
   margin: 0.8em 0;
 }
-.root pre code {
+.inner pre code {
   background: transparent;
   padding: 0;
   font-size: 13px;
   line-height: 1.5;
 }
-.root blockquote {
+.inner blockquote {
   border-left: 3px solid var(--accent-dim);
   margin: 0.8em 0;
   padding: 0.4em 0 0.4em var(--space-3);
   color: var(--fg-1);
 }
-.root ul, .root ol { padding-left: 1.6em; }
-.root li { margin: 0.3em 0; }
-.root table {
+.inner ul, .inner ol { padding-left: 1.6em; }
+.inner li { margin: 0.3em 0; }
+.inner table {
   border-collapse: collapse;
   margin: 0.8em 0;
 }
-.root th, .root td {
+.inner th, .inner td {
   border: 1px solid var(--border);
   padding: 6px 10px;
 }
-.root th { background: var(--bg-1); }
-.root hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
+.inner th { background: var(--bg-1); }
+.inner hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }

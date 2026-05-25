@@ -24,5 +24,9 @@ export function MdEditorPreview({ source }: Props) {
     return () => window.clearTimeout(t);
   }, [source]);
   const html = useMemo(() => renderMarkdown(renderedSrc), [renderedSrc]);
-  return <div className={styles.root} dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <div className={styles.root}>
+      <div className={styles.inner} dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
 }
