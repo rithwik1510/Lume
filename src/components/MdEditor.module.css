@@ -1,9 +1,10 @@
 /* src/components/MdEditor.module.css
  *
  * Single-pane layout (DESIGN.md §3). The body shows EITHER the rendered
- * view OR the CodeMirror editor — never both at once. The pen icon
- * floats absolutely in the body's top-right corner so it sits inside
- * the MD Editor, not in a separate toolbar bar. */
+ * view OR the CodeMirror editor — never both at once. The pen toggle
+ * lives in the header band on the right side, alongside the tab strip,
+ * so it sits in the natural scan path for editor controls (Notion / Bear /
+ * VS Code convention) rather than floating in the body corner. */
 
 .root {
   width: 100%;
@@ -13,39 +14,40 @@
   background: var(--bg-0);
 }
 
-.body {
-  flex: 1;
-  min-height: 0;
-  position: relative;
+/* Header band: tab strip on the left (flex: 1, scrolls horizontally) +
+ * pen toggle on the right. Single border-bottom across both halves so
+ * the header reads as one chrome strip. */
+.header {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
+  height: 36px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-/* Floating pen toggle. Lives ABOVE the editor/view in z-order; uses a
- * subtle two-layer shadow for depth (matches Mac native float-button
- * conventions) so the icon reads as an action surface, not part of the
- * content. Sized large enough to comfortably hit (~36px). */
+/* Pen toggle. Lives at the right edge of the header. Sized large enough
+ * to feel like a deliberate control (not a glyph), with a subtle inset
+ * shadow on the bg so it reads as a raised actionable surface against
+ * the bg-1 header. View mode = outlined; edit mode = amber accent + bloom. */
 .penButton {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  z-index: 10;
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 44px;
+  margin: 4px 8px 4px 4px;
   background: var(--bg-2);
   color: var(--fg-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
   padding: 0;
-  /* Two-layer shadow: a tight 1px for crisp edge contrast + a softer
-   * bloom for elevation. Reads as a raised surface against --bg-0. */
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
     0 1px 2px rgba(0, 0, 0, 0.55),
-    0 4px 12px rgba(0, 0, 0, 0.32);
+    0 2px 6px rgba(0, 0, 0, 0.28);
   transition:
     color 140ms ease,
     background 140ms ease,
@@ -60,37 +62,46 @@
   border-color: var(--accent-dim);
   transform: translateY(-1px);
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
     0 2px 4px rgba(0, 0, 0, 0.6),
-    0 6px 16px rgba(0, 0, 0, 0.4);
+    0 4px 12px rgba(0, 0, 0, 0.38);
 }
 
 .penButton:active {
   transform: translateY(0);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+    0 1px 0 rgba(0, 0, 0, 0.3) inset,
+    0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
-/* Active = edit mode is on. Amber color + amber-tinted bloom so the user
- * can read the state at a glance even without hovering. */
+/* Edit mode = amber. The amber bloom gives the icon a halo so the
+ * state is legible from across the screen, not just on hover. */
 .penActive {
   color: var(--accent);
   background: var(--bg-3);
   border-color: var(--accent-dim);
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
     0 1px 2px rgba(0, 0, 0, 0.55),
-    0 0 16px rgba(212, 168, 92, 0.32);
+    0 0 14px rgba(212, 168, 92, 0.36);
 }
 
 .penActive:hover {
   color: var(--accent);
   border-color: var(--accent);
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 2px 4px rgba(0, 0, 0, 0.6),
-    0 0 22px rgba(212, 168, 92, 0.5);
+    0 0 20px rgba(212, 168, 92, 0.55);
 }
 
-/* Editor and view fill the whole body. */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .editor,
 .view {
   flex: 1;

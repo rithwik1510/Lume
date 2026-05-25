@@ -4,8 +4,12 @@
   flex-direction: row;
   align-items: center;
   background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
-  height: 32px;
+  /* border-bottom lives on the parent .header in MdEditor.module.css so it
+   * spans the tab strip AND the right-side action area (pen button) as a
+   * single hairline. */
+  height: 100%;
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   font-family: var(--font-ui);
   font-size: 13px;

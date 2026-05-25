@@ -85,31 +85,31 @@ export function MdEditor() {
 
   return (
     <div className={styles.root}>
-      <MdEditorTabStrip />
+      <div className={styles.header}>
+        <MdEditorTabStrip />
+        {tab !== null && (
+          <button
+            className={`${styles.penButton} ${mode === "edit" ? styles.penActive : ""}`}
+            onClick={togglePen}
+            title={penLabel}
+            aria-label={penLabel}
+            aria-pressed={mode === "edit"}
+          >
+            <PenIcon />
+          </button>
+        )}
+      </div>
       <div className={styles.body}>
         {tab === null ? (
           <div className={styles.empty}>No file open · Ctrl+O to open</div>
+        ) : mode === "edit" ? (
+          <div className={styles.editor}>
+            <div className={styles.cm} ref={editorHostRef} />
+          </div>
         ) : (
-          <>
-            <button
-              className={`${styles.penButton} ${mode === "edit" ? styles.penActive : ""}`}
-              onClick={togglePen}
-              title={penLabel}
-              aria-label={penLabel}
-              aria-pressed={mode === "edit"}
-            >
-              <PenIcon />
-            </button>
-            {mode === "edit" ? (
-              <div className={styles.editor}>
-                <div className={styles.cm} ref={editorHostRef} />
-              </div>
-            ) : (
-              <div className={styles.view}>
-                <MdEditorPreview source={tab.content} />
-              </div>
-            )}
-          </>
+          <div className={styles.view}>
+            <MdEditorPreview source={tab.content} />
+          </div>
         )}
       </div>
     </div>
