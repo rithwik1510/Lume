@@ -35,4 +35,12 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+
+  /* Typography stacks. Inter for UI, JetBrains Mono for code/terminals. */
+  --font-ui:
+    "Inter Variable", "Inter", -apple-system, "Segoe UI Variable", "Segoe UI",
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", Consolas, "Courier New",
+    monospace;
 }
