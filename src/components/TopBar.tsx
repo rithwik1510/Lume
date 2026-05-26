@@ -15,6 +15,7 @@ import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useLayoutStore } from "@/store/layoutStore";
 import { nextPaneId } from "@/lib/paneIds";
+import { configFilePath } from "@/lib/configClient";
 import {
   minimizeWindow,
   toggleMaximize,
@@ -92,20 +93,10 @@ export function TopBar() {
   };
 
   const onSettings = () => {
-    // Open ~/.workstation/config.toml in the MD Editor as a tab. The
-    // configClient.configFilePath() helper lands in Phase 2; until then the
-    // settings gear is wired but no-ops with a console warning. This task
-    // intentionally leaves the path-resolution branch as a TODO so that the
-    // visual surface ships in Phase 1 and the wiring completes in Phase 2.
-    void import("@/lib/configClient")
-      .then(({ configFilePath }) => configFilePath())
+    // Open ~/.workstation/config.toml in the MD Editor as a tab.
+    void configFilePath()
       .then((path) => openMdTab(path))
-      .catch((err) =>
-        console.error(
-          "Settings gear: configClient not ready yet (lands in Phase 2)",
-          err
-        )
-      );
+      .catch((err) => console.error("opening config.toml failed", err));
   };
 
   return (

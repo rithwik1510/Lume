@@ -1,5 +1,6 @@
 // Workstation Rust entry point.
 
+pub mod config;
 pub mod error;
 pub mod file_watcher;
 pub mod fs;
@@ -50,6 +51,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(pty::PtyRegistry::default())
         .manage(file_watcher::FileWatcherState::default())
+        .manage(config::ConfigWatcherState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_open,
             pty::pty_write,
@@ -61,6 +63,10 @@ pub fn run() {
             crate::fs::home_dir,
             crate::file_watcher::watch_workspace,
             crate::shell_detect::detect_shells,
+            crate::config::read_config,
+            crate::config::write_default_config_if_missing,
+            crate::config::watch_config,
+            crate::config::config_file_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running workstation");
