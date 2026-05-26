@@ -1,8 +1,9 @@
 // src/components/TopBar.tsx
 //
 // Frameless custom titlebar (DESIGN.md §3, §5; CONTEXT.md "Frameless
-// titlebar"). 36px tall. Drag region in the middle. Six action buttons on
-// the left, three native window controls (min/max/close) on the right.
+// titlebar"). 36px tall. Drag region in the middle. Four action buttons
+// on the left (☰ ⊞ ⌨ 🗎), two action buttons on the right (📄 ⚙), and
+// three native window controls (min/max/close) on the far right.
 //
 // Critical invariant: EVERY clickable element inside the titlebar sets
 // data-tauri-drag-region="false" on its root, otherwise the click is
@@ -148,6 +149,17 @@ export function TopBar() {
         >
           🗎
         </button>
+      </div>
+
+      <div
+        className={styles.drag}
+        data-tauri-drag-region
+        // Double-click on the drag region toggles maximize (Windows convention).
+        onDoubleClick={() => void toggleMaximize()}
+        title={workspaceFolder ?? ""}
+      />
+
+      <div className={styles.right} data-tauri-drag-region="false">
         <button
           className={`${styles.btn} ${qvOpen ? styles.active : ""}`}
           title={qvOpen ? "Close Quick Viewer (Ctrl+Shift+M)" : "Open Quick Viewer (Ctrl+Shift+M)"}
@@ -166,17 +178,6 @@ export function TopBar() {
         >
           ⚙
         </button>
-      </div>
-
-      <div
-        className={styles.drag}
-        data-tauri-drag-region
-        // Double-click on the drag region toggles maximize (Windows convention).
-        onDoubleClick={() => void toggleMaximize()}
-        title={workspaceFolder ?? ""}
-      />
-
-      <div className={styles.right} data-tauri-drag-region="false">
         <button
           className={styles.winBtn}
           title="Minimize"
