@@ -105,8 +105,14 @@ export function Sidebar() {
     return <div className={styles.sidebar}>loading…</div>;
   }
 
+  // onFocus bubbles from focusable descendants (filter input, etc.). Reports
+  // Sidebar focus to mdStore so the Status Bar's LEFT segment can show the
+  // workspace folder path (DESIGN.md §3, CONTEXT.md "Status Bar").
   return (
-    <div className={styles.sidebar}>
+    <div
+      className={styles.sidebar}
+      onFocus={() => useMdStore.getState().setFocusedSurface("sidebar")}
+    >
       <div className={styles.header}>
         <input
           className={styles.filter}

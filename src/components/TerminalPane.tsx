@@ -21,6 +21,7 @@ import { resizePty } from "@/terminals/ptyClient";
 import { changeShell, getDetectedShells } from "@/terminals/orchestrator";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { useLayoutStore } from "@/store/layoutStore";
+import { useMdStore } from "@/store/mdStore";
 import { shellLabel } from "@/lib/shellsClient";
 import type { PaneId } from "@/types";
 
@@ -97,6 +98,7 @@ function TerminalPaneImpl({ paneId }: Props) {
   const onMouseDown = () => {
     useLayoutStore.getState().focusPane(paneId);
     focusTerminal(paneId);
+    useMdStore.getState().setFocusedSurface("terminal");
   };
 
   // Right-click → context menu with a "Change Shell…" submenu listing every

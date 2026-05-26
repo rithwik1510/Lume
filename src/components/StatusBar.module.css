@@ -1,0 +1,48 @@
+/* src/components/StatusBar.module.css
+ *
+ * 24px bottom bar (DESIGN.md §3 + CONTEXT.md "Status Bar"). bg.1 with a
+ * 1px top border. JetBrains Mono 12px, fg.1. Two segments — left grows,
+ * right shrinks-to-fit. */
+
+.root {
+  height: 24px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-1);
+  padding: 0 var(--space-3);
+  user-select: none;
+  box-sizing: border-box;
+  gap: var(--space-3);
+}
+
+.left {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.right {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.workspace {
+  color: var(--fg-1);
+}
+
+.proc {
+  color: var(--accent);
+}
+
+.sep {
+  color: var(--fg-2);
+}

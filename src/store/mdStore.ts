@@ -20,11 +20,19 @@ export interface QuickViewerState {
 
 export type MdEditorMode = "off" | "full";
 
+export type FocusedSurface =
+  | "terminal"
+  | "md-editor"
+  | "quick-viewer"
+  | "sidebar"
+  | null;
+
 export interface MdStoreState {
   mdEditorMode: MdEditorMode;
   tabs: MdTab[];
   activeTabId: string | null;
   quickViewer: QuickViewerState;
+  focusedSurface: FocusedSurface;
 
   // Quick Viewer — read-only rendered HTML. Editing happens in MD Editor
   // Full View (openMdTab) to keep a single editing surface across the app.
@@ -39,6 +47,8 @@ export interface MdStoreState {
   saveMdTab: (id: string) => Promise<void>;
   closeMdTab: (id: string) => void;
 
+  setFocusedSurface: (s: FocusedSurface) => void;
+
   reset: () => void;
 }
 
@@ -52,6 +62,7 @@ export const useMdStore = create<MdStoreState>()(
       tabs: [],
       activeTabId: null,
       quickViewer: { open: false, path: null, content: "" },
+      focusedSurface: null,
 
       openMdInQuickViewer: async (path) => {
         const content = await readTextFile(path);
@@ -119,12 +130,18 @@ export const useMdStore = create<MdStoreState>()(
           if (s.tabs.length === 0) s.mdEditorMode = "off";
         }),
 
+      setFocusedSurface: (focusedSurface) =>
+        set((s) => {
+          s.focusedSurface = focusedSurface;
+        }),
+
       reset: () =>
         set((s) => {
           s.mdEditorMode = "off";
           s.tabs = [];
           s.activeTabId = null;
           s.quickViewer = { open: false, path: null, content: "" };
+          s.focusedSurface = null;
         }),
     })),
     { name: "mdStore" }

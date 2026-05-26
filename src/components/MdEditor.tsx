@@ -54,6 +54,9 @@ export function MdEditor() {
   const [mode, setMode] = useState<Mode>("view");
   useEffect(() => {
     setMode("view");
+    // Report focus surface for the Status Bar (DESIGN.md §3, CONTEXT.md
+    // "Status Bar"). Mounting MdEditor implies the user is reading it.
+    useMdStore.getState().setFocusedSurface("md-editor");
   }, [tab?.id]);
 
   const editorHostRef = useRef<HTMLDivElement | null>(null);

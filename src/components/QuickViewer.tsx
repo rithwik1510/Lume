@@ -8,6 +8,8 @@
 //     surface so we never have to reconcile two edits of the same file.
 //   - close (✕): closes the Quick Viewer panel.
 
+import { useEffect } from "react";
+
 import styles from "@/components/QuickViewer.module.css";
 import { MdEditorPreview } from "@/components/MdEditorPreview";
 import { useMdStore } from "@/store/mdStore";
@@ -38,6 +40,12 @@ export function QuickViewer() {
   const content = useMdStore((s) => s.quickViewer.content);
   const close = useMdStore((s) => s.closeQuickViewer);
   const openMdTab = useMdStore((s) => s.openMdTab);
+
+  // Report focus surface for the Status Bar (DESIGN.md §3, CONTEXT.md
+  // "Status Bar"). Mounting Quick Viewer implies the user is glancing at it.
+  useEffect(() => {
+    useMdStore.getState().setFocusedSurface("quick-viewer");
+  }, []);
 
   if (path === null) return null;
   const fileName = path.split(/[/\\]/).pop() ?? path;

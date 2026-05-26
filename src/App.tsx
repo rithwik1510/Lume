@@ -20,6 +20,7 @@ import { MdEditor } from "@/components/MdEditor";
 import { PaneTree } from "@/components/PaneTree";
 import { QuickViewer } from "@/components/QuickViewer";
 import { Sidebar } from "@/components/Sidebar";
+import { StatusBar } from "@/components/StatusBar";
 import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { useLayoutStore } from "@/store/layoutStore";
@@ -115,6 +116,7 @@ export default function App() {
           )}
         </div>
       </div>
+      <StatusBar />
       <ContextMenu />
     </div>
   );
