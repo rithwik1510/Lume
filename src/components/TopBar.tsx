@@ -14,6 +14,7 @@ import styles from "@/components/TopBar.module.css";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useLayoutStore } from "@/store/layoutStore";
+import { nextPaneId } from "@/lib/paneIds";
 import {
   minimizeWindow,
   toggleMaximize,
@@ -72,10 +73,10 @@ export function TopBar() {
 
   const onSplit = (dir: "right" | "down" | "up") => {
     if (focusedPaneId === null) return;
-    // Use the same paneId convention as useKeyboardShortcuts — high counter.
+    // Shared counter with useKeyboardShortcuts so ids never collide.
     // We piggyback on the existing splitPane mutation; the orchestrator will
     // spawn the PTY by reacting to the layout subscribe.
-    const id = `pane-${Date.now()}`;
+    const id = nextPaneId();
     splitPane(dir, id, focusedPaneId);
   };
 

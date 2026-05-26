@@ -21,21 +21,11 @@ import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
+import { nextPaneId } from "@/lib/paneIds";
 
-// ---------- PaneId generator ----------
-// Module-level counter so paneIds stay stable across the session. Seeded high
-// enough that it never collides with the App.tsx bootstrap ids (pane-1..4).
-
-let paneIdCounter = 100;
-function nextPaneId(): string {
-  paneIdCounter += 1;
-  return `pane-${paneIdCounter}`;
-}
-
-// Optional: let the bootstrap reserve ids so the counter starts above them.
-export function reservePaneIdsAtLeast(n: number): void {
-  if (n > paneIdCounter) paneIdCounter = n;
-}
+// PaneId generation lives in @/lib/paneIds so the TopBar Split button and
+// the keyboard layer share a single counter (no Date.now() collisions).
+export { reservePaneIdsAtLeast } from "@/lib/paneIds";
 
 // ---------- Shortcut handler ----------
 
