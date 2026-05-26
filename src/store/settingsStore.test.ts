@@ -1,14 +1,7 @@
 // src/store/settingsStore.test.ts
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { useSettingsStore, defaultSettings } from "@/store/settingsStore";
 import type { WorkstationConfig } from "@/types/config";
-
-vi.mock("@/lib/configClient", () => ({
-  readConfig: vi.fn(),
-  writeDefaultConfigIfMissing: vi.fn(),
-  watchConfig: vi.fn(),
-  configFilePath: vi.fn(),
-}));
 
 describe("settingsStore", () => {
   beforeEach(() => {
@@ -49,5 +42,14 @@ describe("settingsStore", () => {
     });
     useSettingsStore.getState().revertToLastValid();
     expect(useSettingsStore.getState().config).toEqual(good);
+  });
+
+  it("reset returns to defaults and revert is a no-op", () => {
+    const cfg: WorkstationConfig = { ...defaultSettings, default_shell: "cmd" };
+    useSettingsStore.getState().applyConfig(cfg);
+    useSettingsStore.getState().reset();
+    expect(useSettingsStore.getState().config).toEqual(defaultSettings);
+    useSettingsStore.getState().revertToLastValid();
+    expect(useSettingsStore.getState().config).toEqual(defaultSettings);
   });
 });

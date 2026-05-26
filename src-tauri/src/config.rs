@@ -11,6 +11,9 @@
 // keys produce a warn toast but don't break the load"). Toast surface is
 // deferred to a later weekend; logging is the durable record until then.
 
+// `Config as NotifyConfig` rename avoids a name collision with our own
+// `WorkstationConfig` in this module — keeping notify's type accessible
+// under a distinct alias.
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
@@ -23,6 +26,11 @@ use tauri::ipc::Channel;
 use tauri::State;
 
 use crate::error::{AppError, AppResult};
+
+// Trailing-edge debounce window for config.toml hot-reload. VS Code /
+// Sublime / nvim each generate 2-5 raw events for a single save; we
+// collapse a burst into one emission ~DEBOUNCE_MS after the LAST event.
+const DEBOUNCE_MS: u64 = 150;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -189,9 +197,7 @@ path = "%LOCALAPPDATA%\\workstation\\logs"
 pub fn config_dir() -> AppResult<PathBuf> {
     dirs::config_dir()
         .map(|p| p.join("workstation"))
-        .ok_or_else(|| AppError::Internal {
-            reason: "config_dir unavailable".to_string(),
-        })
+        .ok_or_else(|| AppError::internal("config_dir unavailable"))
 }
 
 pub fn config_path() -> AppResult<PathBuf> {
@@ -203,21 +209,26 @@ pub fn config_file_path() -> AppResult<String> {
     Ok(config_path()?.to_string_lossy().to_string())
 }
 
-#[tauri::command]
-pub fn write_default_config_if_missing() -> AppResult<bool> {
-    let path = config_path()?;
+/// Inner helper that operates on an explicit path. Testable without
+/// touching the user's real config dir.
+fn write_default_at(path: &std::path::Path) -> AppResult<bool> {
     if path.exists() {
         return Ok(false);
     }
-    let dir = config_dir()?;
-    std::fs::create_dir_all(&dir).map_err(|e| AppError::Internal {
-        reason: format!("create_dir_all {}: {}", dir.display(), e),
-    })?;
-    std::fs::write(&path, DEFAULT_TOML).map_err(|e| AppError::Internal {
-        reason: format!("write default {}: {}", path.display(), e),
-    })?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            AppError::internal(format!("create_dir_all {}: {}", parent.display(), e))
+        })?;
+    }
+    std::fs::write(path, DEFAULT_TOML)
+        .map_err(|e| AppError::internal(format!("write default {}: {}", path.display(), e)))?;
     log::info!("config.toml created at {}", path.display());
     Ok(true)
+}
+
+#[tauri::command]
+pub fn write_default_config_if_missing() -> AppResult<bool> {
+    write_default_at(&config_path()?)
 }
 
 #[tauri::command]
@@ -227,48 +238,50 @@ pub fn read_config() -> AppResult<WorkstationConfig> {
         log::info!("config.toml missing; returning defaults (file not created here)");
         return Ok(WorkstationConfig::default());
     }
-    let text = std::fs::read_to_string(&path).map_err(|e| AppError::Internal {
-        reason: format!("read {}: {}", path.display(), e),
-    })?;
-    parse_config_with_warnings(&text)
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| AppError::internal(format!("read {}: {}", path.display(), e)))?;
+    parse_config_or_default(&text)
 }
 
-/// Parse a TOML string into a WorkstationConfig. Logs a WARN for every
-/// top-level table that has `deny_unknown_fields` and contains unrecognised
-/// keys, but does not abort the load — the deny_unknown_fields lives on the
-/// sub-tables, so the only way unknown keys reach here is via the top level
-/// of WorkstationConfig itself. We catch both cases by parsing twice: first
-/// into a permissive toml::Value to inventory unknown top-level keys, then
-/// into the strict WorkstationConfig.
-fn parse_config_with_warnings(text: &str) -> AppResult<WorkstationConfig> {
-    // First pass — permissive — to find unknown top-level keys.
-    let value: toml::Value = toml::from_str(text).map_err(|e| AppError::Internal {
-        reason: format!("toml parse: {}", e),
-    })?;
-    if let toml::Value::Table(t) = &value {
-        const KNOWN: &[&str] = &[
-            "default_shell",
-            "font",
-            "terminal",
-            "md_editor",
-            "quick_viewer",
-            "sidebar",
-            "theme",
-            "log",
-            "keybindings",
-        ];
+/// Logs a WARN for every key at the top level of `value` that is not in
+/// the known schema. Doesn't fail — purely advisory output.
+fn warn_unknown_top_level(value: &toml::Value) {
+    const KNOWN: &[&str] = &[
+        "default_shell",
+        "font",
+        "terminal",
+        "md_editor",
+        "quick_viewer",
+        "sidebar",
+        "theme",
+        "log",
+        "keybindings",
+    ];
+    if let toml::Value::Table(t) = value {
         for k in t.keys() {
             if !KNOWN.contains(&k.as_str()) {
                 log::warn!("config.toml: unknown top-level key '{}' (ignored)", k);
             }
         }
     }
-    // Second pass — strict — for sub-table unknown-key detection plus typed
-    // result. Sub-tables use deny_unknown_fields so toml::from_str fails on
-    // any unknown key inside a known sub-table. We catch the error, log it,
-    // and fall back to defaults. DESIGN.md §6 says "Invalid values fall back
-    // to last-known-valid config" which we honour at the JS layer
-    // (settingsStore retains last good config across hot reloads).
+}
+
+/// Parse a TOML string into a WorkstationConfig.
+/// - Returns `Err` if the TOML is syntactically invalid (the caller may
+///   surface this to the user).
+/// - Returns `Ok(default)` if the TOML parses but fails strict schema
+///   validation (unknown keys inside known sub-tables, type mismatches,
+///   etc.); these are logged at WARN level so they can be diagnosed but
+///   don't break the load (DESIGN.md §6 "Invalid values fall back to
+///   last-known-valid config" — the JS layer's revertToLastValid handles
+///   the "last-known-valid" half via lastValidConfig).
+/// - Returns `Ok(parsed)` on success.
+///
+/// Also emits a WARN for every unknown TOP-LEVEL key encountered.
+fn parse_config_or_default(text: &str) -> AppResult<WorkstationConfig> {
+    let value: toml::Value =
+        toml::from_str(text).map_err(|e| AppError::internal(format!("toml parse: {}", e)))?;
+    warn_unknown_top_level(&value);
     match toml::from_str::<WorkstationConfig>(text) {
         Ok(cfg) => Ok(cfg),
         Err(e) => {
@@ -302,19 +315,23 @@ pub fn watch_config(
     // writing to a temp file and renaming, which `notify` reports as a
     // Remove + Create on the target rather than Modify. Watching the dir
     // catches both shapes.
-    std::fs::create_dir_all(&dir).map_err(|e| AppError::Internal {
-        reason: format!("create_dir_all {}: {}", dir.display(), e),
-    })?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| AppError::internal(format!("create_dir_all {}: {}", dir.display(), e)))?;
 
     let channel = Arc::new(channel);
     let chan_clone = channel.clone();
     let target = path.clone();
-    // Coalesce events with a 150ms cooldown — VS Code / Sublime / nvim each
-    // generate 2-5 raw events for one save. notify v6 has NO internal
-    // debouncing (despite outdated comments in file_watcher.rs); we add it
-    // here at module scope to avoid five render cycles per save.
-    let last_emit: Arc<Mutex<Instant>> =
-        Arc::new(Mutex::new(Instant::now() - Duration::from_secs(60)));
+    // Trailing-edge debounce: emit once ~DEBOUNCE_MS after the LAST event
+    // in a burst. VS Code / Sublime / nvim each generate 2-5 raw events
+    // for one save; the previous leading-edge logic emitted on the FIRST
+    // event and suppressed the rest, which could drop the final state if
+    // the JS handler re-read mid-write. Now: each event updates
+    // `last_event_at`, and a SINGLE dispatcher thread (guarded by the
+    // `dispatcher_armed` flag) wakes after DEBOUNCE_MS, re-checks the
+    // latest timestamp, and either emits or loops.
+    let last_event_at: Arc<Mutex<Instant>> = Arc::new(Mutex::new(Instant::now()));
+    let dispatcher_armed: Arc<std::sync::atomic::AtomicBool> =
+        Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
         if let Ok(event) = res {
@@ -327,31 +344,42 @@ pub fn watch_config(
             if !event.paths.iter().any(|p| p == &target) {
                 return;
             }
-            let mut last = last_emit.lock();
-            if last.elapsed() < Duration::from_millis(150) {
-                return;
+            {
+                let mut t = last_event_at.lock();
+                *t = Instant::now();
             }
-            *last = Instant::now();
-            drop(last);
-            let _ = chan_clone.send(ConfigEvent::Changed {
-                path: target.to_string_lossy().to_string(),
-            });
+            if !dispatcher_armed.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                let last_event_at = last_event_at.clone();
+                let dispatcher_armed = dispatcher_armed.clone();
+                let chan_clone = chan_clone.clone();
+                let target = target.clone();
+                std::thread::spawn(move || {
+                    loop {
+                        std::thread::sleep(Duration::from_millis(DEBOUNCE_MS));
+                        let elapsed = {
+                            let t = last_event_at.lock();
+                            t.elapsed()
+                        };
+                        if elapsed >= Duration::from_millis(DEBOUNCE_MS) {
+                            break;
+                        }
+                    }
+                    dispatcher_armed.store(false, std::sync::atomic::Ordering::SeqCst);
+                    let _ = chan_clone.send(ConfigEvent::Changed {
+                        path: target.to_string_lossy().to_string(),
+                    });
+                });
+            }
         }
     })
-    .map_err(|e| AppError::Internal {
-        reason: format!("config watcher create: {}", e),
-    })?;
+    .map_err(|e| AppError::internal(format!("config watcher create: {}", e)))?;
 
     watcher
         .configure(NotifyConfig::default().with_compare_contents(false))
-        .map_err(|e| AppError::Internal {
-            reason: format!("config watcher config: {}", e),
-        })?;
+        .map_err(|e| AppError::internal(format!("config watcher config: {}", e)))?;
     watcher
         .watch(&dir, RecursiveMode::NonRecursive)
-        .map_err(|e| AppError::Internal {
-            reason: format!("watch {}: {}", dir.display(), e),
-        })?;
+        .map_err(|e| AppError::internal(format!("watch {}: {}", dir.display(), e)))?;
 
     *state.0.lock() = Some(watcher);
     Ok(())
@@ -408,7 +436,7 @@ mod tests {
         // Strict parse fails because unknown_key is at top level and the
         // top-level struct does NOT use deny_unknown_fields. So actually
         // this should SUCCEED with the field ignored. Verify:
-        let cfg = parse_config_with_warnings(text).expect("parse");
+        let cfg = parse_config_or_default(text).expect("parse");
         assert_eq!(cfg.default_shell, "pwsh");
         assert_eq!(cfg.font.family, "Inter");
         assert_eq!(cfg.md_editor.default_mode, "edit");
@@ -417,7 +445,7 @@ mod tests {
     #[test]
     fn parse_with_garbage_falls_back_to_defaults() {
         let text = "this is not valid toml === = =";
-        let result = parse_config_with_warnings(text);
+        let result = parse_config_or_default(text);
         // First pass (toml::from_str into Value) fails, which is an Err.
         assert!(result.is_err());
     }
@@ -459,7 +487,29 @@ mod tests {
         level = "debug"
         path = "/tmp"
         "#;
-        let cfg = parse_config_with_warnings(text).expect("falls back");
+        let cfg = parse_config_or_default(text).expect("falls back");
         assert_eq!(cfg, WorkstationConfig::default());
+    }
+
+    #[test]
+    fn write_default_config_if_missing_creates_file_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        assert!(!path.exists());
+        let created = write_default_at(&path).unwrap();
+        assert!(created);
+        assert!(path.exists());
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("default_shell"));
+    }
+
+    #[test]
+    fn write_default_config_if_missing_is_noop_when_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "existing = true").unwrap();
+        let created = write_default_at(&path).unwrap();
+        assert!(!created);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "existing = true");
     }
 }

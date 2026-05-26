@@ -6,7 +6,11 @@
 // JS picks the parent folder of the changed path, invalidates that
 // folder's entries in sidebarStore, and triggers a re-listDir.
 //
-// notify v6 is debounced internally; we don't add another debounce here.
+// notify v6 has NO internal debouncing despite an outdated impression to
+// the contrary — bursts come through raw. The JS-side handler in
+// `Sidebar.tsx` coalesces events to a per-parent-dir set with a 300ms
+// timer (see f97586a). config.rs's `watch_config` does its own trailing-
+// edge debounce too. Don't trust the old "notify is debounced" claim.
 
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use parking_lot::Mutex;
