@@ -55,4 +55,20 @@ describe("sidebarStore", () => {
     expect(useSidebarStore.getState().matchesFilter("README.md")).toBe(true);
     expect(useSidebarStore.getState().matchesFilter("CHANGELOG.md")).toBe(false);
   });
+
+  it("toggleSidebar flips visibility from true (default) to false to true", () => {
+    const initial = useSidebarStore.getState().sidebarVisible;
+    expect(initial).toBe(true);
+    useSidebarStore.getState().toggleSidebar();
+    expect(useSidebarStore.getState().sidebarVisible).toBe(false);
+    useSidebarStore.getState().toggleSidebar();
+    expect(useSidebarStore.getState().sidebarVisible).toBe(true);
+  });
+
+  it("setSidebarVisible sets the explicit value", () => {
+    useSidebarStore.getState().setSidebarVisible(false);
+    expect(useSidebarStore.getState().sidebarVisible).toBe(false);
+    useSidebarStore.getState().setSidebarVisible(true);
+    expect(useSidebarStore.getState().sidebarVisible).toBe(true);
+  });
 });

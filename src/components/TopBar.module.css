@@ -1,0 +1,94 @@
+/* src/components/TopBar.module.css
+ *
+ * Frameless titlebar — 36px tall (DESIGN.md §5 "Frameless titlebar"). The
+ * empty surface between the left button cluster and the right window
+ * controls is the drag region. Every clickable control opts OUT of the
+ * drag region (data-tauri-drag-region="false") otherwise the WebView
+ * swallows the click and starts a window drag. */
+
+.root {
+  height: 36px;
+  flex-shrink: 0;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  font-family: var(--font-ui);
+  color: var(--fg-1);
+  font-size: 13px;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.left {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: var(--space-2);
+}
+
+.drag {
+  flex: 1;
+  height: 100%;
+  /* No background — the drag region inherits --bg-0. */
+}
+
+.right {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+
+/* Top-bar action button (Sidebar toggle, Split menu, etc.). 28x28, square
+ * hit area, subtle hover. Active state for toggles uses --accent. */
+.btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--fg-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.btn:hover {
+  color: var(--fg-0);
+  background: var(--bg-1);
+  border-color: var(--accent-dim);
+}
+.btn.active {
+  color: var(--accent);
+  background: var(--bg-1);
+  border-color: var(--accent-dim);
+}
+
+/* Window control buttons (min/max/close) — 28x36 hit area matches DESIGN.md.
+ * Square corners (no border-radius) on the window controls to read as native
+ * Windows controls. Close hover is --error. */
+.winBtn {
+  width: 28px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--fg-1);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 120ms ease, background 120ms ease;
+}
+.winBtn:hover {
+  color: var(--fg-0);
+  background: var(--bg-1);
+}
+.winBtn.close:hover {
+  color: #ffffff;
+  background: var(--error);
+}

@@ -34,6 +34,7 @@ export interface SidebarState {
   /** Set of expanded folder paths. */
   expanded: Set<string>;
   filterText: string;
+  sidebarVisible: boolean;
 
   // actions
   setWorkspaceFolder: (path: string) => void;
@@ -41,6 +42,8 @@ export interface SidebarState {
   toggleExpanded: (path: string) => void;
   setFilter: (text: string) => void;
   matchesFilter: (name: string) => boolean;
+  toggleSidebar: () => void;
+  setSidebarVisible: (visible: boolean) => void;
   reset: () => void;
 }
 
@@ -51,6 +54,7 @@ export const useSidebarStore = create<SidebarState>()(
       entries: new Map(),
       expanded: new Set(),
       filterText: "",
+      sidebarVisible: true,
 
       setWorkspaceFolder: (path) =>
         set((s) => {
@@ -78,12 +82,23 @@ export const useSidebarStore = create<SidebarState>()(
         return f === "" || name.toLowerCase().includes(f);
       },
 
+      toggleSidebar: () =>
+        set((s) => {
+          s.sidebarVisible = !s.sidebarVisible;
+        }),
+
+      setSidebarVisible: (visible) =>
+        set((s) => {
+          s.sidebarVisible = visible;
+        }),
+
       reset: () =>
         set((s) => {
           s.workspaceFolder = null;
           s.entries = new Map();
           s.expanded = new Set();
           s.filterText = "";
+          s.sidebarVisible = true;
         }),
     })),
     { name: "sidebarStore" }

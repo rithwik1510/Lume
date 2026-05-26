@@ -20,9 +20,11 @@ import { MdEditor } from "@/components/MdEditor";
 import { PaneTree } from "@/components/PaneTree";
 import { QuickViewer } from "@/components/QuickViewer";
 import { Sidebar } from "@/components/Sidebar";
+import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
+import { useSidebarStore } from "@/store/sidebarStore";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
@@ -30,6 +32,7 @@ export default function App() {
   const root = useLayoutStore((s) => s.root);
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
   const mdMode = useMdStore((s) => s.mdEditorMode);
+  const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
@@ -53,54 +56,64 @@ export default function App() {
         height: "100vh",
         background: "var(--bg-0)",
         display: "flex",
-        flexDirection: "row",
+        flexDirection: "column",
         boxSizing: "border-box",
       }}
     >
-      <Sidebar />
-      <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-        {mdMode === "full" ? (
-          <MdEditor />
-        ) : (
-          <PanelGroup direction="horizontal" id="pg-root-h">
-            <Panel defaultSize={quickViewerOpen ? 75 : 100} minSize={40}>
-              {root === null ? (
-                <div
-                  style={{
-                    color: "var(--fg-2)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                  }}
-                >
-                  empty layout
-                </div>
-              ) : (
-                <PaneTree node={root} path="root" />
+      <TopBar />
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "row",
+        }}
+      >
+        {sidebarVisible && <Sidebar />}
+        <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+          {mdMode === "full" ? (
+            <MdEditor />
+          ) : (
+            <PanelGroup direction="horizontal" id="pg-root-h">
+              <Panel defaultSize={quickViewerOpen ? 75 : 100} minSize={40}>
+                {root === null ? (
+                  <div
+                    style={{
+                      color: "var(--fg-2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                    }}
+                  >
+                    empty layout
+                  </div>
+                ) : (
+                  <PaneTree node={root} path="root" />
+                )}
+              </Panel>
+              {quickViewerOpen && (
+                <>
+                  <PanelResizeHandle
+                    // Mirror PaneTree's splitter: gate xterm fit() during the drag
+                    // through resizeBus so the WebGL canvas-clear flicker doesn't
+                    // hit Terminal Panes inside the left Panel while this handle
+                    // is being dragged. Without this hook, every drag tick would
+                    // schedule a term.fit() per pane, clearing the framebuffer.
+                    onDragging={(isDragging) => {
+                      if (isDragging) beginResize();
+                      else endResize();
+                    }}
+                    style={{ width: 3, background: "var(--border)", cursor: "col-resize" }}
+                  />
+                  <Panel defaultSize={25} minSize={20} maxSize={60}>
+                    <QuickViewer />
+                  </Panel>
+                </>
               )}
-            </Panel>
-            {quickViewerOpen && (
-              <>
-                <PanelResizeHandle
-                  // Mirror PaneTree's splitter: gate xterm fit() during the drag
-                  // through resizeBus so the WebGL canvas-clear flicker doesn't
-                  // hit Terminal Panes inside the left Panel while this handle
-                  // is being dragged. Without this hook, every drag tick would
-                  // schedule a term.fit() per pane, clearing the framebuffer.
-                  onDragging={(isDragging) => {
-                    if (isDragging) beginResize();
-                    else endResize();
-                  }}
-                  style={{ width: 3, background: "var(--border)", cursor: "col-resize" }}
-                />
-                <Panel defaultSize={25} minSize={20} maxSize={60}>
-                  <QuickViewer />
-                </Panel>
-              </>
-            )}
-          </PanelGroup>
-        )}
+            </PanelGroup>
+          )}
+        </div>
       </div>
       <ContextMenu />
     </div>

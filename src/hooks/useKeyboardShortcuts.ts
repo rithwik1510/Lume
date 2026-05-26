@@ -19,6 +19,7 @@ import { useEffect } from "react";
 
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
+import { useSidebarStore } from "@/store/sidebarStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
 
 // ---------- PaneId generator ----------
@@ -74,6 +75,11 @@ function closeFocused(): boolean {
   const focused = focusedPaneOrNull();
   if (focused === null) return false;
   useLayoutStore.getState().closePane(focused);
+  return true;
+}
+
+function toggleSidebar(): boolean {
+  useSidebarStore.getState().toggleSidebar();
   return true;
 }
 
@@ -158,6 +164,12 @@ const SHORTCUTS: Shortcut[] = [
   { match: (e) => isCtrlOnly(e) && e.key === "ArrowLeft", run: () => moveFocus("left") },
   { match: (e) => isCtrlOnly(e) && e.key === "ArrowUp", run: () => moveFocus("up") },
   { match: (e) => isCtrlOnly(e) && e.key === "ArrowDown", run: () => moveFocus("down") },
+
+  // Toggle Sidebar — Ctrl+B (DESIGN.md §7).
+  {
+    match: (e) => isCtrlOnly(e) && (e.key === "b" || e.key === "B"),
+    run: () => toggleSidebar(),
+  },
 
   // Toggle MD Quick Viewer — Ctrl+Shift+M (must come before Ctrl+W so the
   // narrower shift-modifier match isn't shadowed).

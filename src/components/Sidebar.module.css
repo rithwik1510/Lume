@@ -62,9 +62,9 @@
   color: var(--fg-0);
 }
 
-/* Active state for toggle-style icon buttons (e.g. MD Editor toggle when MD
- * Editor mode is "full"). Interim affordance until Weekend 4 ships the top
- * bar — that's where the spec's 🗎 MD Editor toggle is meant to live. */
+/* Active state for toggle-style icon buttons inside the Sidebar header.
+ * No buttons in the Sidebar header currently use it (the W3 🗎 toggle moved
+ * to TopBar in W4). Kept for future Sidebar-local toggles. */
 .iconButton.active {
   color: var(--accent);
   background: var(--bg-2);
