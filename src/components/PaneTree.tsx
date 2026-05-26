@@ -14,7 +14,14 @@
 // fight the user's drag — the tree IS the source of truth, but we only push
 // it back via resizeSplit when the user drags, not on every render.
 
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   Panel,
   PanelGroup,
@@ -24,7 +31,7 @@ import {
 
 import { TerminalPane } from "@/components/TerminalPane";
 import { beginResize, endResize } from "@/components/resizeBus";
-import { useLayoutStore } from "@/store/layoutStore";
+import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
 import { leaves, type LayoutNode } from "@/store/layout/tree";
 
 /**
@@ -62,6 +69,16 @@ interface LeafFrameProps {
 const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
   const focusedPaneId = useLayoutStore((s) => s.focusedPaneId);
   const focused = focusedPaneId === paneId;
+  // Last-pane lock: hide the close X when there's only one leaf, because
+  // closePane is a no-op for the last pane (DESIGN.md §1 invariant 1) and
+  // showing a button that does nothing is worse UX than not showing one.
+  const isLastPane = useLayoutStore((s) => getPaneIds(s).length <= 1);
+  const closePane = useLayoutStore((s) => s.closePane);
+  const onClose = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closePane(paneId);
+  };
   return (
     <div
       style={{
@@ -77,21 +94,67 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
         boxSizing: "border-box",
       }}
     >
+      {/* Top-right corner cluster: paneId badge + close X. pointer-events
+       *  selectively applied so the badge stays click-through but the X
+       *  is interactive. Hidden entirely when only one pane remains. */}
       <div
         style={{
           position: "absolute",
           top: 4,
-          right: 8,
-          fontSize: 10,
-          // Subtle focus tell on the id badge — no full-pane chrome.
-          color: focused ? "var(--fg-1)" : "var(--fg-2)",
-          fontFamily: "Inter, sans-serif",
+          right: 6,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          zIndex: 2,
+          fontFamily: "var(--font-ui)",
           userSelect: "none",
-          pointerEvents: "none",
-          zIndex: 1,
         }}
       >
-        {paneId}
+        <span
+          style={{
+            fontSize: 10,
+            color: focused ? "var(--fg-1)" : "var(--fg-2)",
+            pointerEvents: "none",
+          }}
+        >
+          {paneId}
+        </span>
+        {!isLastPane && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            title="Close pane (Ctrl+W)"
+            aria-label={`Close ${paneId}`}
+            style={{
+              width: 16,
+              height: 16,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "transparent",
+              color: "var(--fg-2)",
+              border: "1px solid transparent",
+              borderRadius: "var(--radius-sm)",
+              cursor: "pointer",
+              fontSize: 12,
+              lineHeight: 1,
+              padding: 0,
+              transition: "color 120ms ease, background 120ms ease, border-color 120ms ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--fg-0)";
+              e.currentTarget.style.background = "var(--bg-2)";
+              e.currentTarget.style.borderColor = "var(--accent-dim)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--fg-2)";
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.borderColor = "transparent";
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
       <TerminalPane paneId={paneId} />
     </div>
