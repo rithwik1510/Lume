@@ -1,13 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useToastStore, type ToastSeverity } from "@/store/toastStore";
 
-vi.mock("@tauri-apps/plugin-store", () => ({
-  load: vi.fn(async () => ({
-    get: vi.fn(async () => null),
-    set: vi.fn(async () => undefined),
-    delete: vi.fn(async () => undefined),
-  })),
-}));
+// No @tauri-apps/plugin-store mock needed here — toastStore has no persist
+// middleware and doesn't transitively import the plugin. Other store tests
+// (mdStore, sidebarStore, stores.test) DO need it.
 
 describe("toastStore", () => {
   beforeEach(() => {

@@ -126,11 +126,15 @@ export const useMdStore = create<MdStoreState>()(
             message: `Saved ${t.path.split(/[/\\]/).pop() ?? t.path}`,
           });
         } catch (err) {
+          // Toast is the user-facing surface; no rethrow because the only
+          // caller (useKeyboardShortcuts.saveActiveMdTab) calls this via
+          // `void` and doesn't await — a rethrow becomes an unhandled
+          // promise rejection that just adds console noise on top of the
+          // already-visible error toast.
           useToastStore.getState().push({
             severity: "error",
             message: `Save failed: ${err instanceof Error ? err.message : String(err)}`,
           });
-          throw err;
         }
       },
       closeMdTab: (id) =>
