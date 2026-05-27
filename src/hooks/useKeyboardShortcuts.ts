@@ -20,8 +20,12 @@ import { useEffect } from "react";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
+import { useConfirmStore } from "@/store/confirmStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
 import { nextPaneId } from "@/lib/paneIds";
+import { closeBusyPaneConfirm } from "@/lib/confirmStrings";
+import { pickFolder } from "@/lib/dialogClient";
+import { isPtyBusy } from "@/terminals/ptyClient";
 
 // PaneId generation lives in @/lib/paneIds so the TopBar Split button and
 // the keyboard layer share a single counter (no Date.now() collisions).
@@ -65,20 +69,11 @@ async function closeFocusedAsync(): Promise<boolean> {
   const focused = focusedPaneOrNull();
   if (focused === null) return false;
   // CONTEXT.md invariant 3: gate Ctrl+W behind the active-process
-  // confirm dialog, identical to the × button on the pane. Dynamic
-  // imports avoid a static import cycle through the store layer.
+  // confirm dialog, identical to the × button on the pane.
   try {
-    const { isPtyBusy } = await import("@/terminals/ptyClient");
     const busy = await isPtyBusy(focused);
     if (busy) {
-      const { useConfirmStore } = await import("@/store/confirmStore");
-      const ok = await useConfirmStore.getState().confirm({
-        title: "Close pane with running process?",
-        message: `${focused} appears to be running a process. Closing the pane will terminate it.`,
-        confirmLabel: "Close anyway",
-        cancelLabel: "Keep open",
-        danger: true,
-      });
+      const ok = await useConfirmStore.getState().confirm(closeBusyPaneConfirm(focused));
       if (!ok) return false;
     }
   } catch (err) {
@@ -174,9 +169,14 @@ function isMdFullMode(): boolean {
 // ---------- Chord state (Ctrl+K-prefixed shortcuts) ----------
 //
 // The first key (Ctrl+K alone) arms the chord; the next keypress
-// resolves it. State resets after 1.5s of inactivity so a stale prefix
-// doesn't surprise the user on the next keystroke.
+// resolves it. State resets after CHORD_TIMEOUT_MS of inactivity so a
+// stale prefix doesn't surprise the user on the next keystroke.
 
+const CHORD_TIMEOUT_MS = 1500;
+
+// Chord state for Ctrl+K-prefixed shortcuts. Module-scope mutable state —
+// assumes useKeyboardShortcuts mounts in exactly one component (App.tsx).
+// If this ever needs to mount in multiple places, lift to a Zustand store.
 let chordPrefix: "ctrl-k" | null = null;
 let chordTimer: number | null = null;
 
@@ -186,7 +186,7 @@ function armChord(prefix: "ctrl-k"): void {
   chordTimer = window.setTimeout(() => {
     chordPrefix = null;
     chordTimer = null;
-  }, 1500);
+  }, CHORD_TIMEOUT_MS);
 }
 
 function clearChord(): void {
@@ -200,7 +200,6 @@ function clearChord(): void {
 function openFolderViaPicker(): void {
   void (async () => {
     try {
-      const { pickFolder } = await import("@/lib/dialogClient");
       const folder = await pickFolder();
       if (folder !== null) {
         useSidebarStore.getState().setWorkspaceFolder(folder);

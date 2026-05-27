@@ -36,6 +36,16 @@
   --space-3: 12px;
   --space-4: 16px;
 
+  /* Z-index ladder. All overlay surfaces in the app use these tokens.
+   * Higher number = on top. Phase 3 (SplitMenu popover, ShortcutsModal)
+   * will inherit this — don't introduce ad-hoc z-index numbers in any
+   * new component. */
+  --z-dropdown: 50;        /* future: titlebar dropdowns, autocomplete */
+  --z-toast: 90;           /* Toaster — under modals so dialogs always own focus */
+  --z-modal: 100;          /* ConfirmDialog, ShortcutsModal backdrop + body */
+  --z-popover: 200;        /* SplitMenu and similar anchored popovers */
+  --z-context-menu: 1000;  /* right-click ContextMenu — always on top */
+
   /* Typography stacks. Inter for UI, JetBrains Mono for code/terminals. */
   --font-ui:
     "Inter Variable", "Inter", -apple-system, "Segoe UI Variable", "Segoe UI",

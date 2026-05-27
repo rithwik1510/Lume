@@ -35,6 +35,7 @@ import { useConfirmStore } from "@/store/confirmStore";
 import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
 import { leaves, type LayoutNode } from "@/store/layout/tree";
 import { isPtyBusy } from "@/terminals/ptyClient";
+import { closeBusyPaneConfirm } from "@/lib/confirmStrings";
 
 /**
  * Per-pane percentage limits during a splitter drag. Below the minimum
@@ -86,13 +87,7 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
     try {
       const busy = await isPtyBusy(paneId);
       if (busy) {
-        const ok = await useConfirmStore.getState().confirm({
-          title: "Close pane with running process?",
-          message: `${paneId} appears to be running a process. Closing the pane will terminate it.`,
-          confirmLabel: "Close anyway",
-          cancelLabel: "Keep open",
-          danger: true,
-        });
+        const ok = await useConfirmStore.getState().confirm(closeBusyPaneConfirm(paneId));
         if (!ok) return;
       }
     } catch (err) {

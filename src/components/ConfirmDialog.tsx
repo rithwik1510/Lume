@@ -13,7 +13,7 @@
 // Listener is attached in the capture phase so it wins over xterm's
 // own keydown handler when a Terminal Pane has DOM focus underneath.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import styles from "@/components/ConfirmDialog.module.css";
 import { useConfirmStore } from "@/store/confirmStore";
 
@@ -21,6 +21,9 @@ export function ConfirmDialog() {
   const open = useConfirmStore((s) => s.open);
   const request = useConfirmStore((s) => s.request);
   const resolve = useConfirmStore((s) => s.resolve);
+
+  const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +41,15 @@ export function ConfirmDialog() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, resolve]);
+
+  // Focus the appropriate button every time the dialog opens. autoFocus
+  // is a one-shot mount hint and didn't re-fire on subsequent opens —
+  // ref + effect is the reliable pattern.
+  useEffect(() => {
+    if (!open || !request) return;
+    const target = request.danger ? confirmBtnRef.current : cancelBtnRef.current;
+    target?.focus();
+  }, [open, request]);
 
   if (!open || !request) return null;
 
@@ -63,7 +75,7 @@ export function ConfirmDialog() {
             type="button"
             className={styles.btn}
             onClick={() => resolve(false)}
-            autoFocus={!danger}
+            ref={cancelBtnRef}
           >
             {cancelLabel}
           </button>
@@ -71,7 +83,7 @@ export function ConfirmDialog() {
             type="button"
             className={`${styles.btn} ${danger ? styles.danger : styles.confirm}`}
             onClick={() => resolve(true)}
-            autoFocus={danger}
+            ref={confirmBtnRef}
           >
             {confirmLabel}
           </button>
