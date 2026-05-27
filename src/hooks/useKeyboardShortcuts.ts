@@ -61,10 +61,38 @@ function moveFocus(direction: FocusDirection): boolean {
   return true;
 }
 
-function closeFocused(): boolean {
+async function closeFocusedAsync(): Promise<boolean> {
   const focused = focusedPaneOrNull();
   if (focused === null) return false;
+  // CONTEXT.md invariant 3: gate Ctrl+W behind the active-process
+  // confirm dialog, identical to the × button on the pane. Dynamic
+  // imports avoid a static import cycle through the store layer.
+  try {
+    const { isPtyBusy } = await import("@/terminals/ptyClient");
+    const busy = await isPtyBusy(focused);
+    if (busy) {
+      const { useConfirmStore } = await import("@/store/confirmStore");
+      const ok = await useConfirmStore.getState().confirm({
+        title: "Close pane with running process?",
+        message: `${focused} appears to be running a process. Closing the pane will terminate it.`,
+        confirmLabel: "Close anyway",
+        cancelLabel: "Keep open",
+        danger: true,
+      });
+      if (!ok) return false;
+    }
+  } catch (err) {
+    console.warn("isPtyBusy check failed", err);
+  }
   useLayoutStore.getState().closePane(focused);
+  return true;
+}
+
+function closeFocused(): boolean {
+  // Fire-and-forget the async path; the shortcut returns true synchronously
+  // to consume the keystroke. The async close + confirm dialog happen
+  // shortly after.
+  void closeFocusedAsync();
   return true;
 }
 
@@ -143,6 +171,46 @@ function isMdFullMode(): boolean {
   return useMdStore.getState().mdEditorMode === "full";
 }
 
+// ---------- Chord state (Ctrl+K-prefixed shortcuts) ----------
+//
+// The first key (Ctrl+K alone) arms the chord; the next keypress
+// resolves it. State resets after 1.5s of inactivity so a stale prefix
+// doesn't surprise the user on the next keystroke.
+
+let chordPrefix: "ctrl-k" | null = null;
+let chordTimer: number | null = null;
+
+function armChord(prefix: "ctrl-k"): void {
+  chordPrefix = prefix;
+  if (chordTimer !== null) window.clearTimeout(chordTimer);
+  chordTimer = window.setTimeout(() => {
+    chordPrefix = null;
+    chordTimer = null;
+  }, 1500);
+}
+
+function clearChord(): void {
+  chordPrefix = null;
+  if (chordTimer !== null) {
+    window.clearTimeout(chordTimer);
+    chordTimer = null;
+  }
+}
+
+function openFolderViaPicker(): void {
+  void (async () => {
+    try {
+      const { pickFolder } = await import("@/lib/dialogClient");
+      const folder = await pickFolder();
+      if (folder !== null) {
+        useSidebarStore.getState().setWorkspaceFolder(folder);
+      }
+    } catch (err) {
+      console.error("Open Folder failed", err);
+    }
+  })();
+}
+
 const SHORTCUTS: Shortcut[] = [
   // Splits — Ctrl+Alt+arrow
   { match: (e) => isCtrlAlt(e) && e.key === "ArrowRight", run: () => splitFromFocused("right") },
@@ -177,6 +245,31 @@ const SHORTCUTS: Shortcut[] = [
 
   // Ctrl+E — toggle MD Editor mode (fires unconditionally)
   { match: (e) => isCtrlOnly(e) && (e.key === "e" || e.key === "E"), run: () => toggleMdMode() },
+
+  // Chord prefix: Ctrl+K alone arms the chord. The next keypress resolves
+  // it. Released after 1.5s if no follow-up. Must be ordered BEFORE the
+  // plain Ctrl+O entry so Ctrl+K → Ctrl+O resolves below instead of
+  // falling into openMdFromPrompt.
+  {
+    match: (e) =>
+      isCtrlOnly(e) && (e.key === "k" || e.key === "K") && chordPrefix === null,
+    run: () => {
+      armChord("ctrl-k");
+      return true;
+    },
+  },
+
+  // Resolution: Ctrl+K → Ctrl+O opens the OS folder picker. Must come
+  // BEFORE the plain Ctrl+O entry below.
+  {
+    match: (e) =>
+      chordPrefix === "ctrl-k" && isCtrlOnly(e) && (e.key === "o" || e.key === "O"),
+    run: () => {
+      clearChord();
+      openFolderViaPicker();
+      return true;
+    },
+  },
 
   // Ctrl+O — open .md file via prompt (fires unconditionally)
   { match: (e) => isCtrlOnly(e) && (e.key === "o" || e.key === "O"), run: () => openMdFromPrompt() },
@@ -219,6 +312,11 @@ export function useKeyboardShortcuts(): void {
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      // Drop any armed chord timer on unmount so a pending Ctrl+K
+      // prefix doesn't leak across hot reloads.
+      clearChord();
+    };
   }, []);
 }

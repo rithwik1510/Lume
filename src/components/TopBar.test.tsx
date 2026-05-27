@@ -52,7 +52,21 @@ vi.mock("@/store/sidebarStore", () => ({
       sidebarVisible: true,
       toggleSidebar: mocks.toggleSidebarMock,
       workspaceFolder: "C:/Users/test",
+      setWorkspaceFolder: vi.fn(),
     }), { getState: vi.fn() }),
+}));
+
+// The 📂 Open Folder button imports the dialog plugin lazily; stub the
+// module so the test runs in happy-dom without a real Tauri host.
+vi.mock("@/lib/dialogClient", () => ({
+  pickFolder: vi.fn(async () => null),
+}));
+
+// Toast store is touched by the Open Folder error path. Stub getState.
+vi.mock("@/store/toastStore", () => ({
+  useToastStore: Object.assign((sel: (s: unknown) => unknown) =>
+    sel({ toasts: [], dismiss: vi.fn() }),
+    { getState: vi.fn(() => ({ push: vi.fn() })) }),
 }));
 vi.mock("@/store/layoutStore", () => ({
   useLayoutStore: Object.assign((sel: (s: unknown) => unknown) =>

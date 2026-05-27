@@ -31,8 +31,10 @@ import {
 
 import { TerminalPane } from "@/components/TerminalPane";
 import { beginResize, endResize } from "@/components/resizeBus";
+import { useConfirmStore } from "@/store/confirmStore";
 import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
 import { leaves, type LayoutNode } from "@/store/layout/tree";
+import { isPtyBusy } from "@/terminals/ptyClient";
 
 /**
  * Per-pane percentage limits during a splitter drag. Below the minimum
@@ -74,9 +76,28 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
   // showing a button that does nothing is worse UX than not showing one.
   const isLastPane = useLayoutStore((s) => getPaneIds(s).length <= 1);
   const closePane = useLayoutStore((s) => s.closePane);
-  const onClose = (e: ReactMouseEvent<HTMLButtonElement>) => {
+  const onClose = async (e: ReactMouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    // CONTEXT.md invariant 3: if the PTY has running children (anything
+    // beyond an idle shell), confirm before terminating. is_pty_busy
+    // failures (IPC error, unknown pane) fall through to close — better
+    // than soft-locking the pane behind a broken check.
+    try {
+      const busy = await isPtyBusy(paneId);
+      if (busy) {
+        const ok = await useConfirmStore.getState().confirm({
+          title: "Close pane with running process?",
+          message: `${paneId} appears to be running a process. Closing the pane will terminate it.`,
+          confirmLabel: "Close anyway",
+          cancelLabel: "Keep open",
+          danger: true,
+        });
+        if (!ok) return;
+      }
+    } catch (err) {
+      console.warn("isPtyBusy check failed", err);
+    }
     closePane(paneId);
   };
   return (

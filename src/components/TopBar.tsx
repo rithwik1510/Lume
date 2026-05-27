@@ -14,8 +14,10 @@ import styles from "@/components/TopBar.module.css";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useLayoutStore } from "@/store/layoutStore";
+import { useToastStore } from "@/store/toastStore";
 import { nextPaneId } from "@/lib/paneIds";
 import { configFilePath } from "@/lib/configClient";
+import { pickFolder } from "@/lib/dialogClient";
 import {
   minimizeWindow,
   toggleMaximize,
@@ -68,6 +70,7 @@ export function TopBar() {
   const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
   const workspaceFolder = useSidebarStore((s) => s.workspaceFolder);
+  const setWorkspaceFolder = useSidebarStore((s) => s.setWorkspaceFolder);
 
   const focusedPaneId = useLayoutStore((s) => s.focusedPaneId);
   const splitPane = useLayoutStore((s) => s.splitPane);
@@ -90,6 +93,21 @@ export function TopBar() {
       );
     }
     // No-op when QV has no remembered path — matches keyboard shortcut.
+  };
+
+  const onOpenFolder = async () => {
+    try {
+      const folder = await pickFolder();
+      if (folder !== null) {
+        setWorkspaceFolder(folder);
+      }
+    } catch (err) {
+      console.error("Open Folder failed", err);
+      useToastStore.getState().push({
+        severity: "error",
+        message: `Couldn't open folder: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
   };
 
   const onSettings = () => {
@@ -119,6 +137,15 @@ export function TopBar() {
           onClick={() => onSplit("right")}
         >
           ⊞
+        </button>
+        <button
+          className={styles.btn}
+          title="Open Folder (Ctrl+K Ctrl+O)"
+          aria-label="Open Folder"
+          data-tauri-drag-region="false"
+          onClick={() => void onOpenFolder()}
+        >
+          📂
         </button>
         <button
           className={styles.btn}

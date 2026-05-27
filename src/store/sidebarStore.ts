@@ -60,7 +60,13 @@ export const useSidebarStore = create<SidebarState>()(
 
       setWorkspaceFolder: (path) =>
         set((s) => {
+          // Switching workspace folders must also reset tree state — the
+          // `entries` Map and `expanded` Set are keyed by absolute path,
+          // so leaving them would render a stale mix of old + new folder
+          // contents until the file watcher's initial Rescan catches up.
           s.workspaceFolder = path;
+          s.entries = new Map();
+          s.expanded = new Set();
         }),
 
       storeEntries: (path, entries) =>

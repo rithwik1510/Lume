@@ -15,6 +15,7 @@
 import { useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ContextMenu } from "@/components/ContextMenu";
 import { MdEditor } from "@/components/MdEditor";
 import { PaneTree } from "@/components/PaneTree";
@@ -142,6 +143,7 @@ export default function App() {
       <StatusBar />
       <ContextMenu />
       <Toaster />
+      <ConfirmDialog />
     </div>
   );
 }

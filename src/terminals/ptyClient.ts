@@ -40,6 +40,15 @@ export async function killPty(paneId: PaneId): Promise<void> {
   await invoke<void>("pty_kill", { paneId });
 }
 
+/**
+ * Heuristic for "this PTY has a running foreground process beyond the
+ * idle shell" — used by the UI to gate the close-pane confirm dialog
+ * (CONTEXT.md invariant 3). See pty.rs `is_pty_busy` for caveats.
+ */
+export function isPtyBusy(paneId: PaneId): Promise<boolean> {
+  return invoke<boolean>("is_pty_busy", { paneId });
+}
+
 /** Type guard — Tauri rejects with an AppError-shaped object on command failure. */
 export function isAppError(e: unknown): e is AppError {
   return (

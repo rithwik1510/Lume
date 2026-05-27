@@ -48,6 +48,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(build_log_plugin())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(pty::PtyRegistry::default())
         .manage(file_watcher::FileWatcherState::default())
@@ -57,6 +58,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            pty::is_pty_busy,
             crate::fs::list_dir,
             crate::fs::read_text_file,
             crate::fs::write_text_file,

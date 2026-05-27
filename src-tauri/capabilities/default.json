@@ -16,6 +16,7 @@
     "core:webview:default",
     "log:default",
     "store:default",
-    "shell:default"
+    "shell:default",
+    "dialog:default"
   ]
 }

@@ -114,12 +114,26 @@ struct PtySession {
     writer: Mutex<Box<dyn Write + Send>>,
     /// Set by pty_kill (and reader thread on EOF) to tell the flusher to stop.
     closed: Arc<Mutex<bool>>,
+    /// PID of the spawned shell child. Captured at spawn time because the
+    /// `Child` itself is moved into the waiter thread and isn't accessible
+    /// afterwards. Used by `is_pty_busy` to walk the process tree.
+    /// `None` if the platform didn't provide a PID at spawn (rare).
+    shell_pid: Option<u32>,
 }
 
 /// App state — keyed by paneId. Inserted on pty_open, removed on pty_kill.
 #[derive(Default)]
 pub struct PtyRegistry {
     sessions: DashMap<String, PtySession>,
+}
+
+impl PtyRegistry {
+    /// Returns the spawned shell's PID for a given pane, if any.
+    /// Returns `None` when the pane is unknown or the platform didn't
+    /// expose a PID at spawn time.
+    pub fn shell_pid(&self, pane_id: &str) -> Option<u32> {
+        self.sessions.get(pane_id).and_then(|s| s.shell_pid)
+    }
 }
 
 /// Resolved program + args for a shell. Separated from CommandBuilder so we
@@ -183,6 +197,11 @@ pub fn pty_open(
         .spawn_command(cmd)
         .map_err(|e| AppError::spawn(format!("spawn: {e}")))?;
 
+    // Capture the child's PID before we move `child` into the waiter thread.
+    // `is_pty_busy` walks the OS process tree from this PID to count
+    // descendants — without it the heuristic has nothing to anchor on.
+    let shell_pid = child.process_id();
+
     drop(pair.slave);
 
     let mut reader = pair
@@ -204,6 +223,7 @@ pub fn pty_open(
             master: Mutex::new(pair.master),
             writer: Mutex::new(writer),
             closed: closed.clone(),
+            shell_pid,
         },
     );
 
@@ -315,6 +335,67 @@ pub fn pty_kill(pane_id: String, state: State<'_, PtyRegistry>) -> AppResult<()>
         // Dropping `session` drops master + writer; reader sees EOF and exits.
     }
     Ok(())
+}
+
+/// Heuristic for "this PTY has a running foreground process beyond the
+/// idle shell". Used by the UI to decide whether to show a confirm
+/// dialog before closing the pane (CONTEXT.md invariant 3).
+///
+/// Implementation: walk the OS process snapshot and count direct
+/// children of the shell PID. A shell sitting at its prompt has zero
+/// direct children; a shell running `tail -f` or Claude Code has 1+.
+/// Imperfect (a shell that ran a quick command and is back at the prompt
+/// still reads as idle), but covers the user pain point: "I'm about to
+/// kill Claude Code mid-task." Unknown panes return `false` so the close
+/// path doesn't soft-lock.
+#[tauri::command]
+pub fn is_pty_busy(state: State<'_, PtyRegistry>, pane_id: String) -> AppResult<bool> {
+    let pid = match state.shell_pid(&pane_id) {
+        Some(p) => p,
+        None => return Ok(false),
+    };
+    Ok(child_count(pid) > 0)
+}
+
+#[cfg(target_os = "windows")]
+fn child_count(parent_pid: u32) -> u32 {
+    // Walk the snapshot of all processes; count those whose
+    // ParentProcessID matches `parent_pid`. Win32 Toolhelp32 API.
+    use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
+    use winapi::um::tlhelp32::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snap == INVALID_HANDLE_VALUE {
+            return 0;
+        }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut count = 0u32;
+        if Process32FirstW(snap, &mut entry) != 0 {
+            loop {
+                if entry.th32ParentProcessID == parent_pid {
+                    count += 1;
+                }
+                if Process32NextW(snap, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snap);
+        count
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn child_count(_parent_pid: u32) -> u32 {
+    // v0.1 ships Windows only. macOS/Linux installers arrive in v0.4+;
+    // revisit then. Returning 0 means the confirm dialog never fires on
+    // non-Windows builds — close-pane behaves as it did pre-Phase-2.
+    0
 }
 
 #[cfg(test)]
