@@ -8,6 +8,7 @@ import {
   writeDefaultConfigIfMissing,
 } from "@/lib/configClient";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useToastStore } from "@/store/toastStore";
 
 // StrictMode intentionally OFF — see DESIGN.md §4 rule #2:
 // PTY lifecycle is keyed by paneId in module-level Map, not by React mount.
@@ -27,6 +28,10 @@ void (async () => {
     useSettingsStore.getState().applyConfig(cfg);
   } catch (err) {
     console.error("config bootstrap failed; keeping defaults", err);
+    useToastStore.getState().push({
+      severity: "warn",
+      message: "Couldn't read config.toml; using defaults. Check the log for details.",
+    });
   }
   // Hot reload subscription. Re-reads on every Changed event.
   try {
@@ -38,10 +43,18 @@ void (async () => {
         console.info("config.toml hot-reloaded");
       } catch (err) {
         console.warn("hot reload parse failed; keeping last valid", err);
+        useToastStore.getState().push({
+          severity: "warn",
+          message: "Config has errors; keeping last valid values.",
+        });
         useSettingsStore.getState().revertToLastValid();
       }
     });
   } catch (err) {
     console.error("watchConfig failed; hot reload disabled", err);
+    useToastStore.getState().push({
+      severity: "warn",
+      message: "Config hot-reload disabled; changes won't apply until restart.",
+    });
   }
 })();

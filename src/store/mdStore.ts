@@ -5,6 +5,7 @@ import { immer } from "zustand/middleware/immer";
 
 import { readTextFile, writeTextFile } from "@/lib/fsClient";
 import { tauriPersistStorage } from "@/lib/persistStorage";
+import { useToastStore } from "@/store/toastStore";
 
 export interface MdTab {
   id: string;
@@ -114,11 +115,23 @@ export const useMdStore = create<MdStoreState>()(
       saveMdTab: async (id) => {
         const t = get().tabs.find((t) => t.id === id);
         if (!t) return;
-        await writeTextFile(t.path, t.content);
-        set((s) => {
-          const tt = s.tabs.find((t) => t.id === id);
-          if (tt) tt.dirty = false;
-        });
+        try {
+          await writeTextFile(t.path, t.content);
+          set((s) => {
+            const tt = s.tabs.find((t) => t.id === id);
+            if (tt) tt.dirty = false;
+          });
+          useToastStore.getState().push({
+            severity: "success",
+            message: `Saved ${t.path.split(/[/\\]/).pop() ?? t.path}`,
+          });
+        } catch (err) {
+          useToastStore.getState().push({
+            severity: "error",
+            message: `Save failed: ${err instanceof Error ? err.message : String(err)}`,
+          });
+          throw err;
+        }
       },
       closeMdTab: (id) =>
         set((s) => {

@@ -8,6 +8,7 @@ import styles from "@/components/Sidebar.module.css";
 import { SidebarTree } from "@/components/SidebarTree";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
+import { useToastStore } from "@/store/toastStore";
 import { homeDir, listDir, writeTextFile } from "@/lib/fsClient";
 import { watchWorkspace } from "@/lib/fileWatcher";
 
@@ -98,6 +99,10 @@ export function Sidebar() {
       await openMdTab(path);
     } catch (e) {
       console.error("new file failed", e);
+      useToastStore.getState().push({
+        severity: "error",
+        message: `Could not create file: ${e instanceof Error ? e.message : String(e)}`,
+      });
     }
   };
 

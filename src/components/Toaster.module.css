@@ -1,0 +1,88 @@
+/* src/components/Toaster.module.css
+ *
+ * DESIGN.md §8 — bottom-right, above the Status Bar with 16px margin.
+ * Stack newest-on-top. 180ms slide-in-from-right + fade. */
+
+.root {
+  position: fixed;
+  bottom: calc(24px + 16px); /* status-bar height + spec margin */
+  right: 16px;
+  display: flex;
+  flex-direction: column-reverse; /* newest on top */
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none; /* clicks pass through gaps */
+}
+
+.toast {
+  pointer-events: auto;
+  min-width: 280px;
+  max-width: 480px;
+  background: var(--bg-2);
+  color: var(--fg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  animation: slideIn 180ms ease-out;
+}
+
+.edge {
+  width: 3px;
+  flex-shrink: 0;
+}
+
+.edge.success { background: var(--success); }
+.edge.info    { background: var(--accent); }
+.edge.warn    { background: var(--accent-dim); }
+.edge.error   { background: var(--error); }
+
+.body {
+  flex: 1;
+  padding: 8px var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.closeBtn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--fg-2);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+}
+.closeBtn:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
