@@ -37,14 +37,36 @@ export default function App() {
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
-    const { root: existingRoot, initWithFirstPane } = useLayoutStore.getState();
-    if (existingRoot === null) {
-      // One pane at launch — user splits via Ctrl+Alt+→/↓/↑.
-      // The Weekend 1 4-pane bootstrap was smoothness-baseline scaffolding,
-      // not the real product UX.
-      initWithFirstPane("pane-1");
+
+    const bootstrapEmptyLayout = () => {
+      const { root: existingRoot, initWithFirstPane } = useLayoutStore.getState();
+      if (existingRoot === null) {
+        // One pane at launch — user splits via Ctrl+Alt+→/↓/↑.
+        // The Weekend 1 4-pane bootstrap was smoothness-baseline scaffolding,
+        // not the real product UX.
+        initWithFirstPane("pane-1");
+      }
+    };
+
+    // Wait for layoutStore's persist middleware to finish rehydrating before
+    // running the empty-layout bootstrap. Otherwise we'd spawn pane-1 and
+    // immediately kill it once rehydrate replaces root with the persisted
+    // tree — a visible flash plus wasted PTY work. hasHydrated() returns true
+    // if rehydration has already completed (e.g. on HMR); otherwise we wait
+    // on onFinishHydration's callback.
+    let unsubFinishHydration: (() => void) | undefined;
+    if (useLayoutStore.persist.hasHydrated()) {
+      bootstrapEmptyLayout();
+    } else {
+      unsubFinishHydration = useLayoutStore.persist.onFinishHydration(() => {
+        bootstrapEmptyLayout();
+      });
     }
-    return () => dispose();
+
+    return () => {
+      if (unsubFinishHydration) unsubFinishHydration();
+      dispose();
+    };
   }, []);
 
   // Wire keyboard shortcuts (W2-P3): split/focus/close.

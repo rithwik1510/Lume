@@ -211,7 +211,11 @@ export const useLayoutStore = create<LayoutStore>()(
         onRehydrateStorage: () => (state) => {
           if (state && state.root !== null) {
             const ids = getPaneIds(state);
-            state.focusedPaneId = ids[0] ?? null;
+            // Direct mutation (state.focusedPaneId = ...) changes the value
+            // but bypasses notifyListeners, so subscribers (e.g. the
+            // focused-pane border) wouldn't re-render until the next user
+            // interaction. setState dispatches through the store properly.
+            useLayoutStore.setState({ focusedPaneId: ids[0] ?? null });
           }
         },
       }

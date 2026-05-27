@@ -22,7 +22,12 @@ function getStore(filename: string): Promise<Store> {
     // autoSave defaults to 100ms — we rely on that. Don't pass options so we
     // don't have to declare `defaults` (the plugin requires it when the
     // options object is present).
-    p = load(filename);
+    p = load(filename).catch((err) => {
+      // Evict rejected promise so the next call can retry instead of
+      // re-receiving the same rejection.
+      storeCache.delete(filename);
+      throw err;
+    });
     storeCache.set(filename, p);
   }
   return p;
@@ -31,17 +36,32 @@ function getStore(filename: string): Promise<Store> {
 export function tauriPersistStorage(filename: string): StateStorage {
   return {
     async getItem(name: string): Promise<string | null> {
-      const store = await getStore(filename);
-      const v = await store.get<string>(name);
-      return v ?? null;
+      try {
+        const store = await getStore(filename);
+        const v = await store.get<string>(name);
+        // Defensive: plugin-store stores unknown values; if anyone wrote a
+        // non-string under this key, return null to fall back to defaults.
+        return typeof v === "string" ? v : null;
+      } catch (err) {
+        console.error(`persistStorage.getItem(${name}) failed`, err);
+        return null;
+      }
     },
     async setItem(name: string, value: string): Promise<void> {
-      const store = await getStore(filename);
-      await store.set(name, value);
+      try {
+        const store = await getStore(filename);
+        await store.set(name, value);
+      } catch (err) {
+        console.error(`persistStorage.setItem(${name}) failed`, err);
+      }
     },
     async removeItem(name: string): Promise<void> {
-      const store = await getStore(filename);
-      await store.delete(name);
+      try {
+        const store = await getStore(filename);
+        await store.delete(name);
+      } catch (err) {
+        console.error(`persistStorage.removeItem(${name}) failed`, err);
+      }
     },
   };
 }
