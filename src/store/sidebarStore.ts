@@ -3,10 +3,11 @@
 // rules: immer + devtools, atomic selectors).
 
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
 import type { DirEntry } from "@/types/fs";
+import { tauriPersistStorage } from "@/lib/persistStorage";
 
 // Immer doesn't proxy Map/Set drafts unless the MapSet plugin is loaded. This
 // store keeps `entries: Map` and `expanded: Set`, so we enable it once at
@@ -49,7 +50,8 @@ export interface SidebarState {
 
 export const useSidebarStore = create<SidebarState>()(
   devtools(
-    immer((set, get) => ({
+    persist(
+      immer((set, get) => ({
       workspaceFolder: null,
       entries: new Map(),
       expanded: new Set(),
@@ -101,6 +103,19 @@ export const useSidebarStore = create<SidebarState>()(
           s.sidebarVisible = true;
         }),
     })),
+      {
+        name: "sidebar",
+        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        version: 1,
+        // Persist only the durable bits. entries (Map) and expanded (Set)
+        // are session state — they get re-read from disk on launch via
+        // listDir, so persisting would just waste space.
+        partialize: (state) => ({
+          workspaceFolder: state.workspaceFolder,
+          sidebarVisible: state.sidebarVisible,
+        }),
+      }
+    ),
     { name: "sidebarStore" }
   )
 );

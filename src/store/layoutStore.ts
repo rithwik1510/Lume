@@ -11,10 +11,11 @@
 // (e.g. last-pane lock, focus follows splits, focus shifts on close).
 
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import type { PaneId } from "@/types";
+import { tauriPersistStorage } from "@/lib/persistStorage";
 import {
   type LayoutNode,
   type SplitDirection,
@@ -99,7 +100,8 @@ function pickFocusAfterClose(
 
 export const useLayoutStore = create<LayoutStore>()(
   devtools(
-    immer((set) => ({
+    persist(
+      immer((set) => ({
       ...emptyState(),
 
       initWithFirstPane: (paneId) =>
@@ -195,6 +197,25 @@ export const useLayoutStore = create<LayoutStore>()(
           "layout/reset"
         ),
     })),
+      {
+        name: "layout",
+        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        version: 1,
+        // Persist the tree shape only. focusedPaneId is intentionally reset
+        // on rehydrate — DESIGN.md §4 EXCLUDED list. The orchestrator
+        // re-spawns PTYs by reacting to leaves appearing in the layout.
+        partialize: (state) => ({ root: state.root }),
+        // On hydrate, ensure focusedPaneId points to a valid leaf. If the
+        // persisted tree is null or contains no leaves, leave focus null and
+        // let App.tsx's bootstrap initialise a fresh pane.
+        onRehydrateStorage: () => (state) => {
+          if (state && state.root !== null) {
+            const ids = getPaneIds(state);
+            state.focusedPaneId = ids[0] ?? null;
+          }
+        },
+      }
+    ),
     { name: "layout", enabled: import.meta.env.DEV }
   )
 );

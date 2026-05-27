@@ -5,6 +5,18 @@
 // applied in markActivity.
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+
+// layoutStore is wrapped with zustand/middleware/persist backed by
+// @tauri-apps/plugin-store; mock it so the test runner doesn't try to call
+// into Tauri at module load. `get` returns null so rehydrate is a no-op.
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn(async () => ({
+    get: vi.fn(async () => null),
+    set: vi.fn(async () => undefined),
+    delete: vi.fn(async () => undefined),
+  })),
+}));
+
 import { useLayoutStore, getPaneIds } from "./layoutStore";
 import { usePtyStore } from "./ptyStore";
 import type { Shell } from "@/types";

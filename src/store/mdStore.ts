@@ -1,9 +1,10 @@
 // src/store/mdStore.ts
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import { readTextFile, writeTextFile } from "@/lib/fsClient";
+import { tauriPersistStorage } from "@/lib/persistStorage";
 
 export interface MdTab {
   id: string;
@@ -57,7 +58,8 @@ const nextTabId = () => `mdtab-${++_tabSeq}`;
 
 export const useMdStore = create<MdStoreState>()(
   devtools(
-    immer((set, get) => ({
+    persist(
+      immer((set, get) => ({
       mdEditorMode: "off",
       tabs: [],
       activeTabId: null,
@@ -144,6 +146,15 @@ export const useMdStore = create<MdStoreState>()(
           s.focusedSurface = null;
         }),
     })),
+      {
+        name: "md",
+        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        version: 1,
+        // tabs / quickViewer / focusedSurface are ephemeral session state.
+        // Only mdEditorMode survives restart (DESIGN.md §4 EXCLUDED list).
+        partialize: (state) => ({ mdEditorMode: state.mdEditorMode }),
+      }
+    ),
     { name: "mdStore" }
   )
 );

@@ -1,5 +1,16 @@
 // src/store/mdStore.test.ts
 import { describe, expect, it, beforeEach, vi } from "vitest";
+
+// The persist middleware loads from @tauri-apps/plugin-store on hydrate;
+// mock it so the test runner doesn't try to call into Tauri at module load.
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn(async () => ({
+    get: vi.fn(async () => null),
+    set: vi.fn(async () => undefined),
+    delete: vi.fn(async () => undefined),
+  })),
+}));
+
 import { useMdStore } from "@/store/mdStore";
 
 vi.mock("@/lib/fsClient", () => ({

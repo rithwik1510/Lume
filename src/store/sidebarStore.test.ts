@@ -1,4 +1,16 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+// The persist middleware loads from @tauri-apps/plugin-store on hydrate;
+// mock it so the test runner doesn't try to call into Tauri at module load.
+// `get` returns null so rehydrate is a no-op and stores keep their defaults.
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn(async () => ({
+    get: vi.fn(async () => null),
+    set: vi.fn(async () => undefined),
+    delete: vi.fn(async () => undefined),
+  })),
+}));
+
 import { useSidebarStore } from "@/store/sidebarStore";
 import type { DirEntry } from "@/types/fs";
 
