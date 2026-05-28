@@ -1,0 +1,104 @@
+/* src/components/ShortcutsModal.module.css
+ *
+ * Read-only modal listing every keyboard shortcut from DESIGN.md §7.
+ * Centered over a dimming backdrop. Shares the modal z-index layer with
+ * ConfirmDialog (--z-modal); only one modal is open at a time in v0.1
+ * so they never need to stack. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  color: var(--fg-0);
+  width: min(640px, calc(100vw - 64px));
+  max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.header {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--fg-heading);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.closeBtn {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  color: var(--fg-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+}
+.closeBtn:hover {
+  color: var(--fg-0);
+  background: var(--bg-2);
+  border-color: var(--accent-dim);
+}
+
+.body {
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+.group {
+  margin-bottom: var(--space-4);
+}
+.group:last-child {
+  margin-bottom: 0;
+}
+
+.groupHeader {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-2);
+  margin-bottom: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.label {
+  color: var(--fg-0);
+}
+
+.keys {
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.key {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-0);
+}

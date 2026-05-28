@@ -16,7 +16,8 @@ import { TopBar } from "@/components/TopBar";
 const mocks = vi.hoisted(() => ({
   toggleSidebarMock: vi.fn(),
   setMdEditorModeMock: vi.fn(),
-  splitPaneMock: vi.fn(),
+  splitMenuShowMock: vi.fn(),
+  openShortcutsModalMock: vi.fn(),
   minimizeWindowMock: vi.fn(),
   toggleMaximizeMock: vi.fn(),
   closeWindowMock: vi.fn(),
@@ -68,12 +69,25 @@ vi.mock("@/store/toastStore", () => ({
     sel({ toasts: [], dismiss: vi.fn() }),
     { getState: vi.fn(() => ({ push: vi.fn() })) }),
 }));
-vi.mock("@/store/layoutStore", () => ({
-  useLayoutStore: Object.assign((sel: (s: unknown) => unknown) =>
-    sel({
-      focusedPaneId: "pane-1",
-      splitPane: mocks.splitPaneMock,
-    }), { getState: vi.fn() }),
+// Split menu store — the ⊞ TopBar button now opens this popup instead of
+// splitting directly. We assert show(...) is called with the button's
+// bottom-left anchor coords (happy-dom returns 0/0 for layout, which is
+// fine — the call shape is what matters).
+vi.mock("@/store/splitMenuStore", () => ({
+  useSplitMenuStore: Object.assign(
+    (sel: (s: unknown) => unknown) =>
+      sel({ open: false, anchorX: 0, anchorY: 0, show: mocks.splitMenuShowMock, close: vi.fn() }),
+    { getState: vi.fn(() => ({ show: mocks.splitMenuShowMock })) }
+  ),
+}));
+
+// Shortcuts modal store — the ⌨ TopBar button opens this modal.
+vi.mock("@/store/shortcutsModalStore", () => ({
+  useShortcutsModalStore: Object.assign(
+    (sel: (s: unknown) => unknown) =>
+      sel({ open: false, openModal: mocks.openShortcutsModalMock, closeModal: vi.fn(), toggle: vi.fn() }),
+    { getState: vi.fn(() => ({ openModal: mocks.openShortcutsModalMock })) }
+  ),
 }));
 
 describe("TopBar — drag region invariant", () => {
@@ -108,11 +122,20 @@ describe("TopBar — click handlers", () => {
     expect(mocks.setMdEditorModeMock).toHaveBeenCalledWith("full");
   });
 
-  it("clicking the Split button calls splitPane with \"right\"", () => {
+  it("clicking the ⊞ Split button opens the SplitMenu popup (not splitPane directly)", () => {
+    // Phase 3: ⊞ no longer splits inline. It anchors a popover via
+    // useSplitMenuStore.show(anchorX, anchorY). Direct splits live in
+    // the SplitMenu component itself; this test only confirms the click
+    // routes through the store.
     const { getByLabelText } = render(<TopBar />);
-    fireEvent.click(getByLabelText("Split right"));
-    expect(mocks.splitPaneMock).toHaveBeenCalledTimes(1);
-    expect(mocks.splitPaneMock.mock.calls[0][0]).toBe("right");
+    fireEvent.click(getByLabelText("Split focused pane"));
+    expect(mocks.splitMenuShowMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clicking the ⌨ Keyboard shortcuts button opens the ShortcutsModal", () => {
+    const { getByLabelText } = render(<TopBar />);
+    fireEvent.click(getByLabelText("Keyboard shortcuts"));
+    expect(mocks.openShortcutsModalMock).toHaveBeenCalledTimes(1);
   });
 
   it("clicking Minimize calls minimizeWindow", () => {

@@ -21,6 +21,7 @@ import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useConfirmStore } from "@/store/confirmStore";
+import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
 import { nextPaneId } from "@/lib/paneIds";
 import { closeBusyPaneConfirm } from "@/lib/confirmStrings";
@@ -93,6 +94,11 @@ function closeFocused(): boolean {
 
 function toggleSidebar(): boolean {
   useSidebarStore.getState().toggleSidebar();
+  return true;
+}
+
+function openShortcutsModal(): boolean {
+  useShortcutsModalStore.getState().openModal();
   return true;
 }
 
@@ -234,6 +240,16 @@ const SHORTCUTS: Shortcut[] = [
     match: (e) =>
       e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "M" || e.key === "m"),
     run: () => toggleQuickViewer(),
+  },
+
+  // Show keyboard shortcuts — Ctrl+? (DESIGN.md §7). On most keyboards
+  // ? is Shift+/, so the OS may report e.key as "?" or "/" depending on
+  // layout. Accept both. Ordered with the other surface toggles, BEFORE
+  // the Ctrl+W pane-close entry below.
+  {
+    match: (e) =>
+      e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "?" || e.key === "/"),
+    run: () => openShortcutsModal(),
   },
 
   // ---- MD Editor Full View shortcuts (Phase 6) ----

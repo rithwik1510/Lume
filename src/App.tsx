@@ -20,7 +20,9 @@ import { ContextMenu } from "@/components/ContextMenu";
 import { MdEditor } from "@/components/MdEditor";
 import { PaneTree } from "@/components/PaneTree";
 import { QuickViewer } from "@/components/QuickViewer";
+import { ShortcutsModal } from "@/components/ShortcutsModal";
 import { Sidebar } from "@/components/Sidebar";
+import { SplitMenu } from "@/components/SplitMenu";
 import { StatusBar } from "@/components/StatusBar";
 import { Toaster } from "@/components/Toaster";
 import { TopBar } from "@/components/TopBar";
@@ -144,6 +146,8 @@ export default function App() {
       <ContextMenu />
       <Toaster />
       <ConfirmDialog />
+      <SplitMenu />
+      <ShortcutsModal />
     </div>
   );
 }

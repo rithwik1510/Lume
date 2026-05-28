@@ -10,12 +10,14 @@
 // swallowed as a window drag. There's a regression test (TopBar.test.tsx)
 // that walks the rendered DOM and asserts this.
 
+import type { MouseEvent as ReactMouseEvent } from "react";
+
 import styles from "@/components/TopBar.module.css";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
-import { useLayoutStore } from "@/store/layoutStore";
+import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
+import { useSplitMenuStore } from "@/store/splitMenuStore";
 import { useToastStore } from "@/store/toastStore";
-import { nextPaneId } from "@/lib/paneIds";
 import { configFilePath } from "@/lib/configClient";
 import { pickFolder } from "@/lib/dialogClient";
 import {
@@ -72,16 +74,12 @@ export function TopBar() {
   const workspaceFolder = useSidebarStore((s) => s.workspaceFolder);
   const setWorkspaceFolder = useSidebarStore((s) => s.setWorkspaceFolder);
 
-  const focusedPaneId = useLayoutStore((s) => s.focusedPaneId);
-  const splitPane = useLayoutStore((s) => s.splitPane);
-
-  const onSplit = (dir: "right" | "down" | "up") => {
-    if (focusedPaneId === null) return;
-    // Shared counter with useKeyboardShortcuts so ids never collide.
-    // We piggyback on the existing splitPane mutation; the orchestrator will
-    // spawn the PTY by reacting to the layout subscribe.
-    const id = nextPaneId();
-    splitPane(dir, id, focusedPaneId);
+  // ⊞ TopBar button: opens the SplitMenu popover anchored at the
+  // button's bottom-left. The popover dispatches splitPane on click;
+  // the orchestrator spawns the PTY by reacting to the layout subscribe.
+  const showSplitMenu = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    useSplitMenuStore.getState().show(rect.left, rect.bottom + 4);
   };
 
   const onToggleQuickViewer = () => {
@@ -131,10 +129,10 @@ export function TopBar() {
         </button>
         <button
           className={styles.btn}
-          title="Split focused pane right (Ctrl+Alt+→)"
-          aria-label="Split right"
+          title="Split focused pane (Ctrl+Alt+→/↑/↓)"
+          aria-label="Split focused pane"
           data-tauri-drag-region="false"
-          onClick={() => onSplit("right")}
+          onClick={showSplitMenu}
         >
           ⊞
         </button>
@@ -152,10 +150,7 @@ export function TopBar() {
           title="Keyboard shortcuts viewer (Ctrl+?)"
           aria-label="Keyboard shortcuts"
           data-tauri-drag-region="false"
-          onClick={() => {
-            // Viewer modal is v0.2 polish; in v0.1 we just log.
-            console.info("Keyboard shortcuts viewer is v0.2 polish");
-          }}
+          onClick={() => useShortcutsModalStore.getState().openModal()}
         >
           ⌨
         </button>
