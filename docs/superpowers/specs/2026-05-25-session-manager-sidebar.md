@@ -21,7 +21,7 @@ This is the destination DESIGN.md already pointed to (line 22: *"v0.3 — Dashbo
 - New `sessionsStore` with multi-named-per-folder sessions
 - Sidebar list of sessions with status dot, name, folder basename, git branch
 - "+ New session" entry point in sidebar + reuse of existing Open Folder button on topbar
-- Folder picker disambiguation when sessions already exist for the picked folder
+- Three distinct entry points for session creation / activation (topbar Open Folder = "go to project"; sidebar `+ New session` = "new work-stream"; per-group `+` = "add session to this project")
 - xterm survival on session switch (background PTYs stay alive)
 - Cold-start = all sessions stopped; explicit click revives
 - Stop-but-remember close semantics + hover-trash for purge
@@ -51,7 +51,7 @@ This is the destination DESIGN.md already pointed to (line 22: *"v0.3 — Dashbo
 | How tightly is a session tied to a folder? | **Multi-named per folder.** UUID identity + folder ref + user-given name. Multiple sessions for the same folder allowed; Open Folder shows a "switch or new" picker when matches exist. |
 | What happens when user closes a session (X)? | **Stop but remember.** PTYs killed (with busy-confirm gate); row stays dimmed in sidebar; hover-trash purges forever. Single sidebar list with status dots — no two-section split. |
 | Cold start: which sessions auto-revive? | **None.** All sessions begin stopped. User explicitly clicks each one to revive. PTYs respawn at session's `folderPath`. |
-| How rich is each session row? | **Standard cmux-light.** Name (bold) · folder basename · git branch · status dot (active / stopped / unread). |
+| How rich is each session row? | **Grouped-tree layout** (revised 2026-05-25 from user mock). Sidebar groups sessions by their folder — group header carries the project label, sessions sit underneath. Per row: status dot (active / stopped / unread) · session name. Folder basename moves to the group header; git branch moves to the status bar. |
 | File tree's new home (my call) | **Second collapsible drawer beside the sessions sidebar**, toggled by the existing `☰` button on the topbar. Scope = active session's `folderPath`; per-session toggle preference remembered. |
 | layoutStore migration (my call) | **Façade pattern.** `layoutStore` actions delegate to `sessionsStore.sessions[activeId].layoutRoot`. Minimizes diff to every existing consumer; consolidate later if it gets awkward. |
 
@@ -78,10 +78,23 @@ interface Session {
 
 interface SessionsState {
   sessions: Record<SessionId, Session>;
-  activeSessionId: SessionId | null;  // null when no session is active (cold start, all-stopped)
-  order: SessionId[];                 // sidebar render order
+  activeSessionId: SessionId | null;          // null when no session is active (cold start, all-stopped)
+
+  // Grouped-sidebar state. Groups are derived: every distinct `folderPath`
+  // across `sessions` forms a group. No separate Group entity — just label
+  // overrides and collapsed-state, keyed by folderPath.
+  groupLabels: Record<string, string>;        // folderPath -> user-given label (overrides basename)
+  collapsedGroups: string[];                  // folderPaths that are collapsed in the sidebar
 }
 ```
+
+### 4.1 Derived ordering (v1)
+
+Within a group: sessions sorted by `lastActiveAt` desc — most recent work-stream first.
+
+Between groups: each group's "recency" is the max `lastActiveAt` among its sessions; groups are sorted by that value desc — the project you're currently working in floats to the top. Empty groups (after every session in them is purged) cease to exist.
+
+`groupLabels` and `collapsedGroups` are user-state, persisted. No explicit `order` field for v1; drag-to-reorder (with persisted explicit ordering) is v1.1.
 
 ## 5. Store architecture
 
@@ -91,19 +104,22 @@ Owns `SessionsState`. Actions:
 
 | Action | Purpose |
 |---|---|
-| `createSession(folderPath, name?)` | New session. Name defaults to basename, auto-suffixed if collision. Inserted at end of `order`. Status = `"stopped"` initially. Caller typically follows with `activateSession`. |
+| `createSession(folderPath, name?)` | New session. Name defaults to `"New session"`, auto-suffixed (`-2`, `-3`, …) on collision with siblings under the same `folderPath` (sibling-scoped, not global). Status = `"stopped"` initially. Caller typically follows with `activateSession`. |
 | `activateSession(id)` | Sets `activeSessionId = id`, status → `"active"`, bumps `lastActiveAt`, clears `unread`. Pure data change — PTY spawning happens as a *side effect* of React mounting the now-visible `PaneTree` (see §9.3). |
 | `stopSession(id)` | Status → `"stopped"`. If `id === activeSessionId`, clear `activeSessionId`. Pure data change — PTYs die as a side effect when `<MainArea>` drops the session from its active-filter and `TerminalPane`'s unmount cleanup calls `disconnectPty`. |
-| `purgeSession(id)` | Removes from `sessions` map and `order`. If session was active, MainArea drops it → PaneTree unmounts → PTYs die (same chain as `stopSession`). If session was already stopped, no PTY side effect. |
-| `renameSession(id, name)` | Updates `name`. Empty name reverts to folder basename. |
+| `purgeSession(id)` | Removes from `sessions` map. If session was active, MainArea drops it → PaneTree unmounts → PTYs die (same chain as `stopSession`). If session was already stopped, no PTY side effect. If this was the last session in its group, the group implicitly disappears (groups are derived). |
+| `renameSession(id, name)` | Updates `name`. Empty name reverts to default (`"New session"` + sibling-suffix). |
+| `setGroupLabel(folderPath, label)` | Updates `groupLabels[folderPath]`. Empty label removes the entry (group reverts to basename). |
+| `toggleGroupCollapsed(folderPath)` | Adds/removes `folderPath` from `collapsedGroups`. |
+| `purgeGroup(folderPath)` | Convenience: purge every session in this group. UI confirms first. |
 | `bumpUnread(id)` | Sets `unread = true`. No-op if `id === activeSessionId`. |
 | `clearUnread(id)` | Sets `unread = false`. |
 | `updateBranch(id, branch)` | Sets `gitBranch`. |
 | `setLayoutRoot(id, root)` | Updates `layoutRoot` (used by the layoutStore façade on splits/closes). |
 | `setFocusedPane(id, paneId)` | Updates `focusedPaneId`. |
-| `toggleFileTree(id)` | Flips `fileTreeOpen`. |
-| `reorder(ids[])` | Replaces `order`. |
+| `toggleFileTree(id)` | Flips the session's `fileTreeOpen`. |
 | `sessionsForFolder(path)` | Selector. Returns sessions matching `folderPath` (case-insensitive on Windows), sorted by `lastActiveAt` desc. |
+| `groupedSessions()` | Selector. Returns `Array<{ folderPath, label, collapsed, sessions: Session[] }>` — the sidebar's render input. Groups derived from distinct `folderPath`s, sorted by max-child-`lastActiveAt` desc; sessions within each group sorted by `lastActiveAt` desc. Empty groups (no sessions) omitted. |
 | `findSessionForPane(paneId)` | Selector. Walks each session's `layoutRoot` to find the pane. Used by OSC handler. |
 
 ### 5.2 Modified: `src/store/layoutStore.ts`
@@ -125,52 +141,107 @@ PTYs are already keyed by `paneId` in a global registry, independent of session.
 
 ## 6. Sidebar UI
 
+Reference: user-supplied screenshot of the cmux-derived grouped layout (Newidea / Vibe level work / Workflow / etc.). The sidebar is a **two-level tree**: project groups at the top level, sessions nested underneath. No per-row folder badge or branch column — both are absorbed by the group header or pushed to the status bar.
+
 ### 6.1 `src/components/SessionsSidebar.tsx` (replaces current `Sidebar.tsx`)
 
 Structure:
 
 ```
 ┌──────────────────────────────────────┐
-│  + New session                       │  ← button, opens folder picker
+│  + New session             ⋯ menu    │  ← top toolbar (button + overflow)
 ├──────────────────────────────────────┤
-│  ● workstation        WORFLOW  main  │  ← active row (status dot filled)
-│  ○ docs                docs    -     │  ← stopped row (dot outline only)
-│  ◉ agents              agents  feat  │  ← stopped + unread (dot accent + soft pulse)
-│  ...                                 │
+│  ▾ Newidea                       +   │  ← group header (caret · label · hover-+)
+│    ○ Review codebase                 │  ← stopped session
+│    ○ General coding session          │
+│                                      │
+│  ▸ Stock ai predictor                │  ← collapsed group (no children shown)
+│                                      │
+│  ▾ Vibe level work               +   │
+│    ● Review project architecture …   │  ← active session (filled accent dot, bold)
+│    ○ Pull latest code …              │
+│    ○ Understand scoring engines      │
+│    ◉ Review auto-refresh changes     │  ← stopped + unread (soft pulse)
+│                                      │
+│  ▾ Workflow                      +   │
+│    ◉ Project handoff …               │
+│    ○ Plan new project …              │
 └──────────────────────────────────────┘
 ```
 
-### 6.2 `src/components/SessionRow.tsx`
+Top toolbar:
 
-Per-row layout, left to right:
+- `+ New session` button (full-width, hover bg): opens folder picker, goes through §7 flow.
+- `⋯` overflow menu (right): future home for "Reveal all in Explorer", filter, sort options. v1 wires the menu but only ships a "Filter…" item that focuses an inline filter input (text-match across session names and group labels).
 
-- Status dot (10px circle): filled accent (`var(--accent)`) when active, outlined dim when stopped, accent-with-soft-pulse-animation when stopped-with-unread
-- Folder icon (12px, dim)
-- Name (`var(--font-ui)`, bold if active, color `var(--fg-0)` if active / `var(--fg-2)` if stopped)
-- Folder basename (smaller, dim `var(--fg-2)`, ellipsized)
-- Git branch (right-aligned, monospace `var(--font-mono)` small, dim, ellipsized; hidden if null)
-- Trash icon (right-aligned, accent-red on hover, only visible on row hover)
+Sidebar body: scrollable list rendered from the `groupedSessions()` selector.
+
+### 6.2 `src/components/SessionGroup.tsx`
+
+Per group header, left to right:
+
+- Caret (`▾`/`▸`) — clicking toggles `collapsedGroups` via `toggleGroupCollapsed(folderPath)`. Animated 90° rotation.
+- Group label (`var(--font-ui)`, slightly smaller and dimmer than session rows, `var(--fg-2)`). Defaults to `basename(folderPath)`; overridden by `groupLabels[folderPath]` if present.
+- Hover-revealed `+` icon (right-aligned) — adds a new session directly to this group's folder, **skipping the folder picker**. New session gets `name = "New session"` (sibling-suffixed if needed), inline-rename starts immediately.
+- Right-click menu: **Rename group** (inline-edits the label) · **Reveal in Explorer** (opens `folderPath`) · **Collapse / Expand** · **Delete group** (confirm dialog, then `purgeGroup(folderPath)`).
+- Tooltip on hover over the label: full `folderPath`.
+
+When collapsed, the group's children are not rendered. Status dots are not aggregated to the header in v1 (so you can't see at-a-glance that a collapsed group has an unread session — that's a v1.1 polish: pull a small unread-count badge onto the collapsed header).
+
+### 6.3 `src/components/SessionRow.tsx`
+
+Per session row, left to right (indented under the group):
+
+- Status dot (10px circle):
+  - Filled `var(--accent)` when active
+  - Hollow outline `var(--fg-3)` when stopped
+  - Filled `var(--accent)` with a soft 1.5s pulse animation when stopped-with-unread
+- Session name (`var(--font-ui)`, bold if active, color `var(--fg-0)` if active or unread / `var(--fg-2)` if plain stopped). Single line, ellipsized.
+- Trash icon (right-aligned, `var(--accent-red)` on hover) — only visible on row hover.
 
 Interactions:
 
-- Single click anywhere on the row (except trash) → `activateSession(id)`. If status was stopped, also spawn fresh PTYs for every leaf in `layoutRoot` at `folderPath`.
-- Trash click → confirm "Delete session 'X'? This cannot be undone." → `purgeSession(id)`. If session was active, also kill PTYs.
-- Right-click → context menu (Rename · Reveal in Explorer · Delete)
-- Double-click on name → inline rename (controlled input replaces label until blur or Enter)
-- Hover → row background `var(--bg-2)`; trash icon appears
+- Single click anywhere on the row (except trash) → `activateSession(id)`. PTY spawning is the React side effect described in §5.1 + §9.3.
+- Trash click → confirm "Delete session '<name>'? This cannot be undone." → `purgeSession(id)`.
+- Right-click → context menu (**Rename** · **Reveal in Explorer** · **Delete**).
+- Double-click on name → inline rename (controlled input replaces label until blur or Enter).
+- Hover → row background `var(--bg-2)`; trash icon appears.
 
-### 6.3 Empty state
+### 6.4 Empty state
 
-When `sessions` is empty (fresh install, no migration): centered prompt "No sessions yet. + New session to begin." with the same `pickFolder` flow.
+When `sessions` is empty (fresh install, no migration): centered prompt "No sessions yet." with two affordances: a primary `+ New session` button (opens picker) and a secondary "Open Folder" link (also opens picker — same flow, but matches the topbar wording).
 
-## 7. Folder-picker disambiguation flow
+## 7. Entry points for session creation / activation
 
-Both Open Folder (topbar) and "+ New session" (sidebar) hit the same flow:
+Three distinct entry points, each with unambiguous semantics. No disambiguation popover needed — the grouped sidebar makes existing-sessions-for-this-folder visually obvious.
 
-1. `pickFolder()` opens native folder dialog (existing `src/lib/dialogClient.ts`)
-2. On result (`folderPath` string), call `sessionsForFolder(folderPath)` → list of matching sessions, sorted by `lastActiveAt` desc
-3. **No matches:** prompt for name via the existing `useConfirmStore`-style modal (new variant: `useInputStore` with a text input; defaults to `basename(folderPath)`, auto-suffix `-2`, `-3`, ... if name collision with any existing session). On confirm → `createSession(folderPath, name)` → `activateSession(id)` → spawn first PTY for the new session.
-4. **One or more matches:** show a small popover anchored near the trigger button. Each match → `[Switch to "<name>"]` button (shows folder basename + branch below). Bottom of popover → `[+ New session here]` (skips disambiguation and goes straight to step 3's prompt).
+| Entry point | Semantic | Behavior |
+|---|---|---|
+| **Open Folder (topbar)** | "Go to this project" | Pick folder → if a group exists for this `folderPath`, activate its most-recently-active session. If no group exists, create one with a fresh session (named `"New session"`, status `"stopped"` until activated; activate immediately). |
+| **`+ New session` (sidebar top)** | "Start a new work-stream" | Pick folder → always creates a new session. Lands in the matching group if `folderPath` already has sessions, else creates the group. New session gets `name = "New session"` (sibling-suffixed), inline-rename starts immediately on the new row. |
+| **Per-group `+` (hover on group header)** | "Add another session to THIS project" | No folder picker — uses the group's existing `folderPath` directly. Creates a new session, inline-rename starts immediately. |
+
+All three flows resolve into a single internal helper `createAndActivateSession(folderPath, name?)`:
+
+```ts
+function createAndActivateSession(folderPath: string, name?: string) {
+  const id = sessionsStore.createSession(folderPath, name);
+  sessionsStore.activateSession(id);  // PTY spawn cascades via React mount
+}
+```
+
+The "Open Folder = switch" semantic uses a different internal helper:
+
+```ts
+function openFolder(folderPath: string) {
+  const existing = sessionsStore.sessionsForFolder(folderPath);
+  if (existing.length === 0) {
+    createAndActivateSession(folderPath);
+  } else {
+    sessionsStore.activateSession(existing[0].id);  // most recent
+  }
+}
+```
 
 ## 8. File tree relocation
 
@@ -273,7 +344,7 @@ New `sessions` slice on the existing `tauriPersistStorage` adapter (writes to `w
 
 Persisted (partializer allowlist):
 
-- Top-level: `order: SessionId[]`
+- Top-level: `groupLabels: Record<string, string>`, `collapsedGroups: string[]`
 - Per session: `id`, `name`, `folderPath`, `layoutRoot`, `focusedPaneId`, `gitBranch`, `fileTreeOpen`, `createdAt`, `lastActiveAt`
 
 NOT persisted:
@@ -288,36 +359,38 @@ NOT persisted:
 
 - Coerce every session's `status` to `"stopped"` and `unread` to `false`
 - Coerce `activeSessionId` to `null`
-- Validate `order` references — drop any IDs not in `sessions`, append any session IDs not in `order`
-- Validate `folderPath` exists on disk (cheap stat) — if missing, mark `gitBranch = null` but keep the session (user might be on a different drive)
+- Drop `groupLabels` entries and `collapsedGroups` entries whose `folderPath` no longer has any sessions
+- Validate `folderPath` exists on disk (cheap stat) — if missing, mark `gitBranch = null` but keep the session (user might be on a different drive; we don't auto-purge)
 
 ### 11.3 Migration from v0.1
 
 On first launch after this feature ships, if `workstation-store.json` has no `sessions` key (regardless of whether the old `layoutStore.root` key still exists):
 
 1. Read the old `layoutStore.root` (if non-null) and `sidebarStore.workspaceFolder` (if non-null)
-2. Create one session: `name = basename(workspaceFolder)`, `folderPath = workspaceFolder || homeDir`, `layoutRoot = old layoutRoot`, `fileTreeOpen = true` (matches current single-tree UX)
-3. Push it into `order`, leave `status = "stopped"` per cold-start
-4. Wipe the old `layoutStore.root` from persistence so the migration doesn't re-run
+2. Create one session: `name = "New session"`, `folderPath = workspaceFolder || homeDir`, `layoutRoot = old layoutRoot`, `fileTreeOpen = true` (matches current single-tree UX)
+3. The session lands in a group keyed by its `folderPath`; group label defaults to basename. Group starts expanded (no entry in `collapsedGroups`).
+4. Wipe the old `layoutStore.root` key from persistence so the migration doesn't re-run
 
-After migration, users see one stopped session with their old layout, one click away from reviving. No data loss.
+After migration, users see one stopped session under one project group with their old layout, one click away from reviving. No data loss.
 
 ## 12. Status bar
 
-The terminal-focus segment currently reads `shell · cwd`. New format: `<session name> · <focused pane shell>`.
+The terminal-focus segment currently reads `shell · cwd`. New format: `<group label> / <session name> · <focused pane shell> · <git branch>`.
 
+- Group label from `groupLabels[folderPath] ?? basename(folderPath)`
 - Session name from `sessions[activeSessionId].name`
 - Pane shell from existing `ptyClient.getShell(paneId)` or similar (already wired)
+- Git branch from `sessions[activeSessionId].gitBranch` (rendered with a `` icon prefix; segment hidden when `gitBranch == null`). This is where branch lives now that the sidebar row dropped it.
 - Pane cwd is **not** tracked per-pane in v1. The cwd column drops from the status bar entirely until per-pane cwd polling lands in v1.2.
 
 ## 13. Shortcuts (additions)
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+Shift+T` | New session (opens folder picker → disambig flow) |
-| `Ctrl+Tab` | Activate next session in `order` (wraps) |
-| `Ctrl+Shift+Tab` | Activate previous session in `order` (wraps) |
-| `Ctrl+1` .. `Ctrl+9` | Activate session at index N-1 in `order` |
+| `Ctrl+Shift+T` | New session (opens folder picker → §7 `+ New session` flow) |
+| `Ctrl+Tab` | Activate next session in the sidebar's flattened render order (groups + sessions, skipping group headers) — wraps |
+| `Ctrl+Shift+Tab` | Activate previous session in the flattened render order — wraps |
+| `Ctrl+1` .. `Ctrl+9` | Activate session at flattened index N-1 (skipping group headers) |
 | `Ctrl+W` | Unchanged for panes; if last pane in active session, busy-confirm then `stopSession` (does NOT purge) |
 
 Existing shortcuts (Ctrl+B sidebar toggle, Ctrl+K Ctrl+O Open Folder, Ctrl+? shortcuts modal) continue to work. `Ctrl+B` now toggles the **sessions sidebar**; the file tree drawer has its own toggle on the topbar `☰` button (and a future Ctrl+Shift+E or similar — not in v1).
@@ -328,7 +401,7 @@ Rough phase outline; the writing-plans skill will turn this into an actionable p
 
 1. **`sessionsStore` + `layoutStore` façade.** Test-driven. Existing PaneTree keeps working but now reads via active session. No UI change.
 2. **xterm survival mux.** `<MainArea>` renders all active sessions with display:none gating. Manual verify: split panes don't lose canvas / scroll on programmatic activeSessionId switch.
-3. **Sidebar rebuild.** `SessionsSidebar` + `SessionRow` + folder-picker disambig popover + inline rename + right-click context menu + trash purge.
+3. **Sidebar rebuild.** `SessionsSidebar` + `SessionGroup` + `SessionRow` + three-entry-point creation flow (§7) + inline rename (group label and session name) + right-click context menus + trash purge + collapse/expand groups.
 4. **File tree drawer relocation.** Repurpose `☰` button; per-session toggle; watcher resubscription on session switch.
 5. **Git branch poller** (Rust command + JS poller).
 6. **OSC notification handlers** (three handlers per TerminalPane).
@@ -360,8 +433,9 @@ Each phase ends in a code-review pass (per user's preference established during 
 |---|---|---|
 | `src/store/sessionsStore.ts` | NEW | ~250 |
 | `src/store/layoutStore.ts` | Rewrite as façade | ~180 (was 220) |
-| `src/components/SessionsSidebar.tsx` | NEW (replaces Sidebar.tsx logic) | ~80 |
-| `src/components/SessionRow.tsx` | NEW | ~120 |
+| `src/components/SessionsSidebar.tsx` | NEW (replaces Sidebar.tsx logic; top toolbar + grouped list + filter) | ~110 |
+| `src/components/SessionGroup.tsx` | NEW (group header: caret, label, hover-+, context menu, collapse) | ~110 |
+| `src/components/SessionRow.tsx` | NEW (dot, name, trash, inline rename, context menu) | ~110 |
 | `src/components/FileDrawer.tsx` | NEW (extracted from Sidebar.tsx + SidebarTree.tsx wrapper) | ~80 |
 | `src/components/MainArea.tsx` | NEW (display:none mux) | ~40 |
 | `src/components/App.tsx` | Refactor for MainArea | ~30 delta |
@@ -370,9 +444,9 @@ Each phase ends in a code-review pass (per user's preference established during 
 | `src/hooks/useKeyboardShortcuts.ts` | New shortcuts | ~50 delta |
 | `src/sessions/branchPoller.ts` | NEW | ~80 |
 | `src/sessions/oscNotifications.ts` | NEW | ~60 |
-| `src/store/inputStore.ts` | NEW (text-input modal for naming) | ~70 |
+| Inline rename UX | Implemented as a controlled `<input>` swap inside SessionGroup / SessionRow (no separate text-input modal needed for v1) | (counted above) |
 | `src-tauri/src/git.rs` | NEW (`git_current_branch` command) | ~50 |
 | `src-tauri/src/lib.rs` | Register `git_current_branch` | ~5 delta |
 | Tests | sessionsStore, layout façade, branchPoller, oscNotifications | ~300 |
 
-Total: ~1400 LoC new + ~250 LoC delta. Roughly the size of W3.
+Total: ~1450 LoC new + ~250 LoC delta. Roughly the size of W3.
