@@ -1,0 +1,378 @@
+# Session Manager Sidebar — Design Spec
+
+**Date:** 2026-05-25
+**Status:** Approved (brainstorm) — awaiting plan
+**Tracks:** v0.2 product improvement (brings forward the v0.3 "Dashboard sees panes across Tabs" dependency)
+
+---
+
+## 1. Goal
+
+Replace the file-tree sidebar with a cmux-style session manager. A *session* is a saved, named workspace tied to a folder, with its own pane tree, its own set of running PTYs, and a small strip of polled metadata (git branch, status, unread).
+
+The model gives the app a memory of projects — closing the app and reopening a week later shows the same list of sessions, each one click away from resuming work. Switching between sessions during a single run is instant because background sessions stay alive (PTYs running, xterm canvases preserved).
+
+This is the destination DESIGN.md already pointed to (line 22: *"v0.3 — Dashboard view showing every running pane across all **Tabs**"*). "Tabs" plural was the spec implying multi-session; the sidebar is the navigator, and the v0.3 Dashboard will be the overview onto the same data.
+
+## 2. Scope
+
+### In scope (v1 of this feature)
+
+- New `sessionsStore` with multi-named-per-folder sessions
+- Sidebar list of sessions with status dot, name, folder basename, git branch
+- "+ New session" entry point in sidebar + reuse of existing Open Folder button on topbar
+- Folder picker disambiguation when sessions already exist for the picked folder
+- xterm survival on session switch (background PTYs stay alive)
+- Cold-start = all sessions stopped; explicit click revives
+- Stop-but-remember close semantics + hover-trash for purge
+- File tree relocates to a secondary collapsible drawer, scoped to the active session
+- Git branch polling (`git rev-parse --abbrev-ref HEAD` every 5s on focus + on revive)
+- OSC 9 / 99 / 777 notification handlers → unread dot on sidebar row
+- New shortcuts: `Ctrl+Shift+T`, `Ctrl+Tab` / `Ctrl+Shift+Tab`, `Ctrl+1`..`Ctrl+9`
+- Status bar updated to show active session name
+- Persistence migration: existing single-tree users get one auto-created session for their home dir
+
+### Out of scope (deferred to v1.1 / v1.2 / v0.3 proper)
+
+- Listening-ports column (Win32 `GetExtendedTcpTable` per pid)
+- PR status (requires GitHub auth)
+- Last-output snippet preview
+- Per-pane cwd persistence (would require shell-pid cwd polling)
+- Drag-to-reorder sessions in sidebar
+- Embedded WebKit browser pane
+- Native OS desktop notifications (in-app unread dot only for v1)
+- Notification ring around the actual pane (just sidebar dot in v1)
+- v0.3 Dashboard view (cards of every pane across sessions)
+
+## 3. Locked decisions (from brainstorming Q&A)
+
+| Question | Decision |
+|---|---|
+| How tightly is a session tied to a folder? | **Multi-named per folder.** UUID identity + folder ref + user-given name. Multiple sessions for the same folder allowed; Open Folder shows a "switch or new" picker when matches exist. |
+| What happens when user closes a session (X)? | **Stop but remember.** PTYs killed (with busy-confirm gate); row stays dimmed in sidebar; hover-trash purges forever. Single sidebar list with status dots — no two-section split. |
+| Cold start: which sessions auto-revive? | **None.** All sessions begin stopped. User explicitly clicks each one to revive. PTYs respawn at session's `folderPath`. |
+| How rich is each session row? | **Standard cmux-light.** Name (bold) · folder basename · git branch · status dot (active / stopped / unread). |
+| File tree's new home (my call) | **Second collapsible drawer beside the sessions sidebar**, toggled by the existing `☰` button on the topbar. Scope = active session's `folderPath`; per-session toggle preference remembered. |
+| layoutStore migration (my call) | **Façade pattern.** `layoutStore` actions delegate to `sessionsStore.sessions[activeId].layoutRoot`. Minimizes diff to every existing consumer; consolidate later if it gets awkward. |
+
+## 4. Data model
+
+```ts
+// src/store/sessionsStore.ts
+
+type SessionId = string;  // UUID v4
+
+interface Session {
+  id: SessionId;
+  name: string;                    // user-editable; defaults to folder basename, auto-suffixed if duplicate
+  folderPath: string;              // absolute path
+  layoutRoot: LayoutNode | null;   // pane tree (persists across restart; null = no panes yet)
+  focusedPaneId: PaneId | null;
+  status: "active" | "stopped";    // derived this-run-only; NEVER persisted
+  unread: boolean;                 // OSC notification set; cleared on activate
+  gitBranch: string | null;        // polled; null when not a git repo or not yet polled
+  fileTreeOpen: boolean;           // per-session file drawer toggle
+  createdAt: number;               // ms epoch
+  lastActiveAt: number;            // ms epoch; bumped on activate
+}
+
+interface SessionsState {
+  sessions: Record<SessionId, Session>;
+  activeSessionId: SessionId | null;  // null when no session is active (cold start, all-stopped)
+  order: SessionId[];                 // sidebar render order
+}
+```
+
+## 5. Store architecture
+
+### 5.1 New: `src/store/sessionsStore.ts`
+
+Owns `SessionsState`. Actions:
+
+| Action | Purpose |
+|---|---|
+| `createSession(folderPath, name?)` | New session. Name defaults to basename, auto-suffixed if collision. Inserted at end of `order`. Status = `"stopped"` initially. Caller typically follows with `activateSession`. |
+| `activateSession(id)` | Sets `activeSessionId = id`, status → `"active"`, bumps `lastActiveAt`, clears `unread`. Pure data change — PTY spawning happens as a *side effect* of React mounting the now-visible `PaneTree` (see §9.3). |
+| `stopSession(id)` | Status → `"stopped"`. If `id === activeSessionId`, clear `activeSessionId`. Pure data change — PTYs die as a side effect when `<MainArea>` drops the session from its active-filter and `TerminalPane`'s unmount cleanup calls `disconnectPty`. |
+| `purgeSession(id)` | Removes from `sessions` map and `order`. If session was active, MainArea drops it → PaneTree unmounts → PTYs die (same chain as `stopSession`). If session was already stopped, no PTY side effect. |
+| `renameSession(id, name)` | Updates `name`. Empty name reverts to folder basename. |
+| `bumpUnread(id)` | Sets `unread = true`. No-op if `id === activeSessionId`. |
+| `clearUnread(id)` | Sets `unread = false`. |
+| `updateBranch(id, branch)` | Sets `gitBranch`. |
+| `setLayoutRoot(id, root)` | Updates `layoutRoot` (used by the layoutStore façade on splits/closes). |
+| `setFocusedPane(id, paneId)` | Updates `focusedPaneId`. |
+| `toggleFileTree(id)` | Flips `fileTreeOpen`. |
+| `reorder(ids[])` | Replaces `order`. |
+| `sessionsForFolder(path)` | Selector. Returns sessions matching `folderPath` (case-insensitive on Windows), sorted by `lastActiveAt` desc. |
+| `findSessionForPane(paneId)` | Selector. Walks each session's `layoutRoot` to find the pane. Used by OSC handler. |
+
+### 5.2 Modified: `src/store/layoutStore.ts`
+
+Becomes a **thin façade** over `sessionsStore.sessions[activeId].layoutRoot`:
+
+- `useLayoutStore.splitPane(...)` → reads activeId from sessionsStore → writes via `sessionsStore.setLayoutRoot` after computing the new tree
+- `useLayoutStore.closePane(...)`, `resizeSplit`, `focusPane`, `moveFocus` — same pattern
+- `useLayoutStore.root` becomes a computed selector returning `sessions[activeId]?.layoutRoot ?? null`
+- `useLayoutStore.focusedPaneId` returns `sessions[activeId]?.focusedPaneId ?? null`
+
+This means every existing consumer (`PaneTree.tsx`, `useKeyboardShortcuts.ts`, `StatusBar.tsx`, `App.tsx`) keeps working with **zero code change at the call sites**. Actions land on the active session implicitly.
+
+Edge case: when `activeSessionId === null`, every layout action is a no-op. Consumers must handle the null-root case (most already do — that was the case during cold-start before W4).
+
+### 5.3 No change: `src/terminals/ptyClient.ts` and `src-tauri/src/pty.rs`
+
+PTYs are already keyed by `paneId` in a global registry, independent of session. No code change required. Pane IDs need to remain globally unique across sessions — the existing counter in `src/lib/paneIds.ts` already guarantees this.
+
+## 6. Sidebar UI
+
+### 6.1 `src/components/SessionsSidebar.tsx` (replaces current `Sidebar.tsx`)
+
+Structure:
+
+```
+┌──────────────────────────────────────┐
+│  + New session                       │  ← button, opens folder picker
+├──────────────────────────────────────┤
+│  ● workstation        WORFLOW  main  │  ← active row (status dot filled)
+│  ○ docs                docs    -     │  ← stopped row (dot outline only)
+│  ◉ agents              agents  feat  │  ← stopped + unread (dot accent + soft pulse)
+│  ...                                 │
+└──────────────────────────────────────┘
+```
+
+### 6.2 `src/components/SessionRow.tsx`
+
+Per-row layout, left to right:
+
+- Status dot (10px circle): filled accent (`var(--accent)`) when active, outlined dim when stopped, accent-with-soft-pulse-animation when stopped-with-unread
+- Folder icon (12px, dim)
+- Name (`var(--font-ui)`, bold if active, color `var(--fg-0)` if active / `var(--fg-2)` if stopped)
+- Folder basename (smaller, dim `var(--fg-2)`, ellipsized)
+- Git branch (right-aligned, monospace `var(--font-mono)` small, dim, ellipsized; hidden if null)
+- Trash icon (right-aligned, accent-red on hover, only visible on row hover)
+
+Interactions:
+
+- Single click anywhere on the row (except trash) → `activateSession(id)`. If status was stopped, also spawn fresh PTYs for every leaf in `layoutRoot` at `folderPath`.
+- Trash click → confirm "Delete session 'X'? This cannot be undone." → `purgeSession(id)`. If session was active, also kill PTYs.
+- Right-click → context menu (Rename · Reveal in Explorer · Delete)
+- Double-click on name → inline rename (controlled input replaces label until blur or Enter)
+- Hover → row background `var(--bg-2)`; trash icon appears
+
+### 6.3 Empty state
+
+When `sessions` is empty (fresh install, no migration): centered prompt "No sessions yet. + New session to begin." with the same `pickFolder` flow.
+
+## 7. Folder-picker disambiguation flow
+
+Both Open Folder (topbar) and "+ New session" (sidebar) hit the same flow:
+
+1. `pickFolder()` opens native folder dialog (existing `src/lib/dialogClient.ts`)
+2. On result (`folderPath` string), call `sessionsForFolder(folderPath)` → list of matching sessions, sorted by `lastActiveAt` desc
+3. **No matches:** prompt for name via the existing `useConfirmStore`-style modal (new variant: `useInputStore` with a text input; defaults to `basename(folderPath)`, auto-suffix `-2`, `-3`, ... if name collision with any existing session). On confirm → `createSession(folderPath, name)` → `activateSession(id)` → spawn first PTY for the new session.
+4. **One or more matches:** show a small popover anchored near the trigger button. Each match → `[Switch to "<name>"]` button (shows folder basename + branch below). Bottom of popover → `[+ New session here]` (skips disambiguation and goes straight to step 3's prompt).
+
+## 8. File tree relocation
+
+### 8.1 Drawer placement
+
+```
+┌────────────┬────────────┬──────────────────────────┐
+│  Sessions  │   Files    │      Pane area           │
+│  (200px)   │  (240px,   │                          │
+│            │  toggled)  │                          │
+└────────────┴────────────┴──────────────────────────┘
+```
+
+- Drawer is the existing `SidebarTree.tsx` content, repurposed.
+- Default width 240px. Resizable in a future iteration; fixed for v1.
+- When `fileTreeOpen` is false, the drawer doesn't render — pane area expands.
+
+### 8.2 Toggle mechanism
+
+- The existing `☰` button in the topbar's left cluster (currently no-op) becomes the file tree toggle. Reads/writes `sessions[activeId].fileTreeOpen`.
+- Active state highlight (accent border) when drawer is open.
+
+### 8.3 Watcher subscription
+
+- The file watcher subscribes to `sessions[activeId].folderPath` whenever the drawer is open.
+- On session switch (with drawer open), tear down old watcher, subscribe to new folderPath. Reuses the existing noise-pattern filter and 300ms coalesce from `Sidebar.tsx`.
+- On drawer close, tear down watcher entirely.
+
+### 8.4 Filter / new-file affordances
+
+The `🔍 filter` input and `＋ New File` button from the current `Sidebar.tsx` move into the drawer's header (same layout, just inside the drawer instead of the sidebar). `＋ New File` creates a `.md` file at the active session's `folderPath` and opens it in MD Editor.
+
+## 9. xterm survival on session switch
+
+### 9.1 Mount model
+
+`App.tsx`'s main area renders a `<MainArea>` component that maps over **every session whose status is `"active"`** and renders a `<PaneTree>` for each. CSS:
+
+```tsx
+<div className={styles.mainArea}>
+  {activeSessions.map((s) => (
+    <div
+      key={s.id}
+      className={styles.sessionPaneTree}
+      style={{ display: s.id === activeSessionId ? "block" : "none" }}
+    >
+      <PaneTree node={s.layoutRoot} path={s.id} />
+    </div>
+  ))}
+</div>
+```
+
+### 9.2 Why this works
+
+- xterm `Terminal` instances live in a module-level `Map<paneId, Terminal>` keyed by paneId (existing — see `TerminalPane.tsx`).
+- Each `Terminal` is attached to a host `<div>` once. The `<div>` stays in the DOM across session switches (only `display` toggles).
+- PTY streams (from `pty.rs` via `Channel<T>`) keep writing into the `Terminal`'s buffer regardless of `display`. Scroll position, alt-screen state, colors are preserved.
+- WebGL canvas: `display: none` doesn't trigger WebGL context loss in any current browser engine / Tauri webview. Verified design choice; spike confirms.
+
+### 9.3 Stopped sessions are not mounted
+
+The `activeSessions.map` filter is `status === "active"`. Stopped sessions don't get a PaneTree, don't consume xterm Terminals, don't pin PTYs. Revive flow:
+
+1. `activateSession(id)` flips status to `"active"`
+2. Re-render: `<MainArea>` now includes that session's `<PaneTree>`
+3. `<TerminalPane>` for each leaf mounts → `connectPty(paneId, cwd: folderPath)` spawns a fresh PTY in pty.rs
+4. xterm Terminal is created fresh (no prior instance in the Map for the new paneIds), wired to the new PTY channel
+
+**Note:** On revive, the paneIds in `layoutRoot` are the SAME ones that were persisted from last run. Because the global counter in `paneIds.ts` is reservation-aware (`reservePaneIdsAtLeast`), the counter will be pushed past any persisted IDs to avoid collision with new splits. But the persisted IDs themselves are reused for the revived layout's leaves.
+
+### 9.4 Memory budget
+
+Worst case: 8 active sessions × 4 panes × 10k scrollback ≈ 80MB for xterm + ~2MB per PTY process = ~120MB additional. Within budget for a workstation app.
+
+## 10. New subsystems
+
+### 10.1 Git branch poller (`src/sessions/branchPoller.ts`)
+
+- Module-level interval (5 seconds while the app window has focus; paused via `tauri::AppHandle` focus events when blurred).
+- On each tick, iterates over `sessions` whose `status === "active"`, runs `git rev-parse --abbrev-ref HEAD` against `folderPath` via a Tauri command.
+- New Rust command `git_current_branch(path: String) -> Option<String>`. Invokes `git` as a subprocess; returns `None` on any error (not a git repo, missing git binary, deleted folder, detached HEAD).
+- Result diffed against current `gitBranch`; if different, calls `sessionsStore.updateBranch(id, branch)`.
+- Additional triggers: `activateSession` also fires an immediate poll for that session.
+
+### 10.2 OSC notifications (`src/sessions/oscNotifications.ts`)
+
+- On each `TerminalPane` mount, registers three xterm parser handlers via `term.parser.registerOscHandler(N, handler)`:
+  - `OSC 9` — iTerm2 "notification" / Apple Terminal alert convention. Format: `ESC ] 9 ; <text> BEL`
+  - `OSC 99` — KDE Konsole notification
+  - `OSC 777` — rxvt "notify" extended convention
+- All three handlers do the same thing: look up the session for the paneId via `findSessionForPane`, call `bumpUnread(sessionId)`.
+- v1 visible effect: the sidebar row's status dot becomes `unread` (accent + soft pulse animation). Cleared by activating that session.
+- v1.1: notification ring around the actual pane. v1.2: native OS desktop toast.
+
+## 11. Persistence
+
+### 11.1 Slice
+
+New `sessions` slice on the existing `tauriPersistStorage` adapter (writes to `workstation-store.json`).
+
+Persisted (partializer allowlist):
+
+- Top-level: `order: SessionId[]`
+- Per session: `id`, `name`, `folderPath`, `layoutRoot`, `focusedPaneId`, `gitBranch`, `fileTreeOpen`, `createdAt`, `lastActiveAt`
+
+NOT persisted:
+
+- `status` — always derived to `"stopped"` on launch (per cold-start decision)
+- `unread` — transient, cleared on quit
+- `activeSessionId` — always `null` on launch (no auto-revive)
+
+### 11.2 Rehydration
+
+`onRehydrateStorage` runs after disk read:
+
+- Coerce every session's `status` to `"stopped"` and `unread` to `false`
+- Coerce `activeSessionId` to `null`
+- Validate `order` references — drop any IDs not in `sessions`, append any session IDs not in `order`
+- Validate `folderPath` exists on disk (cheap stat) — if missing, mark `gitBranch = null` but keep the session (user might be on a different drive)
+
+### 11.3 Migration from v0.1
+
+On first launch after this feature ships, if `workstation-store.json` has no `sessions` key (regardless of whether the old `layoutStore.root` key still exists):
+
+1. Read the old `layoutStore.root` (if non-null) and `sidebarStore.workspaceFolder` (if non-null)
+2. Create one session: `name = basename(workspaceFolder)`, `folderPath = workspaceFolder || homeDir`, `layoutRoot = old layoutRoot`, `fileTreeOpen = true` (matches current single-tree UX)
+3. Push it into `order`, leave `status = "stopped"` per cold-start
+4. Wipe the old `layoutStore.root` from persistence so the migration doesn't re-run
+
+After migration, users see one stopped session with their old layout, one click away from reviving. No data loss.
+
+## 12. Status bar
+
+The terminal-focus segment currently reads `shell · cwd`. New format: `<session name> · <focused pane shell>`.
+
+- Session name from `sessions[activeSessionId].name`
+- Pane shell from existing `ptyClient.getShell(paneId)` or similar (already wired)
+- Pane cwd is **not** tracked per-pane in v1. The cwd column drops from the status bar entirely until per-pane cwd polling lands in v1.2.
+
+## 13. Shortcuts (additions)
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Shift+T` | New session (opens folder picker → disambig flow) |
+| `Ctrl+Tab` | Activate next session in `order` (wraps) |
+| `Ctrl+Shift+Tab` | Activate previous session in `order` (wraps) |
+| `Ctrl+1` .. `Ctrl+9` | Activate session at index N-1 in `order` |
+| `Ctrl+W` | Unchanged for panes; if last pane in active session, busy-confirm then `stopSession` (does NOT purge) |
+
+Existing shortcuts (Ctrl+B sidebar toggle, Ctrl+K Ctrl+O Open Folder, Ctrl+? shortcuts modal) continue to work. `Ctrl+B` now toggles the **sessions sidebar**; the file tree drawer has its own toggle on the topbar `☰` button (and a future Ctrl+Shift+E or similar — not in v1).
+
+## 14. Implementation sequencing
+
+Rough phase outline; the writing-plans skill will turn this into an actionable plan with verification steps per phase.
+
+1. **`sessionsStore` + `layoutStore` façade.** Test-driven. Existing PaneTree keeps working but now reads via active session. No UI change.
+2. **xterm survival mux.** `<MainArea>` renders all active sessions with display:none gating. Manual verify: split panes don't lose canvas / scroll on programmatic activeSessionId switch.
+3. **Sidebar rebuild.** `SessionsSidebar` + `SessionRow` + folder-picker disambig popover + inline rename + right-click context menu + trash purge.
+4. **File tree drawer relocation.** Repurpose `☰` button; per-session toggle; watcher resubscription on session switch.
+5. **Git branch poller** (Rust command + JS poller).
+6. **OSC notification handlers** (three handlers per TerminalPane).
+7. **New shortcuts + status bar update.**
+8. **Persistence + v0.1→v0.2 migration.**
+
+Each phase ends in a code-review pass (per user's preference established during W3/W4) before moving to the next.
+
+## 15. Open risks
+
+1. **xterm canvas memory at scale.** If a user accumulates 20+ active sessions in one run, WebGL contexts pile up. WebGL has a per-page context limit (typically ~16 in Chrome). Mitigation: when active-session count exceeds 8, the WebGL renderer for the LRU non-visible session degrades to the canvas renderer (xterm supports this fallback). v1.1.
+2. **OSC handler ordering.** xterm may have built-in handlers for OSC 9 (window title in some configs). `registerOscHandler` returns a disposer and stacks LIFO. Need to confirm our handler fires before any built-in absorbs the sequence. Spike during phase 6.
+3. **Folder-picker on UNC paths.** `git rev-parse` on a network path can hang for seconds. Mitigation: wrap the Rust command with a 2s timeout and treat timeout as `gitBranch = null`.
+4. **Migration edge case.** A user who has persisted `layoutStore.root` but no `sidebarStore.workspaceFolder` (e.g. wiped their store partially) needs `folderPath = homeDir` fallback. Covered in §11.3.
+5. **Last-pane-in-session ambiguity.** Today, last pane is a hard floor — you can't close it. New semantics: last pane in active session can close, which triggers `stopSession`. Confirm wording for the busy gate has to clarify this — proposed: *"This is the last pane in '<session>'. Closing it will stop the session (kept in sidebar for reactivation). Continue?"*
+
+## 16. References
+
+- DESIGN.md §1 (invariants), §3 (top bar / sidebar layout), §6 (config schema — no change here), §7 (shortcuts), §12 (persistence)
+- CONTEXT.md "Workstation invariants" #3 (close-with-active-child confirm)
+- Brainstorming Q&A: 2026-05-25 conversation
+- cmux references: [GitHub](https://github.com/manaflow-ai/cmux), [cmux.com](https://cmux.com/)
+
+---
+
+## Appendix A — File-by-file change estimate
+
+| File | Change | LoC est. |
+|---|---|---|
+| `src/store/sessionsStore.ts` | NEW | ~250 |
+| `src/store/layoutStore.ts` | Rewrite as façade | ~180 (was 220) |
+| `src/components/SessionsSidebar.tsx` | NEW (replaces Sidebar.tsx logic) | ~80 |
+| `src/components/SessionRow.tsx` | NEW | ~120 |
+| `src/components/FileDrawer.tsx` | NEW (extracted from Sidebar.tsx + SidebarTree.tsx wrapper) | ~80 |
+| `src/components/MainArea.tsx` | NEW (display:none mux) | ~40 |
+| `src/components/App.tsx` | Refactor for MainArea | ~30 delta |
+| `src/components/TopBar.tsx` | ☰ button wired to toggleFileTree | ~20 delta |
+| `src/components/StatusBar.tsx` | Session-aware focus segment | ~15 delta |
+| `src/hooks/useKeyboardShortcuts.ts` | New shortcuts | ~50 delta |
+| `src/sessions/branchPoller.ts` | NEW | ~80 |
+| `src/sessions/oscNotifications.ts` | NEW | ~60 |
+| `src/store/inputStore.ts` | NEW (text-input modal for naming) | ~70 |
+| `src-tauri/src/git.rs` | NEW (`git_current_branch` command) | ~50 |
+| `src-tauri/src/lib.rs` | Register `git_current_branch` | ~5 delta |
+| Tests | sessionsStore, layout façade, branchPoller, oscNotifications | ~300 |
+
+Total: ~1400 LoC new + ~250 LoC delta. Roughly the size of W3.
