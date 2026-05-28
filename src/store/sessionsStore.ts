@@ -20,6 +20,7 @@ import { immer } from "zustand/middleware/immer";
 import type { LayoutNode } from "@/store/layout/tree";
 import type { PaneId } from "@/types";
 import { tauriPersistStorage } from "@/lib/persistStorage";
+import { autoSuffixSessionName, samePath } from "@/lib/sessions/groupingHelpers";
 
 export type SessionId = string;
 export type SessionStatus = "active" | "stopped";
@@ -45,6 +46,7 @@ export interface SessionsState {
   collapsedGroups: string[];
 
   // Actions — implemented in subsequent tasks
+  createSession: (folderPath: string, name?: string) => SessionId;
   reset: () => void;
 }
 
@@ -58,8 +60,33 @@ const emptyState = () => ({
 export const useSessionsStore = create<SessionsState>()(
   devtools(
     persist(
-      immer((set) => ({
+      immer((set, get) => ({
         ...emptyState(),
+        createSession: (folderPath, name) => {
+          const id = crypto.randomUUID();
+          const now = Date.now();
+          const siblingNames = Object.values(get().sessions)
+            .filter((s) => samePath(s.folderPath, folderPath))
+            .map((s) => s.name);
+          const desired = name ?? "New session";
+          const finalName = autoSuffixSessionName(desired, siblingNames);
+          set((s) => {
+            s.sessions[id] = {
+              id,
+              name: finalName,
+              folderPath,
+              layoutRoot: null,
+              focusedPaneId: null,
+              status: "stopped",
+              unread: false,
+              gitBranch: null,
+              fileTreeOpen: false,
+              createdAt: now,
+              lastActiveAt: now,
+            };
+          });
+          return id;
+        },
         reset: () =>
           set((s) => {
             s.sessions = {};

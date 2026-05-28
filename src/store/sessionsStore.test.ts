@@ -43,3 +43,50 @@ describe("sessionsStore — initial state", () => {
     expect(s.collapsedGroups).toEqual([]);
   });
 });
+
+describe("sessionsStore — createSession", () => {
+  beforeEach(() => {
+    useSessionsStore.getState().reset();
+  });
+
+  it("creates a session with stopped status, defaulted name, and ISO timestamps", () => {
+    const before = Date.now();
+    const id = useSessionsStore.getState().createSession("/home/me/project");
+    const s = useSessionsStore.getState().sessions[id];
+    expect(s.folderPath).toBe("/home/me/project");
+    expect(s.name).toBe("New session");
+    expect(s.status).toBe("stopped");
+    expect(s.unread).toBe(false);
+    expect(s.layoutRoot).toBeNull();
+    expect(s.focusedPaneId).toBeNull();
+    expect(s.gitBranch).toBeNull();
+    expect(s.fileTreeOpen).toBe(false);
+    expect(s.createdAt).toBeGreaterThanOrEqual(before);
+    expect(s.lastActiveAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("uses the provided name as-is when no sibling collision", () => {
+    const id = useSessionsStore.getState().createSession("/p", "Custom name");
+    expect(useSessionsStore.getState().sessions[id].name).toBe("Custom name");
+  });
+
+  it("auto-suffixes when a sibling under the SAME folder already has that name", () => {
+    const a = useSessionsStore.getState().createSession("/p", "Work");
+    const b = useSessionsStore.getState().createSession("/p", "Work");
+    expect(useSessionsStore.getState().sessions[a].name).toBe("Work");
+    expect(useSessionsStore.getState().sessions[b].name).toBe("Work-2");
+  });
+
+  it("does NOT auto-suffix when the colliding name is in a DIFFERENT folder", () => {
+    useSessionsStore.getState().createSession("/p1", "Work");
+    const id2 = useSessionsStore.getState().createSession("/p2", "Work");
+    expect(useSessionsStore.getState().sessions[id2].name).toBe("Work");
+  });
+
+  it("returns a fresh UUID-style id every call", () => {
+    const a = useSessionsStore.getState().createSession("/p");
+    const b = useSessionsStore.getState().createSession("/p");
+    expect(a).not.toBe(b);
+    expect(a.length).toBeGreaterThan(8);
+  });
+});
