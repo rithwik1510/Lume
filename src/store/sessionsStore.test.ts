@@ -12,6 +12,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 }));
 
 import { useSessionsStore } from "@/store/sessionsStore";
+import { leaf } from "@/store/layout/tree";
 
 describe("sessionsStore — initial state", () => {
   beforeEach(() => {
@@ -199,5 +200,31 @@ describe("sessionsStore — metadata mutations", () => {
     expect(useSessionsStore.getState().sessions[id].gitBranch).toBe("main");
     useSessionsStore.getState().updateBranch(id, null);
     expect(useSessionsStore.getState().sessions[id].gitBranch).toBeNull();
+  });
+});
+
+describe("sessionsStore — layout passthrough", () => {
+  beforeEach(() => useSessionsStore.getState().reset());
+
+  it("setLayoutRoot replaces a session's tree", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    const node = leaf("pane-1");
+    useSessionsStore.getState().setLayoutRoot(id, node);
+    expect(useSessionsStore.getState().sessions[id].layoutRoot).toBe(node);
+  });
+
+  it("setFocusedPane updates focusedPaneId", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().setFocusedPane(id, "pane-7");
+    expect(useSessionsStore.getState().sessions[id].focusedPaneId).toBe("pane-7");
+  });
+
+  it("toggleFileTree flips the per-session drawer state", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    expect(useSessionsStore.getState().sessions[id].fileTreeOpen).toBe(false);
+    useSessionsStore.getState().toggleFileTree(id);
+    expect(useSessionsStore.getState().sessions[id].fileTreeOpen).toBe(true);
+    useSessionsStore.getState().toggleFileTree(id);
+    expect(useSessionsStore.getState().sessions[id].fileTreeOpen).toBe(false);
   });
 });

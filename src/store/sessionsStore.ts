@@ -57,6 +57,9 @@ export interface SessionsState {
   bumpUnread: (id: SessionId) => void;
   clearUnread: (id: SessionId) => void;
   updateBranch: (id: SessionId, branch: string | null) => void;
+  setLayoutRoot: (id: SessionId, root: LayoutNode | null) => void;
+  setFocusedPane: (id: SessionId, paneId: PaneId | null) => void;
+  toggleFileTree: (id: SessionId) => void;
   reset: () => void;
 }
 
@@ -178,6 +181,24 @@ export const useSessionsStore = create<SessionsState>()(
           set((s) => {
             const session = s.sessions[id];
             if (session) session.gitBranch = branch;
+          }),
+
+        setLayoutRoot: (id, root) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (session) session.layoutRoot = root;
+          }),
+
+        setFocusedPane: (id, paneId) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (session) session.focusedPaneId = paneId;
+          }),
+
+        toggleFileTree: (id) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (session) session.fileTreeOpen = !session.fileTreeOpen;
           }),
 
         reset: () =>
