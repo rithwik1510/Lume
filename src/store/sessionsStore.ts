@@ -1,0 +1,82 @@
+// sessionsStore — multi-named-per-folder sessions, source of truth for the
+// session manager sidebar. See docs/superpowers/specs/2026-05-25-session-
+// manager-sidebar.md §4 for the data model and §11 for the persistence
+// contract.
+//
+// Lifecycle invariants:
+//   - status is NEVER persisted; rehydration coerces every session to "stopped"
+//   - activeSessionId is NEVER persisted; cold start = null (all-stopped)
+//   - unread is transient; cleared on activate
+//   - PTY processes don't survive restart (DESIGN.md §1 invariant 5)
+//
+// Grouping is derived: every distinct folderPath across `sessions` forms a
+// group. No separate Group entity — just label overrides and collapsed-state,
+// keyed by folderPath.
+
+import { create } from "zustand";
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
+import { immer } from "zustand/middleware/immer";
+
+import type { LayoutNode } from "@/store/layout/tree";
+import type { PaneId } from "@/types";
+import { tauriPersistStorage } from "@/lib/persistStorage";
+
+export type SessionId = string;
+export type SessionStatus = "active" | "stopped";
+
+export interface Session {
+  id: SessionId;
+  name: string;
+  folderPath: string;
+  layoutRoot: LayoutNode | null;
+  focusedPaneId: PaneId | null;
+  status: SessionStatus;
+  unread: boolean;
+  gitBranch: string | null;
+  fileTreeOpen: boolean;
+  createdAt: number;
+  lastActiveAt: number;
+}
+
+export interface SessionsState {
+  sessions: Record<SessionId, Session>;
+  activeSessionId: SessionId | null;
+  groupLabels: Record<string, string>;
+  collapsedGroups: string[];
+
+  // Actions — implemented in subsequent tasks
+  reset: () => void;
+}
+
+const emptyState = () => ({
+  sessions: {},
+  activeSessionId: null,
+  groupLabels: {},
+  collapsedGroups: [],
+});
+
+export const useSessionsStore = create<SessionsState>()(
+  devtools(
+    persist(
+      immer((set) => ({
+        ...emptyState(),
+        reset: () =>
+          set((s) => {
+            s.sessions = {};
+            s.activeSessionId = null;
+            s.groupLabels = {};
+            s.collapsedGroups = [];
+          }),
+      })),
+      {
+        name: "sessions",
+        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        version: 1,
+        // Partializer + rehydration filled in Phase 8. For now persist nothing
+        // so tests run against a clean slate.
+        partialize: () => ({} as Partial<SessionsState>),
+      }
+    ),
+    { name: "sessionsStore" }
+  )
+);
