@@ -74,12 +74,22 @@ export function TopBar() {
   const workspaceFolder = useSidebarStore((s) => s.workspaceFolder);
   const setWorkspaceFolder = useSidebarStore((s) => s.setWorkspaceFolder);
 
-  // ⊞ TopBar button: opens the SplitMenu popover anchored at the
+  // ⊞ TopBar button: toggles the SplitMenu popover anchored at the
   // button's bottom-left. The popover dispatches splitPane on click;
   // the orchestrator spawns the PTY by reacting to the layout subscribe.
-  const showSplitMenu = (e: ReactMouseEvent<HTMLButtonElement>) => {
+  //
+  // The SplitMenu's window mousedown listener skips clicks on the
+  // ⊞ button (via [data-split-menu-trigger]), so when the menu is open
+  // and the user re-clicks ⊞, the listener does NOT close it first —
+  // this handler sees store.open === true and closes the menu cleanly.
+  const toggleSplitMenu = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    const store = useSplitMenuStore.getState();
+    if (store.open) {
+      store.close();
+      return;
+    }
     const rect = e.currentTarget.getBoundingClientRect();
-    useSplitMenuStore.getState().show(rect.left, rect.bottom + 4);
+    store.show(rect.left, rect.bottom + 4);
   };
 
   const onToggleQuickViewer = () => {
@@ -132,7 +142,8 @@ export function TopBar() {
           title="Split focused pane (Ctrl+Alt+→/↑/↓)"
           aria-label="Split focused pane"
           data-tauri-drag-region="false"
-          onClick={showSplitMenu}
+          data-split-menu-trigger
+          onClick={toggleSplitMenu}
         >
           ⊞
         </button>

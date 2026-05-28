@@ -26,7 +26,12 @@ export function SplitMenu() {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close();
+      // Skip if click landed on the SplitMenu trigger button — the button's
+      // onClick handles toggling itself. Without this skip, mousedown would
+      // close the menu and then the trigger's onClick would reopen it.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.("[data-split-menu-trigger]")) return;
+      if (ref.current && !ref.current.contains(target as Node)) close();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {

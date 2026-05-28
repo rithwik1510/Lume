@@ -5,6 +5,12 @@
 // DESIGN.md §7 changes, update here. There's no shared source of truth
 // in v0.1; v0.2 polish could derive this from a config layer.
 //
+// Static catalog of v0.1 shortcuts that are actually wired in
+// useKeyboardShortcuts.ts. DESIGN.md §7 lists additional shortcuts
+// (Find, font sizing, terminal-specific copy/paste) that are not yet
+// implemented — those are v0.2 candidates; surfacing them here would
+// mislead users since they currently do nothing.
+//
 // Esc dismisses (capture-phase keydown so it wins over xterm when a
 // Terminal Pane has DOM focus underneath). Backdrop click also closes;
 // clicks inside the modal body do not (event.stopPropagation on the
@@ -52,22 +58,6 @@ const CATALOG: ShortcutGroup[] = [
     rows: [
       { label: "Save", keys: ["Ctrl", "S"] },
       { label: "Cycle MD Editor tabs", keys: ["Ctrl", "Tab"] },
-      { label: "Find in focused element", keys: ["Ctrl", "F"] },
-      { label: "Find & replace", keys: ["Ctrl", "H"] },
-      { label: "Find across all open MD tabs", keys: ["Ctrl", "Shift", "F"] },
-    ],
-  },
-  {
-    name: "Clipboard",
-    rows: [
-      { label: "Copy / paste (terminal pane)", keys: ["Ctrl", "Shift", "C / V"] },
-      { label: "Copy / paste / cut (non-terminal)", keys: ["Ctrl", "C / V / X"] },
-    ],
-  },
-  {
-    name: "Font",
-    rows: [
-      { label: "Increase / decrease / reset font size", keys: ["Ctrl", "= / - / 0"] },
     ],
   },
 ];
