@@ -90,3 +90,67 @@ describe("sessionsStore — createSession", () => {
     expect(a.length).toBeGreaterThan(8);
   });
 });
+
+describe("sessionsStore — lifecycle", () => {
+  beforeEach(() => {
+    useSessionsStore.getState().reset();
+    vi.useFakeTimers();
+  });
+
+  it("activateSession flips status, sets activeSessionId, bumps lastActiveAt, clears unread", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.setState((s) => {
+      s.sessions[id].unread = true;
+    });
+    const beforeBump = useSessionsStore.getState().sessions[id].lastActiveAt;
+    vi.advanceTimersByTime(50);
+    useSessionsStore.getState().activateSession(id);
+    const after = useSessionsStore.getState().sessions[id];
+    expect(after.status).toBe("active");
+    expect(after.unread).toBe(false);
+    expect(after.lastActiveAt).toBeGreaterThan(beforeBump);
+    expect(useSessionsStore.getState().activeSessionId).toBe(id);
+  });
+
+  it("activateSession is idempotent", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(id);
+    useSessionsStore.getState().activateSession(id);
+    expect(useSessionsStore.getState().activeSessionId).toBe(id);
+    expect(useSessionsStore.getState().sessions[id].status).toBe("active");
+  });
+
+  it("stopSession flips status to stopped and clears activeSessionId if it matched", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(id);
+    useSessionsStore.getState().stopSession(id);
+    expect(useSessionsStore.getState().sessions[id].status).toBe("stopped");
+    expect(useSessionsStore.getState().activeSessionId).toBeNull();
+  });
+
+  it("stopSession on a non-active session leaves activeSessionId untouched", () => {
+    const a = useSessionsStore.getState().createSession("/p");
+    const b = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(a);
+    useSessionsStore.getState().stopSession(b);
+    expect(useSessionsStore.getState().activeSessionId).toBe(a);
+  });
+
+  it("purgeSession removes the session entirely", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(id);
+    useSessionsStore.getState().purgeSession(id);
+    expect(useSessionsStore.getState().sessions[id]).toBeUndefined();
+    expect(useSessionsStore.getState().activeSessionId).toBeNull();
+  });
+
+  it("purgeGroup removes every session whose folderPath matches", () => {
+    const a = useSessionsStore.getState().createSession("/p1");
+    const b = useSessionsStore.getState().createSession("/p1");
+    const c = useSessionsStore.getState().createSession("/p2");
+    useSessionsStore.getState().purgeGroup("/p1");
+    expect(useSessionsStore.getState().sessions[a]).toBeUndefined();
+    expect(useSessionsStore.getState().sessions[b]).toBeUndefined();
+    expect(useSessionsStore.getState().sessions[c]).toBeDefined();
+  });
+});

@@ -47,6 +47,10 @@ export interface SessionsState {
 
   // Actions — implemented in subsequent tasks
   createSession: (folderPath: string, name?: string) => SessionId;
+  activateSession: (id: SessionId) => void;
+  stopSession: (id: SessionId) => void;
+  purgeSession: (id: SessionId) => void;
+  purgeGroup: (folderPath: string) => void;
   reset: () => void;
 }
 
@@ -87,6 +91,41 @@ export const useSessionsStore = create<SessionsState>()(
           });
           return id;
         },
+        activateSession: (id) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            session.status = "active";
+            session.unread = false;
+            session.lastActiveAt = Date.now();
+            s.activeSessionId = id;
+          }),
+
+        stopSession: (id) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            session.status = "stopped";
+            if (s.activeSessionId === id) s.activeSessionId = null;
+          }),
+
+        purgeSession: (id) =>
+          set((s) => {
+            if (!s.sessions[id]) return;
+            delete s.sessions[id];
+            if (s.activeSessionId === id) s.activeSessionId = null;
+          }),
+
+        purgeGroup: (folderPath) =>
+          set((s) => {
+            for (const id of Object.keys(s.sessions)) {
+              if (samePath(s.sessions[id].folderPath, folderPath)) {
+                delete s.sessions[id];
+                if (s.activeSessionId === id) s.activeSessionId = null;
+              }
+            }
+          }),
+
         reset: () =>
           set((s) => {
             s.sessions = {};
