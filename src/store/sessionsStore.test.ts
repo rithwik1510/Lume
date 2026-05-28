@@ -12,7 +12,13 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 }));
 
 import { useSessionsStore } from "@/store/sessionsStore";
-import { leaf } from "@/store/layout/tree";
+import { leaf, leaf as makeLeaf } from "@/store/layout/tree";
+import {
+  sessionsForFolder,
+  groupedSessions,
+  findSessionForPane,
+  getActivePaneIds,
+} from "@/store/sessionsStore";
 
 describe("sessionsStore — initial state", () => {
   beforeEach(() => {
@@ -226,5 +232,68 @@ describe("sessionsStore — layout passthrough", () => {
     expect(useSessionsStore.getState().sessions[id].fileTreeOpen).toBe(true);
     useSessionsStore.getState().toggleFileTree(id);
     expect(useSessionsStore.getState().sessions[id].fileTreeOpen).toBe(false);
+  });
+});
+
+describe("sessionsStore — selectors", () => {
+  beforeEach(() => useSessionsStore.getState().reset());
+
+  it("sessionsForFolder returns matches sorted by lastActiveAt desc", () => {
+    const old = useSessionsStore.getState().createSession("/p", "A");
+    const newer = useSessionsStore.getState().createSession("/p", "B");
+    useSessionsStore.setState((s) => {
+      s.sessions[newer].lastActiveAt = s.sessions[old].lastActiveAt + 1000;
+    });
+    const ids = sessionsForFolder(useSessionsStore.getState(), "/p").map((s) => s.id);
+    expect(ids).toEqual([newer, old]);
+  });
+
+  it("groupedSessions buckets by folderPath, applies labels, respects collapsed", () => {
+    const a1 = useSessionsStore.getState().createSession("/p1", "X");
+    const a2 = useSessionsStore.getState().createSession("/p1", "Y");
+    useSessionsStore.getState().createSession("/p2", "Z");
+    useSessionsStore.getState().setGroupLabel("/p1", "Project One");
+    useSessionsStore.getState().toggleGroupCollapsed("/p2");
+    const groups = groupedSessions(useSessionsStore.getState());
+    const g1 = groups.find((g) => g.folderPath === "/p1")!;
+    const g2 = groups.find((g) => g.folderPath === "/p2")!;
+    expect(g1.label).toBe("Project One");
+    expect(g1.collapsed).toBe(false);
+    expect(g1.sessions.map((s) => s.id).sort()).toEqual([a1, a2].sort());
+    expect(g2.label).toBe("p2"); // basename fallback
+    expect(g2.collapsed).toBe(true);
+  });
+
+  it("groupedSessions sorts groups by max child lastActiveAt desc", () => {
+    const a = useSessionsStore.getState().createSession("/older", "A");
+    const b = useSessionsStore.getState().createSession("/newer", "B");
+    useSessionsStore.setState((s) => {
+      s.sessions[b].lastActiveAt = s.sessions[a].lastActiveAt + 1000;
+    });
+    const groups = groupedSessions(useSessionsStore.getState());
+    expect(groups[0].folderPath).toBe("/newer");
+    expect(groups[1].folderPath).toBe("/older");
+  });
+
+  it("findSessionForPane walks every layoutRoot", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().setLayoutRoot(id, makeLeaf("pane-42"));
+    expect(findSessionForPane(useSessionsStore.getState(), "pane-42")?.id).toBe(id);
+    expect(findSessionForPane(useSessionsStore.getState(), "pane-nope")).toBeNull();
+  });
+
+  it("getActivePaneIds returns the union across active sessions", () => {
+    const a = useSessionsStore.getState().createSession("/p");
+    const b = useSessionsStore.getState().createSession("/q");
+    useSessionsStore.getState().setLayoutRoot(a, makeLeaf("pane-1"));
+    useSessionsStore.getState().setLayoutRoot(b, makeLeaf("pane-2"));
+    // Only `a` is active → only pane-1 in union
+    useSessionsStore.getState().activateSession(a);
+    expect(getActivePaneIds(useSessionsStore.getState()).sort()).toEqual(["pane-1"]);
+    // Mark `b` active too — both
+    useSessionsStore.setState((s) => {
+      s.sessions[b].status = "active";
+    });
+    expect(getActivePaneIds(useSessionsStore.getState()).sort()).toEqual(["pane-1", "pane-2"]);
   });
 });

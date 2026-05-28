@@ -18,9 +18,10 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import type { LayoutNode } from "@/store/layout/tree";
+import { leaves as treeLeaves } from "@/store/layout/tree";
 import type { PaneId } from "@/types";
 import { tauriPersistStorage } from "@/lib/persistStorage";
-import { autoSuffixSessionName, samePath } from "@/lib/sessions/groupingHelpers";
+import { autoSuffixSessionName, basename, samePath } from "@/lib/sessions/groupingHelpers";
 
 export type SessionId = string;
 export type SessionStatus = "active" | "stopped";
@@ -221,3 +222,61 @@ export const useSessionsStore = create<SessionsState>()(
     { name: "sessionsStore" }
   )
 );
+
+// ---------------------------------------------------------------------------
+// Selectors (top-level pure functions over state — NOT store methods).
+// Used by the sidebar renderer and the active-pane orchestrator.
+// ---------------------------------------------------------------------------
+
+export function sessionsForFolder(state: SessionsState, folderPath: string): Session[] {
+  return Object.values(state.sessions)
+    .filter((s) => samePath(s.folderPath, folderPath))
+    .sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+}
+
+export interface SessionGroupView {
+  folderPath: string;
+  label: string; // groupLabels[folderPath] ?? basename(folderPath)
+  collapsed: boolean;
+  sessions: Session[]; // sorted by lastActiveAt desc
+}
+
+export function groupedSessions(state: SessionsState): SessionGroupView[] {
+  // Bucket by exact folderPath (string identity, no normalization beyond
+  // what's already stored). Same-folder dedup is handled by samePath where
+  // it matters; this is the render-input grouping.
+  const byFolder: Record<string, Session[]> = {};
+  for (const s of Object.values(state.sessions)) {
+    (byFolder[s.folderPath] ??= []).push(s);
+  }
+  const groups: SessionGroupView[] = Object.entries(byFolder).map(([folderPath, sessions]) => ({
+    folderPath,
+    label: state.groupLabels[folderPath] ?? basename(folderPath),
+    collapsed: state.collapsedGroups.includes(folderPath),
+    sessions: sessions.sort((a, b) => b.lastActiveAt - a.lastActiveAt),
+  }));
+  // Sort groups by their max-child lastActiveAt desc.
+  groups.sort((a, b) => {
+    const ax = Math.max(...a.sessions.map((s) => s.lastActiveAt));
+    const bx = Math.max(...b.sessions.map((s) => s.lastActiveAt));
+    return bx - ax;
+  });
+  return groups;
+}
+
+export function findSessionForPane(state: SessionsState, paneId: PaneId): Session | null {
+  for (const s of Object.values(state.sessions)) {
+    if (s.layoutRoot && treeLeaves(s.layoutRoot).includes(paneId)) return s;
+  }
+  return null;
+}
+
+/** Union of paneIds across every active session. Used by the orchestrator. */
+export function getActivePaneIds(state: SessionsState): PaneId[] {
+  const out: PaneId[] = [];
+  for (const s of Object.values(state.sessions)) {
+    if (s.status !== "active" || !s.layoutRoot) continue;
+    out.push(...treeLeaves(s.layoutRoot));
+  }
+  return out;
+}
