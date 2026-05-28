@@ -51,6 +51,12 @@ export interface SessionsState {
   stopSession: (id: SessionId) => void;
   purgeSession: (id: SessionId) => void;
   purgeGroup: (folderPath: string) => void;
+  renameSession: (id: SessionId, name: string) => void;
+  setGroupLabel: (folderPath: string, label: string) => void;
+  toggleGroupCollapsed: (folderPath: string) => void;
+  bumpUnread: (id: SessionId) => void;
+  clearUnread: (id: SessionId) => void;
+  updateBranch: (id: SessionId, branch: string | null) => void;
   reset: () => void;
 }
 
@@ -124,6 +130,54 @@ export const useSessionsStore = create<SessionsState>()(
                 if (s.activeSessionId === id) s.activeSessionId = null;
               }
             }
+          }),
+
+        renameSession: (id, name) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            if (name === "") {
+              // Revert to default, sibling-suffixed
+              const siblings = Object.values(s.sessions)
+                .filter((x) => x.id !== id && samePath(x.folderPath, session.folderPath))
+                .map((x) => x.name);
+              session.name = autoSuffixSessionName("New session", siblings);
+            } else {
+              session.name = name;
+            }
+          }),
+
+        setGroupLabel: (folderPath, label) =>
+          set((s) => {
+            if (label === "") delete s.groupLabels[folderPath];
+            else s.groupLabels[folderPath] = label;
+          }),
+
+        toggleGroupCollapsed: (folderPath) =>
+          set((s) => {
+            const idx = s.collapsedGroups.indexOf(folderPath);
+            if (idx >= 0) s.collapsedGroups.splice(idx, 1);
+            else s.collapsedGroups.push(folderPath);
+          }),
+
+        bumpUnread: (id) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            if (s.activeSessionId === id) return;
+            session.unread = true;
+          }),
+
+        clearUnread: (id) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (session) session.unread = false;
+          }),
+
+        updateBranch: (id, branch) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (session) session.gitBranch = branch;
           }),
 
         reset: () =>

@@ -154,3 +154,50 @@ describe("sessionsStore — lifecycle", () => {
     expect(useSessionsStore.getState().sessions[c]).toBeDefined();
   });
 });
+
+describe("sessionsStore — metadata mutations", () => {
+  beforeEach(() => useSessionsStore.getState().reset());
+
+  it("renameSession updates name; empty reverts to default", () => {
+    const id = useSessionsStore.getState().createSession("/p", "Original");
+    useSessionsStore.getState().renameSession(id, "Renamed");
+    expect(useSessionsStore.getState().sessions[id].name).toBe("Renamed");
+    useSessionsStore.getState().renameSession(id, "");
+    // Empty name falls back to "New session", sibling-suffixed against
+    // existing siblings — there is only this session, so just "New session".
+    expect(useSessionsStore.getState().sessions[id].name).toBe("New session");
+  });
+
+  it("setGroupLabel adds and removes entries", () => {
+    useSessionsStore.getState().setGroupLabel("/p", "Pretty name");
+    expect(useSessionsStore.getState().groupLabels["/p"]).toBe("Pretty name");
+    useSessionsStore.getState().setGroupLabel("/p", "");
+    expect(useSessionsStore.getState().groupLabels["/p"]).toBeUndefined();
+  });
+
+  it("toggleGroupCollapsed flips presence", () => {
+    useSessionsStore.getState().toggleGroupCollapsed("/p");
+    expect(useSessionsStore.getState().collapsedGroups).toContain("/p");
+    useSessionsStore.getState().toggleGroupCollapsed("/p");
+    expect(useSessionsStore.getState().collapsedGroups).not.toContain("/p");
+  });
+
+  it("bumpUnread sets true; no-op when session is active", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().bumpUnread(id);
+    expect(useSessionsStore.getState().sessions[id].unread).toBe(true);
+    useSessionsStore.getState().clearUnread(id);
+    expect(useSessionsStore.getState().sessions[id].unread).toBe(false);
+    useSessionsStore.getState().activateSession(id);
+    useSessionsStore.getState().bumpUnread(id);
+    expect(useSessionsStore.getState().sessions[id].unread).toBe(false);
+  });
+
+  it("updateBranch sets gitBranch", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().updateBranch(id, "main");
+    expect(useSessionsStore.getState().sessions[id].gitBranch).toBe("main");
+    useSessionsStore.getState().updateBranch(id, null);
+    expect(useSessionsStore.getState().sessions[id].gitBranch).toBeNull();
+  });
+});
