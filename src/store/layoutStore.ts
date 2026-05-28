@@ -1,18 +1,27 @@
-// layoutStore — Weekend 2 binary tree edition.
+// layoutStore — Façade over sessionsStore (Phase 1 of session manager).
 //
-// State:
-//   - root: LayoutNode | null  (null when no panes; the Workstation invariant
-//                                "≥1 pane always" is enforced at the action
-//                                layer, not in the type)
-//   - focusedPaneId: PaneId | null
+// Every consumer (PaneTree, useKeyboardShortcuts, orchestrator, StatusBar,
+// SplitMenu, TerminalPane, App) still imports useLayoutStore and calls
+// splitPane / closePane / focusPane / resizeSplit / moveFocus and reads
+// root / focusedPaneId just like before. Those reads and writes are routed
+// through sessionsStore.sessions[activeSessionId].
 //
-// All tree shape questions live in ./layout/tree.ts. This file is the
-// Zustand wrapper + the invariants we can only enforce at the store level
-// (e.g. last-pane lock, focus follows splits, focus shifts on close).
+// When activeSessionId is null (cold start, all-stopped), reads return null
+// and writes are no-ops.
+//
+// This file used to OWN the layout tree directly (W2). The data lives in
+// sessionsStore now; this is Pattern B (mirrored state): we keep `root` and
+// `focusedPaneId` as real fields on the layoutStore and bridge sessionsStore
+// mutations into setState({...}) calls. This preserves normal Zustand
+// subscriber semantics for every existing consumer.
+//
+// The previous owner-store enforced a "last-pane lock" at this layer
+// (closing the only leaf is a no-op). That lock is preserved here. The
+// "last pane in session → stopSession" wiring will arrive in Phase 7 via
+// the Ctrl+W keyboard shortcut, NOT in this façade.
 
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import { immer } from "zustand/middleware/immer";
 
 import type { PaneId } from "@/types";
 import { tauriPersistStorage } from "@/lib/persistStorage";
@@ -20,15 +29,16 @@ import {
   type LayoutNode,
   type SplitDirection,
   type FocusDirection,
-  leaf,
-  leaves,
   contains,
   splitPane as splitPaneOp,
   closePane as closePaneOp,
   resizeSplit as resizeSplitOp,
   moveFocus as moveFocusOp,
+  leaf,
+  leaves,
   clampRatio,
 } from "./layout/tree";
+import { useSessionsStore } from "@/store/sessionsStore";
 
 interface LayoutState {
   root: LayoutNode | null;
@@ -36,44 +46,24 @@ interface LayoutState {
 }
 
 interface LayoutActions {
-  /**
-   * Create the very first pane in an empty layout. Sets focus to that pane.
-   * No-op if the layout is already populated — use splitPane for additional panes.
-   */
   initWithFirstPane: (paneId: PaneId) => void;
-
-  /**
-   * Split the currently-focused pane (or `targetId` if explicit) in the given
-   * direction, adding `newPaneId` as the new leaf. Focus moves to the new pane.
-   */
   splitPane: (direction: SplitDirection, newPaneId: PaneId, targetId?: PaneId) => void;
-
-  /**
-   * Close the leaf for `paneId`. Enforces the last-pane lock: closing the
-   * only leaf is a no-op (the caller / UI should disable the close button).
-   * Focus shifts to a sensible neighbour leaf.
-   */
   closePane: (paneId: PaneId) => void;
-
-  /** Set focus to paneId iff its leaf exists. */
   focusPane: (paneId: PaneId) => void;
-
-  /** Move focus geometrically (left/right/up/down). Wraps. */
   moveFocus: (direction: FocusDirection) => void;
-
-  /**
-   * Set the ratio of the split between two ids (typically the two leaves
-   * on either side of a splitter being dragged).
-   */
   resizeSplit: (a: PaneId, b: PaneId, ratio: number) => void;
-
-  /** Reset to an empty layout. Used by tests; UI-level "new workspace" later. */
   reset: () => void;
 }
 
 export type LayoutStore = LayoutState & LayoutActions;
 
-const emptyState = (): LayoutState => ({ root: null, focusedPaneId: null });
+// ─── Façade helpers ────────────────────────────────────────────────────────
+
+function activeSession() {
+  const s = useSessionsStore.getState();
+  const id = s.activeSessionId;
+  return id ? s.sessions[id] ?? null : null;
+}
 
 /**
  * Pick a sensible neighbour to focus when the focused leaf is being closed.
@@ -98,135 +88,126 @@ function pickFocusAfterClose(
   return leaves(newRoot)[0]!;
 }
 
+// ─── Store (Pattern B — mirrored state) ────────────────────────────────────
+
 export const useLayoutStore = create<LayoutStore>()(
   devtools(
     persist(
-      immer((set) => ({
-      ...emptyState(),
+      (set, _get) => ({
+        root: activeSession()?.layoutRoot ?? null,
+        focusedPaneId: activeSession()?.focusedPaneId ?? null,
 
-      initWithFirstPane: (paneId) =>
-        set(
-          (d) => {
-            if (d.root !== null) return;
-            d.root = leaf(paneId);
-            d.focusedPaneId = paneId;
-          },
-          false,
-          "layout/initWithFirstPane"
-        ),
+        initWithFirstPane: (paneId) => {
+          const sess = activeSession();
+          if (!sess) return;
+          if (sess.layoutRoot !== null) return;
+          const sStore = useSessionsStore.getState();
+          sStore.setLayoutRoot(sess.id, leaf(paneId));
+          sStore.setFocusedPane(sess.id, paneId);
+        },
 
-      splitPane: (direction, newPaneId, targetId) =>
-        set(
-          (d) => {
-            if (d.root === null) {
-              // Nothing to split — degenerate to init.
-              d.root = leaf(newPaneId);
-              d.focusedPaneId = newPaneId;
-              return;
-            }
-            const t = targetId ?? d.focusedPaneId;
-            if (t === null) return;
-            if (!contains(d.root, t)) return;
-            if (contains(d.root, newPaneId)) return; // paneId must be unique
-            d.root = splitPaneOp(d.root, t, direction, newPaneId);
-            d.focusedPaneId = newPaneId;
-          },
-          false,
-          "layout/splitPane"
-        ),
+        splitPane: (direction, newPaneId, targetId) => {
+          const sess = activeSession();
+          if (!sess) return;
+          const sStore = useSessionsStore.getState();
+          // Degenerate case: empty layout — behave like initWithFirstPane.
+          if (sess.layoutRoot === null) {
+            sStore.setLayoutRoot(sess.id, leaf(newPaneId));
+            sStore.setFocusedPane(sess.id, newPaneId);
+            return;
+          }
+          const target = targetId ?? sess.focusedPaneId;
+          if (target === null) return;
+          if (!contains(sess.layoutRoot, target)) return;
+          if (contains(sess.layoutRoot, newPaneId)) return; // paneId must be unique
+          const next = splitPaneOp(sess.layoutRoot, target, direction, newPaneId);
+          sStore.setLayoutRoot(sess.id, next);
+          sStore.setFocusedPane(sess.id, newPaneId);
+          // suppress unused warning
+          void set;
+        },
 
-      closePane: (paneId) =>
-        set(
-          (d) => {
-            if (d.root === null) return;
-            if (!contains(d.root, paneId)) return;
-            const allLeaves = leaves(d.root);
-            // Last-pane lock: refuse to close if it would leave 0 leaves.
-            if (allLeaves.length <= 1) return;
-            const next = closePaneOp(d.root, paneId);
-            if (next === null) return; // belt-and-suspenders against the same lock
-            d.root = next;
-            if (d.focusedPaneId === paneId) {
-              d.focusedPaneId = pickFocusAfterClose(next, paneId, allLeaves);
-            }
-          },
-          false,
-          "layout/closePane"
-        ),
-
-      focusPane: (paneId) =>
-        set(
-          (d) => {
-            if (d.root === null) return;
-            if (contains(d.root, paneId)) {
-              d.focusedPaneId = paneId;
-            }
-          },
-          false,
-          "layout/focusPane"
-        ),
-
-      moveFocus: (direction) =>
-        set(
-          (d) => {
-            if (d.root === null || d.focusedPaneId === null) return;
-            d.focusedPaneId = moveFocusOp(d.root, d.focusedPaneId, direction);
-          },
-          false,
-          "layout/moveFocus"
-        ),
-
-      resizeSplit: (a, b, ratio) =>
-        set(
-          (d) => {
-            if (d.root === null) return;
-            d.root = resizeSplitOp(d.root, a, b, clampRatio(ratio));
-          },
-          false,
-          "layout/resizeSplit"
-        ),
-
-      reset: () =>
-        set(
-          (d) => {
-            const fresh = emptyState();
-            d.root = fresh.root;
-            d.focusedPaneId = fresh.focusedPaneId;
-          },
-          false,
-          "layout/reset"
-        ),
-    })),
-      {
-        name: "layout",
-        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
-        version: 1,
-        // Persist the tree shape only. focusedPaneId is intentionally reset
-        // on rehydrate — DESIGN.md §4 EXCLUDED list. The orchestrator
-        // re-spawns PTYs by reacting to leaves appearing in the layout.
-        partialize: (state) => ({ root: state.root }),
-        // On hydrate, ensure focusedPaneId points to a valid leaf. If the
-        // persisted tree is null or contains no leaves, leave focus null and
-        // let App.tsx's bootstrap initialise a fresh pane.
-        onRehydrateStorage: () => (state) => {
-          if (state && state.root !== null) {
-            const ids = getPaneIds(state);
-            // Direct mutation (state.focusedPaneId = ...) changes the value
-            // but bypasses notifyListeners, so subscribers (e.g. the
-            // focused-pane border) wouldn't re-render until the next user
-            // interaction. setState dispatches through the store properly.
-            useLayoutStore.setState({ focusedPaneId: ids[0] ?? null });
+        closePane: (paneId) => {
+          const sess = activeSession();
+          if (!sess || !sess.layoutRoot) return;
+          if (!contains(sess.layoutRoot, paneId)) return;
+          const allLeaves = leaves(sess.layoutRoot);
+          // Last-pane lock at this layer.
+          if (allLeaves.length <= 1) return;
+          const next = closePaneOp(sess.layoutRoot, paneId);
+          if (next === null) return; // belt-and-suspenders
+          const sStore = useSessionsStore.getState();
+          sStore.setLayoutRoot(sess.id, next);
+          if (sess.focusedPaneId === paneId) {
+            sStore.setFocusedPane(sess.id, pickFocusAfterClose(next, paneId, allLeaves));
           }
         },
+
+        focusPane: (paneId) => {
+          const sess = activeSession();
+          if (!sess || !sess.layoutRoot) return;
+          if (!contains(sess.layoutRoot, paneId)) return;
+          useSessionsStore.getState().setFocusedPane(sess.id, paneId);
+        },
+
+        moveFocus: (direction) => {
+          const sess = activeSession();
+          if (!sess || !sess.layoutRoot || sess.focusedPaneId === null) return;
+          const next = moveFocusOp(sess.layoutRoot, sess.focusedPaneId, direction);
+          useSessionsStore.getState().setFocusedPane(sess.id, next);
+        },
+
+        resizeSplit: (a, b, ratio) => {
+          const sess = activeSession();
+          if (!sess || !sess.layoutRoot) return;
+          const next = resizeSplitOp(sess.layoutRoot, a, b, clampRatio(ratio));
+          if (next !== sess.layoutRoot) {
+            useSessionsStore.getState().setLayoutRoot(sess.id, next);
+          }
+        },
+
+        reset: () => {
+          // The layoutStore has no state of its own to reset. The bridge will
+          // mirror sessionsStore's now-empty state into our fields.
+          useSessionsStore.getState().reset();
+        },
+      }),
+      {
+        // The data we expose is owned by sessionsStore — nothing to persist
+        // here. We keep the persist middleware on the store so the
+        // useLayoutStore.persist.hasHydrated() / onFinishHydration() API
+        // surface that App.tsx depends on still exists.
+        name: "layout",
+        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        version: 2,
+        partialize: () => ({}),
       }
     ),
-    { name: "layout", enabled: import.meta.env.DEV }
+    { name: "layout (façade)", enabled: import.meta.env.DEV }
   )
 );
 
-// ---------- Derived selectors ----------
+// ─── Bridge: forward sessionsStore changes to layoutStore subscribers ──────
+// When sessionsStore mutates the active session's layoutRoot/focusedPaneId
+// (or when activeSessionId itself changes), mirror the values into the
+// layoutStore so its subscribers fire normally. Identity-based diff on the
+// leaf values avoids notifying when nothing changed.
+useSessionsStore.subscribe((state) => {
+  const id = state.activeSessionId;
+  const sess = id ? state.sessions[id] ?? null : null;
+  const nextRoot = sess?.layoutRoot ?? null;
+  const nextFocus = sess?.focusedPaneId ?? null;
+  const cur = useLayoutStore.getState();
+  if (cur.root !== nextRoot || cur.focusedPaneId !== nextFocus) {
+    useLayoutStore.setState({ root: nextRoot, focusedPaneId: nextFocus });
+  }
+});
 
-/** All paneIds in the current layout, DFS order. Recomputed on each call. */
+// ─── Convenience exports preserved for compatibility ───────────────────────
+
+export { leaves } from "./layout/tree";
+
+/** Returns the paneIds in the ACTIVE session only. Kept for compatibility. */
 export function getPaneIds(state: LayoutState): PaneId[] {
   return state.root === null ? [] : leaves(state.root);
 }

@@ -19,12 +19,20 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 
 import { useLayoutStore, getPaneIds } from "./layoutStore";
 import { usePtyStore } from "./ptyStore";
+import { useSessionsStore } from "./sessionsStore";
 import type { Shell } from "@/types";
 
 const wsl: Shell = { kind: "wsl", distro: "Ubuntu" };
 
 describe("layoutStore", () => {
-  beforeEach(() => useLayoutStore.getState().reset());
+  beforeEach(() => {
+    // layoutStore is now a façade over sessionsStore — reads/writes against
+    // it are no-ops when activeSessionId is null. Each test gets a fresh
+    // session that's active, mimicking the running-app condition.
+    useSessionsStore.getState().reset();
+    const id = useSessionsStore.getState().createSession("/test");
+    useSessionsStore.getState().activateSession(id);
+  });
 
   it("initWithFirstPane creates a single-leaf tree and focuses it", () => {
     useLayoutStore.getState().initWithFirstPane("p1");
