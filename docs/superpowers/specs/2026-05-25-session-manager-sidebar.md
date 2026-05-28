@@ -373,6 +373,68 @@ On first launch after this feature ships, if `workstation-store.json` has no `se
 
 After migration, users see one stopped session under one project group with their old layout, one click away from reviving. No data loss.
 
+### 11.4 Persistence model — what we save vs. don't save (the contract)
+
+This section makes the persistence contract explicit, because the terminal-session model differs fundamentally from a chat-GUI model and the difference deserves to be on record.
+
+**The fundamental shape:** Chat GUIs persist *data at rest* — message rows in a database, replayed verbatim on click. Terminal sessions involve a *live process* (a shell plus whatever programs it spawned), and a Unix process cannot be put in a JSON file. We persist the **container** (project, layout, naming); we do not persist the **contents** (in-flight process state).
+
+#### What we save
+
+| Field | Survives app restart? | Notes |
+|---|---|---|
+| Session id, name | yes | UUID + user label |
+| `folderPath` | yes | absolute path; project identity |
+| `layoutRoot` (tree shape) | yes | where panes / splits are |
+| `focusedPaneId` | yes | restored on revive |
+| `gitBranch` (cached) | yes | refreshed via poller on revive |
+| `fileTreeOpen` | yes | per-session drawer state |
+| `createdAt`, `lastActiveAt` | yes | for ordering and recency |
+| `groupLabels`, `collapsedGroups` | yes | sidebar grouping state |
+
+#### What we do NOT save (lost on app restart)
+
+| Field | Why not |
+|---|---|
+| Live PTY process | DESIGN.md §1 invariant 5 — PTYs do not survive process restart. Killing app = killing every child shell. |
+| Per-pane CWD (the `cd`'s the user did inside the shell) | Not polled in v1. On revive every PTY spawns at the session's `folderPath`. v1.1 candidate via OSC 7 shell hook. |
+| Terminal scrollback / output history | Not snapshotted in v1. Revived panes start with an empty xterm buffer. v1.2 candidate via xterm `serialize` addon. |
+| In-flight program state (vim buffers, claude code in-progress turn, build output, REPL state) | These belong to the programs, not to us. We are a terminal host, not a process container. See "What persists itself" below. |
+| `activeSessionId` | Always `null` on launch. Cold-start = all sessions stopped (per §3 locked decision). |
+| `status` field | Always coerced to `"stopped"` on launch. |
+| `unread` flag | Transient; cleared on quit. |
+
+#### What persists itself (not our concern)
+
+The user's actual work mostly lives in the tools they run inside our terminals. When we revive a session, these come back independently because they were never ours to lose:
+
+- **Shell history** → `~/.bash_history`, `~/.zsh_history`, PowerShell `PSReadLine` — survives. `Ctrl+R` works as expected after revive.
+- **Claude Code conversations** → `~/.claude/projects/<hash>/...` — survives. Reviving a session and re-running `claude code` offers to resume the previous conversation through Claude Code's own resume feature.
+- **Codex / aider / other agent state** → in those tools' own storage — survives.
+- **Vim swap files** → `~/.vim/swap` and equivalents — survives, even across crashes.
+- **tmux state** → tmux's own daemon, if the user runs tmux inside our shell — survives independently of our app.
+- **Git working tree** → on disk — survives.
+
+The implication: a user who quits the app mid-Claude-Code-session and revives the session tomorrow can run `claude code` in the revived pane and pick up where they left off. The conversation isn't ours to keep, and that's the right division of labor.
+
+#### What "revive" actually means
+
+User clicks a stopped session row → the session's layout shape comes back, the panes lay out as they were, fresh PTYs spawn at the session's `folderPath`. The user is back in the right project with the right window arrangement, ready to re-launch whatever they were running.
+
+It is "open the project again, with the windows arranged how I left them" — not "reattach to the work in progress". The latter (true PTY survival across app restart) would require a separate daemon process that owns the PTYs — the tmux model. That's a v2-class architectural decision and explicitly out of scope.
+
+#### Parity check: this matches cmux
+
+cmux's PTYs also do not survive cmux quitting. cmux is an app, not a daemon. Its persistence contract is the same shape as ours: project list + workspace metadata, fresh shells on relaunch. cmux's edge is in-app session switching (background PTYs stay alive while the app is running), and that's exactly what §9 ("xterm survival on session switch") covers.
+
+#### Future tiers (not v1)
+
+| Tier | What it adds | Approach |
+|---|---|---|
+| **v1.1** | Per-pane CWD persistence | OSC 7 sequence emitted by shell hooks, parsed in xterm, stored on the LayoutNode leaf. Spawn PTY with that cwd on revive. |
+| **v1.2** | Scrollback snapshot (read-only history) | xterm `serialize` addon dumps buffer to disk on quit; restored as read-only history on revive. |
+| **v2** | True PTY survival across app restart (tmux model) | Workstation-daemon process owns PTYs; app connects to daemon over local IPC. Quitting the app does not kill PTYs. Significant cross-platform architecture work. |
+
 ## 12. Status bar
 
 The terminal-focus segment currently reads `shell · cwd`. New format: `<group label> / <session name> · <focused pane shell> · <git branch>`.
