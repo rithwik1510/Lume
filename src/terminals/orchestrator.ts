@@ -16,7 +16,7 @@
 
 import { Channel } from "@tauri-apps/api/core";
 
-import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
+import { useSessionsStore, getActivePaneIds } from "@/store/sessionsStore";
 import { usePtyStore } from "@/store/ptyStore";
 import {
   getOrCreateTerminal,
@@ -73,6 +73,7 @@ function defaultShell(): Shell {
   return { kind: "powershell", path: "powershell.exe" };
 }
 
+// TODO (v1.1): pass cwd = session.folderPath via openPty. See spec §11.4.
 export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
   // 1. Create/get the Terminal in the registry. Doesn't open into a DOM
   //    container yet — the TerminalPane component handles attach().
@@ -169,7 +170,7 @@ export function installPtyOrchestrator(): () => void {
   // that ended up in the open()-called-twice state during a prior buggy
   // build) would persist and the new spawn's bytes would render nowhere.
   // Scrollback is lost — acceptable cost for HMR/recovery scenarios.
-  const initial = getPaneIds(useLayoutStore.getState());
+  const initial = getActivePaneIds(useSessionsStore.getState());
   for (const id of initial) {
     void (async () => {
       try {
@@ -184,9 +185,9 @@ export function installPtyOrchestrator(): () => void {
     })();
   }
 
-  const sub = useLayoutStore.subscribe((state, prev) => {
-    const curr = getPaneIds(state);
-    const before = getPaneIds(prev);
+  const sub = useSessionsStore.subscribe((state, prev) => {
+    const curr = getActivePaneIds(state);
+    const before = getActivePaneIds(prev);
     const added = curr.filter((id) => !before.includes(id));
     const removed = before.filter((id) => !curr.includes(id));
     for (const id of added) void spawnPane(id, defaultShell());
