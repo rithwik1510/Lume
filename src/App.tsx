@@ -17,8 +17,8 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ContextMenu } from "@/components/ContextMenu";
+import { MainArea } from "@/components/MainArea";
 import { MdEditor } from "@/components/MdEditor";
-import { PaneTree } from "@/components/PaneTree";
 import { QuickViewer } from "@/components/QuickViewer";
 import { ShortcutsModal } from "@/components/ShortcutsModal";
 import { Sidebar } from "@/components/Sidebar";
@@ -36,7 +36,6 @@ import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 export default function App() {
-  const root = useLayoutStore((s) => s.root);
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
   const mdMode = useMdStore((s) => s.mdEditorMode);
   const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
@@ -140,21 +139,7 @@ export default function App() {
           ) : (
             <PanelGroup direction="horizontal" id="pg-root-h">
               <Panel defaultSize={quickViewerOpen ? 75 : 100} minSize={40}>
-                {root === null ? (
-                  <div
-                    style={{
-                      color: "var(--fg-2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      height: "100%",
-                    }}
-                  >
-                    empty layout
-                  </div>
-                ) : (
-                  <PaneTree node={root} path="root" />
-                )}
+                <MainArea />
               </Panel>
               {quickViewerOpen && (
                 <>
