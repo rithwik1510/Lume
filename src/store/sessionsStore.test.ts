@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // @tauri-apps/plugin-store mock is required because sessionsStore uses
 // persist middleware via tauriPersistStorage. Mirrors mdStore.test.ts.
@@ -102,6 +102,13 @@ describe("sessionsStore — lifecycle", () => {
   beforeEach(() => {
     useSessionsStore.getState().reset();
     vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    // Restore real timers so later describes (and the file's outer suites)
+    // don't inherit fake timers — would break any future Date.now()-based
+    // assertion. Latent footgun caught in Phase 1 spec review.
+    vi.useRealTimers();
   });
 
   it("activateSession flips status, sets activeSessionId, bumps lastActiveAt, clears unread", () => {

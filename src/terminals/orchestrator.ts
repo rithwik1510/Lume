@@ -1,10 +1,12 @@
-// PTY orchestrator — drives PTY lifecycle from layoutStore changes.
+// PTY orchestrator — drives PTY lifecycle from sessionsStore changes.
 // Per DESIGN.md §4 rule #2 + Weekend 0 addendum: lifecycle is keyed by
 // paneId, NOT by React mount/unmount. This module is the single source.
 //
-// Flow:
-//   layoutStore.paneIds changes
-//     → orchestrator notices added/removed ids
+// Flow (session-manager-aware as of Phase 1):
+//   sessionsStore active-session set changes (status flips or layout edits)
+//     → getActivePaneIds(state) gives the union of paneIds across every
+//       session with status === "active"
+//     → orchestrator diffs added/removed ids against the previous union
 //     → calls openPty / killPty
 //     → wires the per-pane Channel into:
 //          - registry.writeToTerminal(bytes) for Data events
