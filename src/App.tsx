@@ -20,6 +20,7 @@ import { ContextMenu } from "@/components/ContextMenu";
 import { MainArea } from "@/components/MainArea";
 import { MdEditor } from "@/components/MdEditor";
 import { QuickViewer } from "@/components/QuickViewer";
+import { SessionsSidebar } from "@/components/SessionsSidebar";
 import { ShortcutsModal } from "@/components/ShortcutsModal";
 import { Sidebar } from "@/components/Sidebar";
 import { SplitMenu } from "@/components/SplitMenu";
@@ -132,6 +133,7 @@ export default function App() {
           flexDirection: "row",
         }}
       >
+        {sidebarVisible && <SessionsSidebar />}
         {sidebarVisible && <Sidebar />}
         <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {mdMode === "full" ? (
