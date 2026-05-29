@@ -289,6 +289,52 @@ describe("sessionsStore — selectors", () => {
     expect(findSessionForPane(useSessionsStore.getState(), "pane-nope")).toBeNull();
   });
 
+  it("groupedSessions implicitly drops folderPaths whose only session was deleted (I4 guard)", () => {
+    // I4: building groups during bucketing means a folderPath only appears
+    // in `byFolder` if at least one session pushed to it. Deleting that
+    // session removes it from state.sessions, so the bucket is never
+    // created — and the now-empty folder cannot reach the sort comparator
+    // with `Math.max(...[])` (which would silently return -Infinity).
+    const a = useSessionsStore.getState().createSession("/p1", "A");
+    useSessionsStore.getState().createSession("/p2", "B");
+    // Delete the only session under /p1; /p1 must NOT appear in groups.
+    useSessionsStore.getState().purgeSession(a);
+    const groups = groupedSessions(useSessionsStore.getState());
+    expect(groups.map((g) => g.folderPath)).toEqual(["/p2"]);
+    // Synthetic worst case: hand-construct a SessionGroupView with empty
+    // sessions through state injection — verify groupedSessions still
+    // returns ordered output without -Infinity sorting artifacts.
+    useSessionsStore.setState((s) => {
+      s.groupLabels["/ghost"] = "Ghost"; // label without matching session
+    });
+    const groups2 = groupedSessions(useSessionsStore.getState());
+    expect(groups2.map((g) => g.folderPath)).toEqual(["/p2"]);
+  });
+
+  it("App-bootstrap pattern is idempotent: re-running activates existing same-folder session (I3)", () => {
+    // I3: simulates two back-to-back bootstrap effects (React Strict Mode
+    // dev double-mount, or two quick launches). The expected behavior:
+    // second pass finds the existing homeDir session via sessionsForFolder
+    // and activates it instead of creating a duplicate.
+    const home = "/home/me";
+    const bootstrap = () => {
+      const state = useSessionsStore.getState();
+      const existing = sessionsForFolder(state, home);
+      if (existing.length > 0) {
+        state.activateSession(existing[0]!.id);
+      } else {
+        const id = state.createSession(home, "New session");
+        state.activateSession(id);
+      }
+    };
+    bootstrap();
+    bootstrap();
+    const all = Object.values(useSessionsStore.getState().sessions);
+    expect(all.length).toBe(1);
+    expect(all[0].folderPath).toBe(home);
+    expect(useSessionsStore.getState().activeSessionId).toBe(all[0].id);
+  });
+
   it("getActivePaneIds returns the union across active sessions", () => {
     const a = useSessionsStore.getState().createSession("/p");
     const b = useSessionsStore.getState().createSession("/q");

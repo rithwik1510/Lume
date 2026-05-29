@@ -10,18 +10,15 @@ export function basename(path: string): string {
 }
 
 /**
- * Path equality with platform-appropriate semantics:
- *   - On Windows the comparison is case-insensitive (path components compare as
- *     equal regardless of case).
- *   - Trailing slashes are stripped before comparison so "/a/b" === "/a/b/".
+ * Path equality, case-insensitive (Windows app). The workstation is
+ * Windows-only (see CONTEXT.md — default shell is PowerShell, homeDir
+ * bootstrap), so we always compare case-insensitively rather than trying
+ * to sniff the path shape. Trailing slashes are stripped before comparison
+ * so "/a/b" === "/a/b/".
  */
 export function samePath(a: string, b: string): boolean {
   const norm = (p: string) => p.replace(/[/\\]+$/, "");
-  const A = norm(a);
-  const B = norm(b);
-  // Windows detection: path starts with a drive letter or contains backslash.
-  const isWin = /^[a-zA-Z]:[\\/]/.test(A) || A.includes("\\") || B.includes("\\");
-  return isWin ? A.toLowerCase() === B.toLowerCase() : A === B;
+  return norm(a).toLowerCase() === norm(b).toLowerCase();
 }
 
 /**

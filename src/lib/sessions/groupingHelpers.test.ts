@@ -26,6 +26,11 @@ describe("samePath", () => {
   it("normalises trailing slash", () => {
     expect(samePath("/a/b/", "/a/b")).toBe(true);
   });
+  it("compares case-insensitively even on posix-shaped paths (Windows app)", () => {
+    // I5: the heuristic that gated case-insensitivity on a Windows-looking
+    // path is gone. The app is Windows-only, so /a/b and /A/B should match.
+    expect(samePath("/a/b", "/A/B")).toBe(true);
+  });
 });
 
 describe("autoSuffixSessionName", () => {

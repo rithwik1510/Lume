@@ -30,7 +30,7 @@ import { beginResize, endResize } from "@/components/resizeBus";
 import { homeDir } from "@/lib/fsClient";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
-import { useSessionsStore } from "@/store/sessionsStore";
+import { sessionsForFolder, useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -55,9 +55,21 @@ export default function App() {
         // No sessions exist yet — create one at the user's home dir. Phase 8
         // will replace this with the migration logic that imports the legacy
         // layoutStore root + folderPath into a real session.
+        //
+        // Idempotency guard: even when sessions is empty at the top, the
+        // homeDir await is async — under React Strict Mode (dev double-mount)
+        // or a second invocation in the same tick we could race ourselves
+        // into two sessions. After awaiting, re-read state and prefer an
+        // existing same-folder MRU session over creating a duplicate.
         const home = await homeDir();
-        const id = sessions.createSession(home, "New session");
-        sessions.activateSession(id);
+        const fresh = useSessionsStore.getState();
+        const existing = sessionsForFolder(fresh, home);
+        if (existing.length > 0) {
+          fresh.activateSession(existing[0]!.id);
+        } else {
+          const id = fresh.createSession(home, "New session");
+          fresh.activateSession(id);
+        }
       } else if (sessions.activeSessionId === null) {
         // Persisted sessions exist but none is active. Phase 8 spec §3 says
         // cold start should be all-stopped; until we have UI to revive them,

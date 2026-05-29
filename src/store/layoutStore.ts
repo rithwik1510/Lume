@@ -93,9 +93,14 @@ function pickFocusAfterClose(
 export const useLayoutStore = create<LayoutStore>()(
   devtools(
     persist(
-      (set, _get) => ({
-        root: activeSession()?.layoutRoot ?? null,
-        focusedPaneId: activeSession()?.focusedPaneId ?? null,
+      () => ({
+        // Initial state is null/null on purpose. The bridge below is the
+        // single source of truth — it runs synchronously right after the
+        // store is created (initial mirror), and again on every
+        // sessionsStore mutation. Avoids a race where reading sessionsStore
+        // at module load returns pre-rehydration state.
+        root: null as LayoutNode | null,
+        focusedPaneId: null as PaneId | null,
 
         initWithFirstPane: (paneId) => {
           const sess = activeSession();
@@ -123,8 +128,6 @@ export const useLayoutStore = create<LayoutStore>()(
           const next = splitPaneOp(sess.layoutRoot, target, direction, newPaneId);
           sStore.setLayoutRoot(sess.id, next);
           sStore.setFocusedPane(sess.id, newPaneId);
-          // suppress unused warning
-          void set;
         },
 
         closePane: (paneId) => {
@@ -188,11 +191,19 @@ export const useLayoutStore = create<LayoutStore>()(
 );
 
 // ─── Bridge: forward sessionsStore changes to layoutStore subscribers ──────
-// When sessionsStore mutates the active session's layoutRoot/focusedPaneId
-// (or when activeSessionId itself changes), mirror the values into the
-// layoutStore so its subscribers fire normally. Identity-based diff on the
-// leaf values avoids notifying when nothing changed.
-useSessionsStore.subscribe((state) => {
+// The bridge is the SINGLE source of truth for layoutStore.root /
+// focusedPaneId. We call mirror() once synchronously below to seed initial
+// state (covers HMR and the post-create read), then subscribe for every
+// future sessionsStore mutation. Identity-based diff on the leaf values
+// avoids notifying when nothing changed.
+//
+// Race avoided: previously the initial root/focus were computed in the
+// create() initializer, which read useSessionsStore.getState() at module
+// load. If sessionsStore's persist middleware rehydrated AFTER layoutStore
+// was created, the initial values would be stale and the subscribe-only
+// bridge wouldn't fire (it fires on changes). Now the bridge owns these
+// fields end-to-end.
+function mirror(state: ReturnType<typeof useSessionsStore.getState>) {
   const id = state.activeSessionId;
   const sess = id ? state.sessions[id] ?? null : null;
   const nextRoot = sess?.layoutRoot ?? null;
@@ -201,7 +212,25 @@ useSessionsStore.subscribe((state) => {
   if (cur.root !== nextRoot || cur.focusedPaneId !== nextFocus) {
     useLayoutStore.setState({ root: nextRoot, focusedPaneId: nextFocus });
   }
-});
+}
+
+// Initial mirror — covers the case where useSessionsStore already has
+// non-empty state at this point (HMR, tests that pre-seed state).
+mirror(useSessionsStore.getState());
+
+// Ongoing mirror — every sessionsStore mutation flows through here.
+useSessionsStore.subscribe((state) => mirror(state));
+
+// Re-mirror after sessionsStore finishes rehydrating from disk. Today this
+// is a defensive no-op because sessionsStore.partialize is `() => ({})`
+// (Phase 1 placeholder, persists nothing). Phase 8 will turn on real
+// partialize and this hook is what guarantees layoutStore.root catches up
+// to the rehydrated active session without waiting for the next mutation.
+if (typeof useSessionsStore.persist?.onFinishHydration === "function") {
+  useSessionsStore.persist.onFinishHydration(() => {
+    mirror(useSessionsStore.getState());
+  });
+}
 
 // ─── Convenience exports preserved for compatibility ───────────────────────
 

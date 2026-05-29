@@ -245,9 +245,19 @@ export function groupedSessions(state: SessionsState): SessionGroupView[] {
   // Bucket by exact folderPath (string identity, no normalization beyond
   // what's already stored). Same-folder dedup is handled by samePath where
   // it matters; this is the render-input grouping.
+  //
+  // Cache max lastActiveAt during the bucket loop so the group-sort step
+  // doesn't have to spread session arrays inside the comparator. This is
+  // both safer (Math.max(...[]) === -Infinity silently misorders empty
+  // groups) and faster (O(n) instead of O(n^2·k) when sorting).
   const byFolder: Record<string, Session[]> = {};
+  const maxByFolder: Record<string, number> = {};
   for (const s of Object.values(state.sessions)) {
     (byFolder[s.folderPath] ??= []).push(s);
+    const prev = maxByFolder[s.folderPath];
+    if (prev === undefined || s.lastActiveAt > prev) {
+      maxByFolder[s.folderPath] = s.lastActiveAt;
+    }
   }
   const groups: SessionGroupView[] = Object.entries(byFolder).map(([folderPath, sessions]) => ({
     folderPath,
@@ -255,12 +265,10 @@ export function groupedSessions(state: SessionsState): SessionGroupView[] {
     collapsed: state.collapsedGroups.includes(folderPath),
     sessions: sessions.sort((a, b) => b.lastActiveAt - a.lastActiveAt),
   }));
-  // Sort groups by their max-child lastActiveAt desc.
-  groups.sort((a, b) => {
-    const ax = Math.max(...a.sessions.map((s) => s.lastActiveAt));
-    const bx = Math.max(...b.sessions.map((s) => s.lastActiveAt));
-    return bx - ax;
-  });
+  // Sort groups by cached max-child lastActiveAt desc. Empty-sessions groups
+  // never exist by construction (we only create a bucket when we push), so
+  // maxByFolder is always populated for any folderPath in groups.
+  groups.sort((a, b) => (maxByFolder[b.folderPath] ?? 0) - (maxByFolder[a.folderPath] ?? 0));
   return groups;
 }
 
