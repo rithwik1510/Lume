@@ -27,8 +27,10 @@ import { StatusBar } from "@/components/StatusBar";
 import { Toaster } from "@/components/Toaster";
 import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
+import { homeDir } from "@/lib/fsClient";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
+import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -42,7 +44,30 @@ export default function App() {
   useEffect(() => {
     const dispose = installPtyOrchestrator();
 
-    const bootstrapEmptyLayout = () => {
+    const bootstrapEmptyLayout = async () => {
+      // The façade requires an *active* session before initWithFirstPane will
+      // do anything — useLayoutStore.root mirrors the active session's
+      // layoutRoot, so with no session it's stuck at null. Phase 1 smoke:
+      // ensure a session exists and is active, then let initWithFirstPane
+      // populate its pane tree.
+      const sessions = useSessionsStore.getState();
+      if (Object.keys(sessions.sessions).length === 0) {
+        // No sessions exist yet — create one at the user's home dir. Phase 8
+        // will replace this with the migration logic that imports the legacy
+        // layoutStore root + folderPath into a real session.
+        const home = await homeDir();
+        const id = sessions.createSession(home, "New session");
+        sessions.activateSession(id);
+      } else if (sessions.activeSessionId === null) {
+        // Persisted sessions exist but none is active. Phase 8 spec §3 says
+        // cold start should be all-stopped; until we have UI to revive them,
+        // activate the MRU so the user sees their last project.
+        const mru = Object.values(sessions.sessions).sort(
+          (a, b) => b.lastActiveAt - a.lastActiveAt
+        )[0];
+        if (mru) sessions.activateSession(mru.id);
+      }
+
       const { root: existingRoot, initWithFirstPane } = useLayoutStore.getState();
       if (existingRoot === null) {
         // One pane at launch — user splits via Ctrl+Alt+→/↓/↑.
@@ -60,10 +85,10 @@ export default function App() {
     // on onFinishHydration's callback.
     let unsubFinishHydration: (() => void) | undefined;
     if (useLayoutStore.persist.hasHydrated()) {
-      bootstrapEmptyLayout();
+      void bootstrapEmptyLayout();
     } else {
       unsubFinishHydration = useLayoutStore.persist.onFinishHydration(() => {
-        bootstrapEmptyLayout();
+        void bootstrapEmptyLayout();
       });
     }
 
