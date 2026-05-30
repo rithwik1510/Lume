@@ -5,6 +5,7 @@
 
 import styles from "@/components/SessionsSidebar.module.css";
 import { SessionGroup } from "@/components/SessionGroup";
+import { pickAndCreateSession } from "@/lib/sessions/sessionEntryFlows";
 import { groupedSessions, useSessionsStore } from "@/store/sessionsStore";
 
 export function SessionsSidebar() {
@@ -15,7 +16,12 @@ export function SessionsSidebar() {
   return (
     <div className={styles.root}>
       <div className={styles.toolbar}>
-        <button className={styles.newBtn} title="New session (Ctrl+Shift+T)" aria-label="New session">
+        <button
+          className={styles.newBtn}
+          title="New session (Ctrl+Shift+T)"
+          aria-label="New session"
+          onClick={() => void pickAndCreateSession()}
+        >
           + New session
         </button>
         <button className={styles.menuBtn} title="Filter & options" aria-label="Filter and options">
