@@ -15,7 +15,9 @@ import styles from "@/components/StatusBar.module.css";
 import { useMdStore } from "@/store/mdStore";
 import { useLayoutStore } from "@/store/layoutStore";
 import { usePtyStore } from "@/store/ptyStore";
+import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
+import { basename } from "@/lib/sessions/groupingHelpers";
 import { shellLabel } from "@/lib/shellsClient";
 
 function shortName(path: string | null): string {
@@ -35,6 +37,14 @@ export function StatusBar() {
   const qvPath = useMdStore((s) => s.quickViewer.path);
   const workspaceFolder = useSidebarStore((s) => s.workspaceFolder);
 
+  // Active session — drives the terminal-focused segment (§12). Selectors are
+  // reactive so renaming the session/group or a branch-poll tick re-renders.
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId);
+  const activeSession = useSessionsStore((s) =>
+    activeSessionId ? s.sessions[activeSessionId] : null
+  );
+  const groupLabels = useSessionsStore((s) => s.groupLabels);
+
   // ---- LEFT segment ----
   let left = "";
   if (focusedSurface === "md-editor") {
@@ -53,14 +63,19 @@ export function StatusBar() {
   } else if (focusedSurface === "sidebar") {
     left = workspaceFolder ?? "";
   } else if (focusedSurface === "terminal" && focusedPaneId !== null) {
+    // §12: "<group label> / <session name> · <shell> · ⎇ <branch>".
+    // Per-pane cwd is NOT tracked in v1 — the old cwd column is dropped until
+    // OSC 7 cwd polling lands (v1.2). Each segment is added only when present.
     const meta = panes[focusedPaneId];
-    if (meta) {
-      const shell = shellLabel(meta.shell);
-      const cwd = meta.cwd ?? "(unknown cwd)";
-      left = `${shell} · ${cwd}`;
-    } else {
-      left = "Terminal";
+    const parts: string[] = [];
+    if (activeSession) {
+      const groupLabel =
+        groupLabels[activeSession.folderPath] ?? basename(activeSession.folderPath);
+      parts.push(`${groupLabel} / ${activeSession.name}`);
     }
+    if (meta) parts.push(shellLabel(meta.shell));
+    if (activeSession?.gitBranch) parts.push(`⎇ ${activeSession.gitBranch}`);
+    left = parts.length > 0 ? parts.join("  ·  ") : "Terminal";
   } else {
     // No focused surface yet (e.g. first launch before anything has focus).
     left = workspaceFolder ?? "";
