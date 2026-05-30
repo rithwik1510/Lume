@@ -29,6 +29,7 @@ import { StatusBar } from "@/components/StatusBar";
 import { Toaster } from "@/components/Toaster";
 import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
+import { installBranchPoller } from "@/sessions/branchPoller";
 import { homeDir } from "@/lib/fsClient";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
@@ -44,6 +45,7 @@ export default function App() {
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
+    const disposePoller = installBranchPoller();
 
     const bootstrapEmptyLayout = async () => {
       // The façade requires an *active* session before initWithFirstPane will
@@ -107,6 +109,7 @@ export default function App() {
 
     return () => {
       if (unsubFinishHydration) unsubFinishHydration();
+      disposePoller();
       dispose();
     };
   }, []);
