@@ -1,15 +1,16 @@
-// Workstation root. Phase 2: horizontal flex layout with the Sidebar on the
-// left and the Tiling Area (PaneTree) filling the rest. The Sidebar manages
-// its own width via CSS module; the tiling area takes flex: 1.
+// Workstation root. Horizontal flex layout, left → right:
+//   SessionsSidebar (sessions grouped by folder; toggled by ☰ / Ctrl+B)
+//   FileDrawer      (active session's file tree; toggled by 🗂 / Ctrl+Shift+E,
+//                    renders null when the active session's fileTreeOpen is false)
+//   central area    (MainArea PaneTree mux + optional MD Quick Viewer panel)
 //
-// Phase 4: the tiling area is itself a horizontal PanelGroup so the MD Quick
-// Viewer can dock on the right (default 25%, min 20%, max 60%) when open.
+// The central area is a horizontal PanelGroup so the MD Quick Viewer can dock
+// on the right (default 25%, min 20%, max 60%) when open.
 //
-// Phase 6: when MD Editor mode is "full", the entire central area (Tiling Area
-// + MD Quick Viewer PanelGroup) is replaced by the <MdEditor /> per CONTEXT.md:
-// "When the MD Editor is in Full View, the Tiling Area + MD Quick Viewer area
-// are replaced by a single full-width CodeMirror 6 editor with the open MD
-// Tabs across the top. The Sidebar remains visible." The Sidebar and the
+// When MD Editor mode is "full", the entire central area is replaced by the
+// <MdEditor /> per CONTEXT.md: "the Tiling Area + MD Quick Viewer area are
+// replaced by a single full-width CodeMirror 6 editor with the open MD Tabs
+// across the top. The Sidebar remains visible." The sidebars and the
 // ContextMenu portal stay mounted alongside.
 
 import { useEffect } from "react";
@@ -17,12 +18,12 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ContextMenu } from "@/components/ContextMenu";
+import { FileDrawer } from "@/components/FileDrawer";
 import { MainArea } from "@/components/MainArea";
 import { MdEditor } from "@/components/MdEditor";
 import { QuickViewer } from "@/components/QuickViewer";
 import { SessionsSidebar } from "@/components/SessionsSidebar";
 import { ShortcutsModal } from "@/components/ShortcutsModal";
-import { Sidebar } from "@/components/Sidebar";
 import { SplitMenu } from "@/components/SplitMenu";
 import { StatusBar } from "@/components/StatusBar";
 import { Toaster } from "@/components/Toaster";
@@ -134,7 +135,10 @@ export default function App() {
         }}
       >
         {sidebarVisible && <SessionsSidebar />}
-        {sidebarVisible && <Sidebar />}
+        {/* FileDrawer renders null unless the active session has fileTreeOpen.
+            Its visibility is owned by the 🗂 topbar toggle (and Ctrl+Shift+E),
+            independent of the sessions-sidebar visibility (☰ / Ctrl+B). */}
+        <FileDrawer />
         <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {mdMode === "full" ? (
             <MdEditor />
