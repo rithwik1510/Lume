@@ -9,6 +9,9 @@ import { SessionRow } from "@/components/SessionRow";
 import { useSessionsStore, type SessionGroupView } from "@/store/sessionsStore";
 import { createAndActivateSession } from "@/lib/sessions/sessionEntryFlows";
 import { InlineRename } from "@/components/InlineRename";
+import { useContextMenuStore } from "@/store/contextMenuStore";
+import { useConfirmStore } from "@/store/confirmStore";
+import { revealInExplorer } from "@/lib/revealInExplorer";
 
 interface Props {
   group: SessionGroupView;
@@ -17,6 +20,7 @@ interface Props {
 export function SessionGroup({ group }: Props) {
   const toggle = useSessionsStore((s) => s.toggleGroupCollapsed);
   const setLabel = useSessionsStore((s) => s.setGroupLabel);
+  const purgeGroup = useSessionsStore((s) => s.purgeGroup);
   const [renaming, setRenaming] = useState(false);
 
   const onHeaderClick = () => {
@@ -34,9 +38,31 @@ export function SessionGroup({ group }: Props) {
     setRenaming(true);
   };
 
+  const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, [
+      { label: "Rename group", onClick: () => setRenaming(true) },
+      { label: "Reveal in Explorer", onClick: () => void revealInExplorer(group.folderPath) },
+      { label: group.collapsed ? "Expand" : "Collapse", onClick: () => toggle(group.folderPath) },
+      {
+        label: "Delete group",
+        onClick: async () => {
+          const ok = await useConfirmStore.getState().confirm({
+            title: "Delete group?",
+            message: `Delete group "${group.label}" and all ${group.sessions.length} session(s)? This cannot be undone.`,
+            confirmLabel: "Delete all",
+            danger: true,
+          });
+          if (ok) purgeGroup(group.folderPath);
+        },
+      },
+    ]);
+  };
+
   return (
     <div className={styles.group} data-folder={group.folderPath}>
-      <div className={styles.header} onClick={onHeaderClick} title={group.folderPath}>
+      <div className={styles.header} onClick={onHeaderClick} onContextMenu={onContextMenu} title={group.folderPath}>
         <span className={`${styles.caret} ${group.collapsed ? styles.caretCollapsed : ""}`}>
           ▾
         </span>

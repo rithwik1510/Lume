@@ -4,6 +4,8 @@ import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionRow.module.css";
 import { useSessionsStore, type Session } from "@/store/sessionsStore";
 import { useConfirmStore } from "@/store/confirmStore";
+import { useContextMenuStore } from "@/store/contextMenuStore";
+import { revealInExplorer } from "@/lib/revealInExplorer";
 import { InlineRename } from "@/components/InlineRename";
 
 interface Props {
@@ -45,12 +47,34 @@ export function SessionRow({ session }: Props) {
     setRenaming(true);
   };
 
+  const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, [
+      { label: "Rename", onClick: () => setRenaming(true) },
+      { label: "Reveal in Explorer", onClick: () => void revealInExplorer(session.folderPath) },
+      {
+        label: "Delete",
+        onClick: async () => {
+          const ok = await useConfirmStore.getState().confirm({
+            title: "Delete session?",
+            message: `Delete session "${session.name}"? This cannot be undone.`,
+            confirmLabel: "Delete",
+            danger: true,
+          });
+          if (ok) purge(session.id);
+        },
+      },
+    ]);
+  };
+
   return (
     <div
       className={`${styles.row} ${isActive ? styles.active : ""}`}
       data-session-id={session.id}
       title={session.name}
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       <span className={`${styles.dot} ${dotClass}`} aria-hidden="true" />
       {renaming ? (
