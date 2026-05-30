@@ -1,9 +1,11 @@
 // src/components/TopBar.tsx
 //
 // Frameless custom titlebar (DESIGN.md §3, §5; CONTEXT.md "Frameless
-// titlebar"). 36px tall. Drag region in the middle. Four action buttons
-// on the left (☰ ⊞ ⌨ 🗎), two action buttons on the right (📄 ⚙), and
+// titlebar"). 36px tall. Drag region in the middle. Five action buttons
+// on the left (☰ 🗂 ⊞ ⌨ 🗎), two action buttons on the right (📄 ⚙), and
 // three native window controls (min/max/close) on the far right.
+//   ☰  toggle sessions sidebar     🗂  toggle per-session file drawer
+//   ⊞  split menu    ⌨  shortcuts   🗎  MD editor full view
 //
 // Critical invariant: EVERY clickable element inside the titlebar sets
 // data-tauri-drag-region="false" on its root, otherwise the click is
@@ -14,6 +16,7 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 
 import styles from "@/components/TopBar.module.css";
 import { useMdStore } from "@/store/mdStore";
+import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import { useSplitMenuStore } from "@/store/splitMenuStore";
@@ -72,6 +75,18 @@ export function TopBar() {
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
   const workspaceFolder = useSidebarStore((s) => s.workspaceFolder);
 
+  // 🗂 File drawer toggle. Per-session: reads/writes the active session's
+  // `fileTreeOpen` flag. No-op when no session is active. Per the Pre-Phase
+  // spec correction, this is a NEW dedicated button (not the repurposed ☰,
+  // which still toggles the sessions sidebar).
+  const activeId = useSessionsStore((s) => s.activeSessionId);
+  const fileDrawerOpen = useSessionsStore((s) =>
+    activeId ? s.sessions[activeId]?.fileTreeOpen ?? false : false
+  );
+  const onToggleFileDrawer = () => {
+    if (activeId) useSessionsStore.getState().toggleFileTree(activeId);
+  };
+
   // ⊞ TopBar button: toggles the SplitMenu popover anchored at the
   // button's bottom-left. The popover dispatches splitPane on click;
   // the orchestrator spawns the PTY by reacting to the layout subscribe.
@@ -119,6 +134,15 @@ export function TopBar() {
           onClick={toggleSidebar}
         >
           ☰
+        </button>
+        <button
+          className={`${styles.btn} ${fileDrawerOpen ? styles.active : ""}`}
+          title="Toggle Files (Ctrl+Shift+E)"
+          aria-label="Toggle file drawer"
+          data-tauri-drag-region="false"
+          onClick={onToggleFileDrawer}
+        >
+          🗂
         </button>
         <button
           className={styles.btn}
