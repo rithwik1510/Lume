@@ -1,12 +1,14 @@
 // SessionGroup — header + nested session rows. See spec §6.2.
 //
 // Phase 3b: caret toggles collapsed state; `+` creates a session in this folder.
+// Phase 3c.3: double-click label to rename group (empty commit reverts to basename).
 
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionGroup.module.css";
 import { SessionRow } from "@/components/SessionRow";
 import { useSessionsStore, type SessionGroupView } from "@/store/sessionsStore";
 import { createAndActivateSession } from "@/lib/sessions/sessionEntryFlows";
+import { InlineRename } from "@/components/InlineRename";
 
 interface Props {
   group: SessionGroupView;
@@ -14,8 +16,11 @@ interface Props {
 
 export function SessionGroup({ group }: Props) {
   const toggle = useSessionsStore((s) => s.toggleGroupCollapsed);
+  const setLabel = useSessionsStore((s) => s.setGroupLabel);
+  const [renaming, setRenaming] = useState(false);
 
   const onHeaderClick = () => {
+    if (renaming) return;
     toggle(group.folderPath);
   };
 
@@ -24,13 +29,31 @@ export function SessionGroup({ group }: Props) {
     createAndActivateSession(group.folderPath);
   };
 
+  const onLabelDoubleClick = (e: ReactMouseEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    setRenaming(true);
+  };
+
   return (
     <div className={styles.group} data-folder={group.folderPath}>
       <div className={styles.header} onClick={onHeaderClick} title={group.folderPath}>
         <span className={`${styles.caret} ${group.collapsed ? styles.caretCollapsed : ""}`}>
           ▾
         </span>
-        <span className={styles.label}>{group.label}</span>
+        {renaming ? (
+          <InlineRename
+            initial={group.label}
+            onCommit={(value) => {
+              setLabel(group.folderPath, value);
+              setRenaming(false);
+            }}
+            onCancel={() => setRenaming(false)}
+          />
+        ) : (
+          <span className={styles.label} onDoubleClick={onLabelDoubleClick}>
+            {group.label}
+          </span>
+        )}
         <button
           className={styles.add}
           onClick={onAddClick}
