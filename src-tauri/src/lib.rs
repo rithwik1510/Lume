@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod file_watcher;
 pub mod fs;
+pub mod git;
 pub mod pty;
 pub mod shell_detect;
 
@@ -69,6 +70,7 @@ pub fn run() {
             crate::config::write_default_config_if_missing,
             crate::config::watch_config,
             crate::config::config_file_path,
+            crate::git::git_current_branch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running workstation");
