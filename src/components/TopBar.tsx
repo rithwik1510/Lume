@@ -17,9 +17,8 @@ import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import { useSplitMenuStore } from "@/store/splitMenuStore";
-import { useToastStore } from "@/store/toastStore";
 import { configFilePath } from "@/lib/configClient";
-import { pickFolder } from "@/lib/dialogClient";
+import { pickAndOpenFolder } from "@/lib/sessions/sessionEntryFlows";
 import {
   minimizeWindow,
   toggleMaximize,
@@ -72,7 +71,6 @@ export function TopBar() {
   const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
   const workspaceFolder = useSidebarStore((s) => s.workspaceFolder);
-  const setWorkspaceFolder = useSidebarStore((s) => s.setWorkspaceFolder);
 
   // ⊞ TopBar button: toggles the SplitMenu popover anchored at the
   // button's bottom-left. The popover dispatches splitPane on click;
@@ -101,21 +99,6 @@ export function TopBar() {
       );
     }
     // No-op when QV has no remembered path — matches keyboard shortcut.
-  };
-
-  const onOpenFolder = async () => {
-    try {
-      const folder = await pickFolder();
-      if (folder !== null) {
-        setWorkspaceFolder(folder);
-      }
-    } catch (err) {
-      console.error("Open Folder failed", err);
-      useToastStore.getState().push({
-        severity: "error",
-        message: `Couldn't open folder: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
   };
 
   const onSettings = () => {
@@ -149,10 +132,10 @@ export function TopBar() {
         </button>
         <button
           className={styles.btn}
-          title="Open Folder (Ctrl+K Ctrl+O)"
+          title="Open Folder — switch or create session (Ctrl+K Ctrl+O)"
           aria-label="Open Folder"
           data-tauri-drag-region="false"
-          onClick={() => void onOpenFolder()}
+          onClick={() => void pickAndOpenFolder()}
         >
           📂
         </button>
