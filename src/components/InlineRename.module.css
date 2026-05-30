@@ -1,0 +1,12 @@
+.input {
+  flex: 1;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: inherit;
+  padding: 2px 4px;
+  outline: none;
+  min-width: 0;
+}
