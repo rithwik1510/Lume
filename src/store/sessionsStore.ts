@@ -290,7 +290,18 @@ export interface SessionGroupView {
   sessions: Session[]; // sorted by lastActiveAt desc
 }
 
-export function groupedSessions(state: SessionsState): SessionGroupView[] {
+// Accepts the minimal slice it reads (not the whole SessionsState) so callers
+// can pass a memoized `{ sessions, groupLabels, collapsedGroups }` object built
+// from individually-subscribed store slices. This matters because the result
+// is a fresh array every call: subscribing to it directly via
+// `useSessionsStore((s) => groupedSessions(s))` returns a new reference each
+// render, which under Zustand v5 + useSyncExternalStore throws "getSnapshot
+// should be cached" and crashes the app. Consumers must compute it in a
+// useMemo over stable slices instead. Full SessionsState still satisfies the
+// Pick, so getState() callers (keyboard shortcuts, tests) are unaffected.
+export function groupedSessions(
+  state: Pick<SessionsState, "sessions" | "groupLabels" | "collapsedGroups">
+): SessionGroupView[] {
   // Bucket by exact folderPath (string identity, no normalization beyond
   // what's already stored). Same-folder dedup is handled by samePath where
   // it matters; this is the render-input grouping.
