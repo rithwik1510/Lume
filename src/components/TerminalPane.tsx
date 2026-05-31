@@ -15,8 +15,10 @@ import {
   detach,
   fitTerminal,
   focusTerminal,
+  getOrCreateTerminal,
   resetMouseModes,
 } from "@/terminals/registry";
+import { registerOscHandlers } from "@/sessions/oscNotifications";
 import { resizePty } from "@/terminals/ptyClient";
 import { changeShell, getDetectedShells } from "@/terminals/orchestrator";
 import { useContextMenuStore } from "@/store/contextMenuStore";
@@ -36,6 +38,11 @@ function TerminalPaneImpl({ paneId }: Props) {
     if (!hostRef.current) return;
     attach(paneId, hostRef.current);
     focusTerminal(paneId);
+
+    // OSC 9/99/777 notification handlers → bump the owning session's unread
+    // flag. Registered per-mount; disposed in cleanup so a split-then-close
+    // pane doesn't leave dangling handlers on a reused Terminal. See §10.2.
+    const unregisterOsc = registerOscHandlers(paneId, getOrCreateTerminal(paneId));
 
     // Mouse-mode panic key (focused pane). DESIGN.md §7.
     const onKeyDown = (e: KeyboardEvent) => {
@@ -90,6 +97,7 @@ function TerminalPaneImpl({ paneId }: Props) {
       obs.disconnect();
       unsubResizeEnd();
       if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      unregisterOsc();
       detach(paneId);
     };
   }, [paneId]);
