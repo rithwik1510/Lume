@@ -10,6 +10,10 @@ export interface OpenPtyArgs {
   shell: Shell;
   cols: number;
   rows: number;
+  /** Working directory to spawn the shell in (the owning session's folder).
+   *  Omitted/undefined → the Rust side inherits the app's cwd. A path that no
+   *  longer exists on disk is ignored server-side (falls back to inherited). */
+  cwd?: string;
   channel: Channel<PtyEvent>;
 }
 
@@ -20,6 +24,7 @@ export async function openPty(args: OpenPtyArgs): Promise<void> {
     shell: args.shell,
     cols: args.cols,
     rows: args.rows,
+    cwd: args.cwd ?? null,
     channel: args.channel,
   });
 }

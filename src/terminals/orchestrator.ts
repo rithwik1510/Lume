@@ -18,7 +18,7 @@
 
 import { Channel } from "@tauri-apps/api/core";
 
-import { useSessionsStore, getActivePaneIds } from "@/store/sessionsStore";
+import { useSessionsStore, getActivePaneIds, findSessionForPane } from "@/store/sessionsStore";
 import { usePtyStore } from "@/store/ptyStore";
 import {
   getOrCreateTerminal,
@@ -75,8 +75,14 @@ function defaultShell(): Shell {
   return { kind: "powershell", path: "powershell.exe" };
 }
 
-// TODO (v1.1): pass cwd = session.folderPath via openPty. See spec §11.4.
 export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
+  // Resolve the owning session's folder so the shell starts there instead of
+  // the app's cwd. By the time the orchestrator fires spawnPane, the paneId is
+  // already a leaf in some active session's layoutRoot, so findSessionForPane
+  // resolves it. undefined → Rust inherits the default cwd. A stale/deleted
+  // path is ignored server-side (pty_open guards on is_dir).
+  const cwd = findSessionForPane(useSessionsStore.getState(), paneId)?.folderPath;
+
   // 1. Create/get the Terminal in the registry. Doesn't open into a DOM
   //    container yet — the TerminalPane component handles attach().
   const term = getOrCreateTerminal(paneId);
@@ -125,7 +131,7 @@ export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
   const sizing = fitTerminal(paneId) ?? { cols: 80, rows: 24 };
 
   try {
-    await openPty({ paneId, shell, cols: sizing.cols, rows: sizing.rows, channel });
+    await openPty({ paneId, shell, cols: sizing.cols, rows: sizing.rows, cwd, channel });
     usePtyStore.getState().setStatus(paneId, "running");
   } catch (e) {
     const msg = isAppError(e) ? formatAppError(e) : String(e);

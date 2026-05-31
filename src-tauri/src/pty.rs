@@ -172,6 +172,7 @@ pub fn pty_open(
     shell: Shell,
     cols: u16,
     rows: u16,
+    cwd: Option<String>,
     channel: Channel<PtyEvent>,
     state: State<'_, PtyRegistry>,
 ) -> AppResult<()> {
@@ -191,7 +192,15 @@ pub fn pty_open(
         })
         .map_err(|e| AppError::spawn(format!("openpty: {e}")))?;
 
-    let cmd = build_command(&shell);
+    let mut cmd = build_command(&shell);
+    // Start the shell in the session's folder when one was provided and it
+    // still exists on disk. Guarding on is_dir keeps a deleted/renamed folder
+    // from failing the whole spawn — we fall back to the inherited cwd instead.
+    if let Some(dir) = cwd.as_deref() {
+        if !dir.is_empty() && std::path::Path::new(dir).is_dir() {
+            cmd.cwd(dir);
+        }
+    }
     let mut child = pair
         .slave
         .spawn_command(cmd)
