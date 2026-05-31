@@ -176,10 +176,13 @@ export const useLayoutStore = create<LayoutStore>()(
         },
       }),
       {
-        // The data we expose is owned by sessionsStore — nothing to persist
-        // here. We keep the persist middleware on the store so the
-        // useLayoutStore.persist.hasHydrated() / onFinishHydration() API
-        // surface that App.tsx depends on still exists.
+        // The data we expose is owned by sessionsStore — this façade persists
+        // NOTHING (partialize → {}). As of Phase 8, App.tsx's hydration gate
+        // moved to useSessionsStore.persist, so nothing reads this store's
+        // .persist API anymore. The wrapper is now vestigial; it's kept only
+        // to avoid re-indenting the whole store body for zero behavioural gain
+        // (it writes an empty object, never meaningful state). version:2 also
+        // discards any leftover v0.1 "layout" key on a migrating user's disk.
         name: "layout",
         storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
         version: 2,

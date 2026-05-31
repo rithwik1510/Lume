@@ -30,10 +30,10 @@ import { Toaster } from "@/components/Toaster";
 import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { installBranchPoller } from "@/sessions/branchPoller";
-import { homeDir } from "@/lib/fsClient";
+import { runMigrationIfNeeded } from "@/sessions/migration";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
-import { sessionsForFolder, useSessionsStore } from "@/store/sessionsStore";
+import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -47,63 +47,42 @@ export default function App() {
     const dispose = installPtyOrchestrator();
     const disposePoller = installBranchPoller();
 
-    const bootstrapEmptyLayout = async () => {
-      // The façade requires an *active* session before initWithFirstPane will
-      // do anything — useLayoutStore.root mirrors the active session's
-      // layoutRoot, so with no session it's stuck at null. Phase 1 smoke:
-      // ensure a session exists and is active, then let initWithFirstPane
-      // populate its pane tree.
-      const sessions = useSessionsStore.getState();
-      if (Object.keys(sessions.sessions).length === 0) {
-        // No sessions exist yet — create one at the user's home dir. Phase 8
-        // will replace this with the migration logic that imports the legacy
-        // layoutStore root + folderPath into a real session.
-        //
-        // Idempotency guard: even when sessions is empty at the top, the
-        // homeDir await is async — under React Strict Mode (dev double-mount)
-        // or a second invocation in the same tick we could race ourselves
-        // into two sessions. After awaiting, re-read state and prefer an
-        // existing same-folder MRU session over creating a duplicate.
-        const home = await homeDir();
-        const fresh = useSessionsStore.getState();
-        const existing = sessionsForFolder(fresh, home);
-        if (existing.length > 0) {
-          fresh.activateSession(existing[0]!.id);
-        } else {
-          const id = fresh.createSession(home, "New session");
-          fresh.activateSession(id);
-        }
-      } else if (sessions.activeSessionId === null) {
-        // Persisted sessions exist but none is active. Phase 8 spec §3 says
-        // cold start should be all-stopped; until we have UI to revive them,
-        // activate the MRU so the user sees their last project.
-        const mru = Object.values(sessions.sessions).sort(
-          (a, b) => b.lastActiveAt - a.lastActiveAt
-        )[0];
-        if (mru) sessions.activateSession(mru.id);
+    const bootstrap = async () => {
+      // By the time this runs, sessionsStore has rehydrated and
+      // coerceRehydrated has set every persisted session to stopped with
+      // activeSessionId null. runMigrationIfNeeded seeds a session on fresh
+      // install / v0.1 upgrade (returning its id to activate) or returns null
+      // on a routine restart (persisted sessions stay all-stopped per §3).
+      const oldRoot = useLayoutStore.getState().root; // façade → null at cold start
+      const oldWs = useSidebarStore.getState().workspaceFolder;
+      const seededId = await runMigrationIfNeeded({
+        oldLayoutRoot: oldRoot,
+        oldWorkspaceFolder: oldWs,
+      });
+      if (seededId) {
+        useSessionsStore.getState().activateSession(seededId);
       }
 
-      const { root: existingRoot, initWithFirstPane } = useLayoutStore.getState();
-      if (existingRoot === null) {
-        // One pane at launch — user splits via Ctrl+Alt+→/↓/↑.
-        // The Weekend 1 4-pane bootstrap was smoothness-baseline scaffolding,
-        // not the real product UX.
-        initWithFirstPane("pane-1");
+      // If the now-active session has no layout yet, seed its first pane. On a
+      // routine restart nothing is active, so this is skipped and the user
+      // sees the all-stopped sidebar until they click a session to revive.
+      const layout = useLayoutStore.getState();
+      if (layout.root === null && useSessionsStore.getState().activeSessionId !== null) {
+        layout.initWithFirstPane("pane-1");
       }
     };
 
-    // Wait for layoutStore's persist middleware to finish rehydrating before
-    // running the empty-layout bootstrap. Otherwise we'd spawn pane-1 and
-    // immediately kill it once rehydrate replaces root with the persisted
-    // tree — a visible flash plus wasted PTY work. hasHydrated() returns true
-    // if rehydration has already completed (e.g. on HMR); otherwise we wait
-    // on onFinishHydration's callback.
+    // Gate on sessionsStore hydration — sessions live there now. Running before
+    // it rehydrates would seed a stray home session that the wholesale
+    // rehydrate setState then wipes (spawn-then-orphan flash). layoutStore's
+    // own persist is a no-op shim (partialize () => ({})); its bridge
+    // re-mirrors after sessionsStore hydrates, so gating here is sufficient.
     let unsubFinishHydration: (() => void) | undefined;
-    if (useLayoutStore.persist.hasHydrated()) {
-      void bootstrapEmptyLayout();
+    if (useSessionsStore.persist.hasHydrated()) {
+      void bootstrap();
     } else {
-      unsubFinishHydration = useLayoutStore.persist.onFinishHydration(() => {
-        void bootstrapEmptyLayout();
+      unsubFinishHydration = useSessionsStore.persist.onFinishHydration(() => {
+        void bootstrap();
       });
     }
 
