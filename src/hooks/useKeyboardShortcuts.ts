@@ -19,12 +19,15 @@ import { useEffect } from "react";
 
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
+import { useSessionsStore, groupedSessions } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
+import { leaves } from "@/store/layout/tree";
 import { nextPaneId } from "@/lib/paneIds";
-import { closeBusyPaneConfirm } from "@/lib/confirmStrings";
+import { closeBusyPaneConfirm, closeLastPaneInSessionConfirm } from "@/lib/confirmStrings";
+import { pickAndCreateSession } from "@/lib/sessions/sessionEntryFlows";
 import { pickFolder } from "@/lib/dialogClient";
 import { isPtyBusy } from "@/terminals/ptyClient";
 
@@ -67,10 +70,18 @@ function moveFocus(direction: FocusDirection): boolean {
 }
 
 async function closeFocusedAsync(): Promise<boolean> {
-  const focused = focusedPaneOrNull();
+  // Read everything from the active session so last-pane semantics can branch
+  // to stopSession instead of the old hard last-pane lock.
+  const sessions = useSessionsStore.getState();
+  const activeId = sessions.activeSessionId;
+  if (!activeId) return false;
+  const session = sessions.sessions[activeId];
+  if (!session || !session.layoutRoot) return false;
+  const focused = session.focusedPaneId;
   if (focused === null) return false;
-  // CONTEXT.md invariant 3: gate Ctrl+W behind the active-process
-  // confirm dialog, identical to the × button on the pane.
+
+  // CONTEXT.md invariant 3: gate Ctrl+W behind the active-process confirm
+  // dialog, identical to the × button on the pane.
   try {
     const busy = await isPtyBusy(focused);
     if (busy) {
@@ -80,7 +91,57 @@ async function closeFocusedAsync(): Promise<boolean> {
   } catch (err) {
     console.warn("isPtyBusy check failed", err);
   }
+
+  // Last-pane semantics: closing the only pane stops the session (kept in the
+  // sidebar for reactivation) rather than being a no-op. Separate confirm so
+  // the user understands the session — not just the pane — is going away.
+  if (leaves(session.layoutRoot).length === 1) {
+    const ok = await useConfirmStore
+      .getState()
+      .confirm(closeLastPaneInSessionConfirm(session.name));
+    if (!ok) return false;
+    useSessionsStore.getState().stopSession(activeId);
+    return true;
+  }
+
   useLayoutStore.getState().closePane(focused);
+  return true;
+}
+
+// ---------- Session navigation (Phase 7) ----------
+//
+// Cycle / jump operate on the sidebar's flattened render order: groups in
+// groupedSessions() order, sessions within each group, group headers skipped.
+
+function cycleSession(delta: 1 | -1): boolean {
+  const state = useSessionsStore.getState();
+  const flat = groupedSessions(state).flatMap((g) => g.sessions);
+  if (flat.length === 0) return false;
+  const idx = state.activeSessionId
+    ? flat.findIndex((s) => s.id === state.activeSessionId)
+    : -1;
+  const nextIdx = (idx + delta + flat.length) % flat.length;
+  useSessionsStore.getState().activateSession(flat[nextIdx]!.id);
+  return true;
+}
+
+function jumpToSession(n: number): boolean {
+  const state = useSessionsStore.getState();
+  const flat = groupedSessions(state).flatMap((g) => g.sessions);
+  if (n < 1 || n > flat.length) return false;
+  useSessionsStore.getState().activateSession(flat[n - 1]!.id);
+  return true;
+}
+
+function newSessionViaPicker(): boolean {
+  void pickAndCreateSession();
+  return true;
+}
+
+function toggleActiveFileTree(): boolean {
+  const activeId = useSessionsStore.getState().activeSessionId;
+  if (!activeId) return false;
+  useSessionsStore.getState().toggleFileTree(activeId);
   return true;
 }
 
@@ -307,6 +368,41 @@ const SHORTCUTS: Shortcut[] = [
     match: (e) => isCtrlOnly(e) && e.key === "Tab" && isMdFullMode(),
     run: () => cycleMdTabs(),
   },
+
+  // ---- Session navigation (Phase 7) ----
+
+  // New session — Ctrl+Shift+T (opens folder picker → always create).
+  {
+    match: (e) =>
+      e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "T" || e.key === "t"),
+    run: () => newSessionViaPicker(),
+  },
+
+  // Toggle file drawer — Ctrl+Shift+E (mirrors the topbar 🗂 button).
+  {
+    match: (e) =>
+      e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "E" || e.key === "e"),
+    run: () => toggleActiveFileTree(),
+  },
+
+  // Cycle sessions — Ctrl+Tab forward / Ctrl+Shift+Tab back, in flattened
+  // sidebar order. The forward entry MUST come AFTER the MD-gated Ctrl+Tab
+  // above so MD tab cycling wins in Full View; outside Full View that match
+  // returns false and the keystroke falls through to here.
+  {
+    match: (e) => isCtrlOnly(e) && e.key === "Tab",
+    run: () => cycleSession(1),
+  },
+  {
+    match: (e) => e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.key === "Tab",
+    run: () => cycleSession(-1),
+  },
+
+  // Jump to session N — Ctrl+1 .. Ctrl+9 (flattened sidebar order, 1-based).
+  ...Array.from({ length: 9 }, (_, i) => ({
+    match: (e: KeyboardEvent) => isCtrlOnly(e) && e.key === String(i + 1),
+    run: () => jumpToSession(i + 1),
+  })),
 
   // Close — Ctrl+W (pane close; runs when NOT in MD Full View because the
   // MD-gated entry above will have matched first otherwise)
