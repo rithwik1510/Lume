@@ -224,11 +224,11 @@ mirror(useSessionsStore.getState());
 // Ongoing mirror — every sessionsStore mutation flows through here.
 useSessionsStore.subscribe((state) => mirror(state));
 
-// Re-mirror after sessionsStore finishes rehydrating from disk. Today this
-// is a defensive no-op because sessionsStore.partialize is `() => ({})`
-// (Phase 1 placeholder, persists nothing). Phase 8 will turn on real
-// partialize and this hook is what guarantees layoutStore.root catches up
-// to the rehydrated active session without waiting for the next mutation.
+// Re-mirror after sessionsStore finishes rehydrating from disk. As of Phase 8
+// sessionsStore.partialize persists real session data, so this hook is
+// load-bearing: it guarantees layoutStore.root catches up to the rehydrated
+// active session (or stays null on an all-stopped cold start) without waiting
+// for the next mutation. Guarded for the case where persist isn't wired (tests).
 if (typeof useSessionsStore.persist?.onFinishHydration === "function") {
   useSessionsStore.persist.onFinishHydration(() => {
     mirror(useSessionsStore.getState());

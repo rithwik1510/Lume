@@ -2,6 +2,8 @@
 // these two helpers. See spec §7.
 
 import { useSessionsStore, sessionsForFolder } from "@/store/sessionsStore";
+import { useLayoutStore } from "@/store/layoutStore";
+import { nextPaneId } from "@/lib/paneIds";
 import { pickFolder } from "@/lib/dialogClient";
 import { useToastStore } from "@/store/toastStore";
 
@@ -10,6 +12,13 @@ export function createAndActivateSession(folderPath: string, name?: string): str
   const sessions = useSessionsStore.getState();
   const id = sessions.createSession(folderPath, name);
   sessions.activateSession(id);
+  // A brand-new session has layoutRoot === null. MainArea renders nothing for
+  // a null root, so without this the new session would show a blank pane area.
+  // Seed its first pane now (initWithFirstPane targets the active session via
+  // the façade and no-ops if a root already exists). Revived sessions are
+  // unaffected — they carry a persisted layoutRoot, so initWithFirstPane's
+  // null-guard skips them.
+  useLayoutStore.getState().initWithFirstPane(nextPaneId());
   return id;
 }
 
