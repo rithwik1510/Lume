@@ -214,14 +214,63 @@ export const useSessionsStore = create<SessionsState>()(
         name: "sessions",
         storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
         version: 1,
-        // Partializer + rehydration filled in Phase 8. For now persist nothing
-        // so tests run against a clean slate.
-        partialize: () => ({} as Partial<SessionsState>),
+        // Persist the durable per-session fields + grouping state. status and
+        // unread are written as stopped/false (they're never meaningfully
+        // persisted — see §11.1); activeSessionId is omitted entirely so cold
+        // start is always all-stopped (spec §3). onRehydrateStorage re-coerces
+        // defensively in case an older payload carried stale values.
+        partialize: (state) => ({
+          sessions: Object.fromEntries(
+            Object.entries(state.sessions).map(([id, s]) => [
+              id,
+              {
+                id: s.id,
+                name: s.name,
+                folderPath: s.folderPath,
+                layoutRoot: s.layoutRoot,
+                focusedPaneId: s.focusedPaneId,
+                gitBranch: s.gitBranch,
+                fileTreeOpen: s.fileTreeOpen,
+                createdAt: s.createdAt,
+                lastActiveAt: s.lastActiveAt,
+                status: "stopped" as SessionStatus,
+                unread: false,
+              },
+            ])
+          ),
+          groupLabels: state.groupLabels,
+          collapsedGroups: state.collapsedGroups,
+        }),
+        onRehydrateStorage: () => (state) => {
+          if (!state) return;
+          // Zustand's persist replaces state wholesale on rehydrate; apply the
+          // coercion (status→stopped, unread→false, activeSessionId→null, drop
+          // orphaned group entries) as a post-rehydrate cleanup.
+          useSessionsStore.setState(coerceRehydrated(state) as SessionsState);
+        },
       }
     ),
     { name: "sessionsStore" }
   )
 );
+
+// Pure coercion applied on rehydrate (and unit-tested directly). Enforces the
+// §11 persistence contract: status is always "stopped" on launch, unread is
+// cleared, activeSessionId is null (cold start = all-stopped), and group label
+// / collapsed entries whose folderPath no longer has any session are dropped.
+export function coerceRehydrated(state: Partial<SessionsState>): Partial<SessionsState> {
+  const sessions: Record<string, Session> = {};
+  for (const [id, s] of Object.entries(state.sessions ?? {})) {
+    sessions[id] = { ...s, status: "stopped", unread: false } as Session;
+  }
+  const folderSet = new Set(Object.values(sessions).map((s) => s.folderPath));
+  const groupLabels: Record<string, string> = {};
+  for (const [path, label] of Object.entries(state.groupLabels ?? {})) {
+    if (folderSet.has(path)) groupLabels[path] = label;
+  }
+  const collapsedGroups = (state.collapsedGroups ?? []).filter((p) => folderSet.has(p));
+  return { sessions, activeSessionId: null, groupLabels, collapsedGroups };
+}
 
 // ---------------------------------------------------------------------------
 // Selectors (top-level pure functions over state — NOT store methods).

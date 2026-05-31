@@ -18,6 +18,7 @@ import {
   groupedSessions,
   findSessionForPane,
   getActivePaneIds,
+  coerceRehydrated,
 } from "@/store/sessionsStore";
 
 describe("sessionsStore — initial state", () => {
@@ -348,5 +349,63 @@ describe("sessionsStore — selectors", () => {
       s.sessions[b].status = "active";
     });
     expect(getActivePaneIds(useSessionsStore.getState()).sort()).toEqual(["pane-1", "pane-2"]);
+  });
+});
+
+describe("sessionsStore — rehydration coercion", () => {
+  it("coerces every session status to stopped, clears unread + activeSessionId", () => {
+    const raw = {
+      sessions: {
+        a: {
+          id: "a",
+          name: "A",
+          folderPath: "/p",
+          layoutRoot: null,
+          focusedPaneId: null,
+          status: "active" as const,
+          unread: true,
+          gitBranch: "main",
+          fileTreeOpen: true,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      },
+      activeSessionId: "a",
+      groupLabels: {},
+      collapsedGroups: [],
+    };
+    const out = coerceRehydrated(raw);
+    expect(out.sessions!.a.status).toBe("stopped");
+    expect(out.sessions!.a.unread).toBe(false);
+    expect(out.activeSessionId).toBeNull();
+    // Durable fields survive untouched.
+    expect(out.sessions!.a.gitBranch).toBe("main");
+    expect(out.sessions!.a.fileTreeOpen).toBe(true);
+  });
+
+  it("drops groupLabels/collapsedGroups entries whose folderPath has no session", () => {
+    const raw = {
+      sessions: {
+        a: {
+          id: "a",
+          name: "A",
+          folderPath: "/live",
+          layoutRoot: null,
+          focusedPaneId: null,
+          status: "stopped" as const,
+          unread: false,
+          gitBranch: null,
+          fileTreeOpen: false,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      },
+      activeSessionId: null,
+      groupLabels: { "/live": "Live", "/orphan": "Orphan" },
+      collapsedGroups: ["/live", "/orphan"],
+    };
+    const out = coerceRehydrated(raw);
+    expect(out.groupLabels).toEqual({ "/live": "Live" });
+    expect(out.collapsedGroups).toEqual(["/live"]);
   });
 });
