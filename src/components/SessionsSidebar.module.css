@@ -4,7 +4,9 @@
 .root {
   position: relative;
   width: 220px;
-  min-width: 220px;
+  /* No min-width: it can't be transitioned, so on OPEN it would snap to 220px
+   * instantly and kill the width animation (closing worked because .collapsed
+   * set min-width:0). flex-shrink:0 alone holds the open width in the flex row. */
   flex-shrink: 0;
   background: var(--bg-1);
   border-right: 1px solid var(--border);
@@ -15,7 +17,6 @@
 
 .collapsed {
   width: 0;
-  min-width: 0;
   border-right-width: 0;
   pointer-events: none;
 }
