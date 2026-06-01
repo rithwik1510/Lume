@@ -28,7 +28,14 @@
   align-items: stretch;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  animation: slideIn 180ms ease-out;
+  animation: slideIn var(--dur-base) var(--ease-out);
+}
+
+/* Exit: slide back out to the right + fade, quicker than the entrance.
+ * `forwards` holds the end state until the component unmounts. */
+.toast.leaving {
+  pointer-events: none;
+  animation: slideOut var(--dur-fast) var(--ease-in) forwards;
 }
 
 .edge {
@@ -84,5 +91,16 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
   }
 }
