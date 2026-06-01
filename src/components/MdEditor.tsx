@@ -17,7 +17,10 @@ import styles from "@/components/MdEditor.module.css";
 import { buildEditor } from "@/codemirror/setup";
 import { MdEditorPreview } from "@/components/MdEditorPreview";
 import { MdEditorTabStrip } from "@/components/MdEditorTabStrip";
+import { IconFolderOpen } from "@/components/icons";
+import { pickMdFile } from "@/lib/dialogClient";
 import { useMdStore } from "@/store/mdStore";
+import { useToastStore } from "@/store/toastStore";
 import type { EditorView } from "@codemirror/view";
 
 type Mode = "view" | "edit";
@@ -47,6 +50,21 @@ export function MdEditor() {
   const activeTabId = useMdStore((s) => s.activeTabId);
   const tab = useMdStore((s) => s.tabs.find((t) => t.id === activeTabId) ?? null);
   const setTabContent = useMdStore((s) => s.setTabContent);
+  const openMdTab = useMdStore((s) => s.openMdTab);
+
+  // Open a file through the native OS picker (filtered to Markdown) — the
+  // intuitive alternative to typing an absolute path into Ctrl+O.
+  const openFileViaPicker = async () => {
+    try {
+      const path = await pickMdFile();
+      if (path) await openMdTab(path);
+    } catch (err) {
+      useToastStore.getState().push({
+        severity: "error",
+        message: `Couldn't open file: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  };
 
   // Per-tab mode, reset to "view" whenever the active tab changes (CONTEXT.md
   // "Tab switches reset the mode to view"). Held locally — there's no need to
@@ -90,6 +108,14 @@ export function MdEditor() {
     <div className={styles.root}>
       <div className={styles.header}>
         <MdEditorTabStrip />
+        <button
+          className={styles.penButton}
+          onClick={() => void openFileViaPicker()}
+          title="Open Markdown file… (Ctrl+O)"
+          aria-label="Open Markdown file"
+        >
+          <IconFolderOpen size={18} />
+        </button>
         {tab !== null && (
           <button
             className={`${styles.penButton} ${mode === "edit" ? styles.penActive : ""}`}
@@ -104,7 +130,14 @@ export function MdEditor() {
       </div>
       <div className={styles.body}>
         {tab === null ? (
-          <div className={styles.empty}>No file open · Ctrl+O to open</div>
+          <div className={styles.empty}>
+            <p className={styles.emptyTitle}>No file open</p>
+            <button className={styles.openBtn} onClick={() => void openFileViaPicker()}>
+              <IconFolderOpen size={16} />
+              <span>Open a Markdown file…</span>
+            </button>
+            <p className={styles.emptyHint}>or press Ctrl+O</p>
+          </div>
         ) : mode === "edit" ? (
           <div className={styles.editor}>
             <div className={styles.cm} ref={editorHostRef} />

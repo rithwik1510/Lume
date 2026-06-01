@@ -28,7 +28,7 @@ import { leaves } from "@/store/layout/tree";
 import { nextPaneId } from "@/lib/paneIds";
 import { closeBusyPaneConfirm, closeLastPaneInSessionConfirm } from "@/lib/confirmStrings";
 import { pickAndCreateSession } from "@/lib/sessions/sessionEntryFlows";
-import { pickFolder } from "@/lib/dialogClient";
+import { pickFolder, pickMdFile } from "@/lib/dialogClient";
 import { isPtyBusy } from "@/terminals/ptyClient";
 
 // PaneId generation lives in @/lib/paneIds so the TopBar Split button and
@@ -184,16 +184,16 @@ function toggleMdMode(): boolean {
   return true;
 }
 
-// Ctrl+O — prompt for an absolute path and open it as an MD Editor tab.
-// v0.1 uses window.prompt; a native Tauri dialog is v0.2 polish (DESIGN.md §3).
-function openMdFromPrompt(): boolean {
-  const path = window.prompt("Open .md file (absolute path)");
-  if (path && path.trim().length > 0) {
-    void useMdStore
-      .getState()
-      .openMdTab(path.trim())
-      .catch((err) => console.error("openMdTab failed", err));
-  }
+// Ctrl+O — open a .md file as an MD Editor tab via the native OS picker
+// (matches the MD Editor's "Open file" button). Returns true synchronously to
+// consume the keystroke; the picker + open happen async.
+function openMdFromPicker(): boolean {
+  void pickMdFile()
+    .then((path) => {
+      if (path) return useMdStore.getState().openMdTab(path);
+      return undefined;
+    })
+    .catch((err) => console.error("openMdTab failed", err));
   return true;
 }
 
@@ -325,7 +325,7 @@ const SHORTCUTS: Shortcut[] = [
   // Chord prefix: Ctrl+K alone arms the chord. The next keypress resolves
   // it. Released after 1.5s if no follow-up. Must be ordered BEFORE the
   // plain Ctrl+O entry so Ctrl+K → Ctrl+O resolves below instead of
-  // falling into openMdFromPrompt.
+  // falling into openMdFromPicker.
   {
     match: (e) =>
       isCtrlOnly(e) && (e.key === "k" || e.key === "K") && chordPrefix === null,
@@ -347,8 +347,8 @@ const SHORTCUTS: Shortcut[] = [
     },
   },
 
-  // Ctrl+O — open .md file via prompt (fires unconditionally)
-  { match: (e) => isCtrlOnly(e) && (e.key === "o" || e.key === "O"), run: () => openMdFromPrompt() },
+  // Ctrl+O — open .md file via the native picker (fires unconditionally)
+  { match: (e) => isCtrlOnly(e) && (e.key === "o" || e.key === "O"), run: () => openMdFromPicker() },
 
   // Ctrl+S — save active MD tab (gated on Full View)
   {
