@@ -82,6 +82,8 @@ export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
   // resolves it. undefined → Rust inherits the default cwd. A stale/deleted
   // path is ignored server-side (pty_open guards on is_dir).
   const cwd = findSessionForPane(useSessionsStore.getState(), paneId)?.folderPath;
+  // Diagnostic: shows in DevTools what folder we resolved for this pane.
+  console.info(`[pty] spawn ${paneId} cwd=${cwd ?? "(none)"}`);
 
   // 1. Create/get the Terminal in the registry. Doesn't open into a DOM
   //    container yet — the TerminalPane component handles attach().

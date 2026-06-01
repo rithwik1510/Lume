@@ -196,9 +196,18 @@ pub fn pty_open(
     // Start the shell in the session's folder when one was provided and it
     // still exists on disk. Guarding on is_dir keeps a deleted/renamed folder
     // from failing the whole spawn — we fall back to the inherited cwd instead.
-    if let Some(dir) = cwd.as_deref() {
-        if !dir.is_empty() && std::path::Path::new(dir).is_dir() {
-            cmd.cwd(dir);
+    // Diagnostic logging (visible in the dev-server stdout + DevTools console
+    // via tauri_plugin_log) pinpoints whether the cwd arrived and was applied.
+    match cwd.as_deref() {
+        Some(dir) if !dir.is_empty() => {
+            let is_dir = std::path::Path::new(dir).is_dir();
+            log::info!("pty_open pane={pane_id} cwd={dir:?} is_dir={is_dir} -> applied={is_dir}");
+            if is_dir {
+                cmd.cwd(dir);
+            }
+        }
+        _ => {
+            log::info!("pty_open pane={pane_id} cwd=(none)");
         }
     }
     let mut child = pair
