@@ -59,9 +59,25 @@
    * most of the distance fast, then decelerates into a long, gentle settle.
    * That's what reads as "smooth" rather than mechanical. Prefer these over
    * ad-hoc `120ms ease` in new/updated component CSS. */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* expo-out — fast start, long premium settle */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* expo-out — fast start, long premium settle; enters/opens */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);            /* accelerate-out — exits leave a touch quicker than they arrive */
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);  /* iOS sheet curve — softer, symmetric-ish */
-  --dur-fast: 120ms;   /* hovers, tiny state changes */
-  --dur-base: 200ms;   /* most transitions */
-  --dur-panel: 300ms;  /* large surfaces (sidebar collapse) — long enough to show the deceleration */
+  --dur-fast: 120ms;   /* hovers, tiny state changes, exits */
+  --dur-base: 200ms;   /* overlays, mode swaps, tabs */
+  --dur-panel: 300ms;  /* large sliding surfaces (sidebar, drawers, dock) — long enough to show the deceleration */
+}
+
+/* Accessibility: honour the OS "Reduce Motion" setting app-wide in one place.
+ * Near-zero (not 0) so transitionend / animationend still fire for any JS that
+ * waits on them. Individual components don't need their own reduced-motion
+ * rules — this covers every transition and animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }

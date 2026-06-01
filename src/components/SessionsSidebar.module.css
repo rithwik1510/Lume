@@ -35,12 +35,7 @@
   font-size: 13px;
   color: var(--fg-1);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .root {
-    transition: none;
-  }
-}
+/* Reduced-motion is handled globally in theme.css. */
 
 .toolbar {
   display: flex;
