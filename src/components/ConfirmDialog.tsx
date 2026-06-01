@@ -16,6 +16,7 @@
 import { useEffect, useRef } from "react";
 import styles from "@/components/ConfirmDialog.module.css";
 import { useConfirmStore } from "@/store/confirmStore";
+import { usePresence } from "@/hooks/usePresence";
 
 export function ConfirmDialog() {
   const open = useConfirmStore((s) => s.open);
@@ -24,6 +25,13 @@ export function ConfirmDialog() {
 
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
   const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // Keep the dialog mounted through its exit (scale+fade-out) animation.
+  // The store clears `request` to null when it closes, so hold the last
+  // non-null request to render stable content while the exit plays.
+  const { mounted, state } = usePresence(open, 160);
+  const lastRequest = useRef(request);
+  if (request) lastRequest.current = request;
 
   useEffect(() => {
     if (!open) return;
@@ -51,15 +59,17 @@ export function ConfirmDialog() {
     target?.focus();
   }, [open, request]);
 
-  if (!open || !request) return null;
+  const req = lastRequest.current;
+  if (!mounted || !req) return null;
 
-  const confirmLabel = request.confirmLabel ?? "Confirm";
-  const cancelLabel = request.cancelLabel ?? "Cancel";
-  const danger = request.danger === true;
+  const confirmLabel = req.confirmLabel ?? "Confirm";
+  const cancelLabel = req.cancelLabel ?? "Cancel";
+  const danger = req.danger === true;
 
   return (
     <div
       className={styles.backdrop}
+      data-state={state}
       onClick={() => resolve(false)}
       role="dialog"
       aria-modal="true"
@@ -67,9 +77,9 @@ export function ConfirmDialog() {
     >
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header} id="confirm-dialog-title">
-          {request.title}
+          {req.title}
         </div>
-        <div className={styles.body}>{request.message}</div>
+        <div className={styles.body}>{req.message}</div>
         <div className={styles.footer}>
           <button
             type="button"

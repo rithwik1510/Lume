@@ -13,6 +13,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Enter: backdrop fades in. Driven by data-state from usePresence. */
+  opacity: 1;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.backdrop[data-state="closed"] {
+  opacity: 0;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-in);
 }
 
 .modal {
@@ -26,6 +34,19 @@
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  /* Enter: subtle scale-up + fade. */
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: center;
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.backdrop[data-state="closed"] .modal {
+  opacity: 0;
+  transform: scale(0.97);
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-in);
 }
 
 .header {

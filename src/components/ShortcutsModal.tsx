@@ -20,6 +20,7 @@ import { useEffect } from "react";
 
 import styles from "@/components/ShortcutsModal.module.css";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
+import { usePresence } from "@/hooks/usePresence";
 
 interface ShortcutRow {
   label: string;
@@ -65,6 +66,7 @@ const CATALOG: ShortcutGroup[] = [
 export function ShortcutsModal() {
   const open = useShortcutsModalStore((s) => s.open);
   const close = useShortcutsModalStore((s) => s.closeModal);
+  const { mounted, state } = usePresence(open, 160);
 
   useEffect(() => {
     if (!open) return;
@@ -79,11 +81,12 @@ export function ShortcutsModal() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, close]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
     <div
       className={styles.backdrop}
+      data-state={state}
       onClick={close}
       role="dialog"
       aria-modal="true"
