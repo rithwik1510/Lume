@@ -1,13 +1,44 @@
+/* The animating shell. Width collapses 220 → 0 on an emphasised ease-out;
+ * overflow:hidden clips the right-anchored .inner so the content slides left
+ * and out (a true "slide away" rather than a right-to-left wipe). */
 .root {
+  position: relative;
   width: 220px;
   min-width: 220px;
+  flex-shrink: 0;
   background: var(--bg-1);
   border-right: 1px solid var(--border);
+  overflow: hidden;
+  transition: width var(--dur-panel) var(--ease-out);
+  will-change: width;
+}
+
+.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right-width: 0;
+  pointer-events: none;
+}
+
+/* Content is pinned to the shell's RIGHT edge at a fixed width, so as the
+ * shell narrows the content translates leftward and clips past the left edge
+ * — the premium slide-away feel — instead of reflowing/wrapping as it shrinks. */
+.inner {
+  position: absolute;
+  inset: 0 0 0 auto;
+  right: 0;
+  width: 220px;
   display: flex;
   flex-direction: column;
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--fg-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transition: none;
+  }
 }
 
 .toolbar {

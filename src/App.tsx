@@ -41,7 +41,6 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 export default function App() {
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
   const mdMode = useMdStore((s) => s.mdEditorMode);
-  const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
@@ -116,7 +115,10 @@ export default function App() {
           flexDirection: "row",
         }}
       >
-        {sidebarVisible && <SessionsSidebar />}
+        {/* Always mounted — SessionsSidebar animates its own width collapse from
+            sidebarStore.sidebarVisible (☰ / Ctrl+B). Gating with `&&` here would
+            mount/unmount it instantly and defeat the open/close animation. */}
+        <SessionsSidebar />
         {/* FileDrawer renders null unless the active session has fileTreeOpen.
             Its visibility is owned by the 🗂 topbar toggle (and Ctrl+Shift+E),
             independent of the sessions-sidebar visibility (☰ / Ctrl+B). */}

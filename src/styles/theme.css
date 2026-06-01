@@ -53,4 +53,15 @@
   --font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", Consolas, "Courier New",
     monospace;
+
+  /* Motion — the single source of truth for the app's "feel". Premium UIs
+   * (macOS, Linear, etc.) favour an emphasised EASE-OUT: the motion covers
+   * most of the distance fast, then decelerates into a long, gentle settle.
+   * That's what reads as "smooth" rather than mechanical. Prefer these over
+   * ad-hoc `120ms ease` in new/updated component CSS. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* expo-out — fast start, long premium settle */
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);  /* iOS sheet curve — softer, symmetric-ish */
+  --dur-fast: 120ms;   /* hovers, tiny state changes */
+  --dur-base: 200ms;   /* most transitions */
+  --dur-panel: 300ms;  /* large surfaces (sidebar collapse) — long enough to show the deceleration */
 }

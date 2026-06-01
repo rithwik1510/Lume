@@ -24,10 +24,12 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 
 import { SessionsSidebar } from "@/components/SessionsSidebar";
 import { useSessionsStore } from "@/store/sessionsStore";
+import { useSidebarStore } from "@/store/sidebarStore";
 
 describe("SessionsSidebar", () => {
   beforeEach(() => {
     useSessionsStore.getState().reset();
+    useSidebarStore.setState({ sidebarVisible: true });
   });
 
   it("renders the toolbar with no sessions (empty new-array selector must be stable)", () => {
@@ -41,5 +43,18 @@ describe("SessionsSidebar", () => {
     render(<SessionsSidebar />);
     expect(screen.getByText("Work")).toBeTruthy(); // session name
     expect(screen.getByText("proj")).toBeTruthy(); // group label = folder basename
+  });
+
+  it("is not aria-hidden while the sidebar is visible", () => {
+    const { container } = render(<SessionsSidebar />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute("aria-hidden")).toBe("false");
+  });
+
+  it("applies the collapsed (aria-hidden) state when the sidebar is hidden", () => {
+    useSidebarStore.setState({ sidebarVisible: false });
+    const { container } = render(<SessionsSidebar />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute("aria-hidden")).toBe("true");
   });
 });
