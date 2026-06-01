@@ -19,9 +19,10 @@ import {
   resetMouseModes,
 } from "@/terminals/registry";
 import { registerOscHandlers } from "@/sessions/oscNotifications";
+import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
 import { resizePty } from "@/terminals/ptyClient";
 import { changeShell, getDetectedShells } from "@/terminals/orchestrator";
-import { useContextMenuStore } from "@/store/contextMenuStore";
+import { useContextMenuStore, type ContextMenuItem } from "@/store/contextMenuStore";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
 import { shellLabel } from "@/lib/shellsClient";
@@ -109,20 +110,34 @@ function TerminalPaneImpl({ paneId }: Props) {
     useMdStore.getState().setFocusedSurface("terminal");
   };
 
-  // Right-click → context menu with a "Change Shell…" submenu listing every
-  // shell detected at boot (DESIGN.md §12 W3 #8-#9). The submenu is empty
-  // until `detectShells` resolves; harmless — user just gets an empty submenu.
+  // Right-click → Copy / Paste (mirrors Ctrl+Shift+C / Ctrl+V) + a
+  // "Change Shell…" submenu listing every shell detected at boot (DESIGN.md
+  // §12 W3 #8-#9). Copy is omitted when nothing is selected. The submenu is
+  // empty until `detectShells` resolves; harmless — just an empty submenu.
   const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    const term = getOrCreateTerminal(paneId);
+    const selection = term.getSelection();
     const shells = getDetectedShells();
     const submenu = shells.map((s) => ({
       label: shellLabel(s),
       onClick: () => void changeShell(paneId, s),
     }));
-    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, [
-      { label: "Change Shell…", submenu },
-    ]);
+    const items: ContextMenuItem[] = [];
+    if (selection) {
+      items.push({ label: "Copy", onClick: () => void writeClipboardText(selection) });
+    }
+    items.push({
+      label: "Paste",
+      onClick: () =>
+        void readClipboardText().then((text) => {
+          if (text) term.paste(text);
+        }),
+    });
+    items.push({ label: "", separator: true });
+    items.push({ label: "Change Shell…", submenu });
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, items);
   };
 
   return (

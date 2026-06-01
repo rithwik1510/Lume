@@ -13,6 +13,8 @@ import { Terminal } from "@xterm/xterm";
 import type { IDisposable } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+
+import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
 import "@xterm/xterm/css/xterm.css";
 import "@/styles/xterm-overrides.css";
 
@@ -59,6 +61,33 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
     },
     scrollback: 10000,
     allowProposedApi: true,
+  });
+
+  // Terminal copy/paste — xterm doesn't wire the clipboard itself.
+  //   Ctrl+Shift+C → copy the current selection (Ctrl+C must stay SIGINT)
+  //   Ctrl+V / Ctrl+Shift+V → paste (both, matching Windows Terminal)
+  // We preventDefault + return false so the key is fully consumed: no
+  // double-paste from the webview's native paste handler, and the keystroke
+  // never leaks into the shell. term.paste() routes through the onData wire
+  // to the PTY (and respects bracketed-paste mode).
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== "keydown") return true;
+    if (!e.ctrlKey || e.altKey || e.metaKey) return true;
+    const key = e.key.toLowerCase();
+    if (e.shiftKey && key === "c") {
+      const selection = term.getSelection();
+      if (selection) void writeClipboardText(selection);
+      e.preventDefault();
+      return false;
+    }
+    if (key === "v") {
+      e.preventDefault();
+      void readClipboardText().then((text) => {
+        if (text) term.paste(text);
+      });
+      return false;
+    }
+    return true;
   });
 
   const fit = new FitAddon();
