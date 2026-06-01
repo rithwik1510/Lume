@@ -20,6 +20,7 @@ import { immer } from "zustand/middleware/immer";
 import type { LayoutNode } from "@/store/layout/tree";
 import { leaves as treeLeaves } from "@/store/layout/tree";
 import type { PaneId } from "@/types";
+import { nextPaneId } from "@/lib/paneIds";
 import { tauriPersistStorage } from "@/lib/persistStorage";
 import { autoSuffixSessionName, basename, samePath } from "@/lib/sessions/groupingHelpers";
 
@@ -246,7 +247,13 @@ export const useSessionsStore = create<SessionsState>()(
           // Zustand's persist replaces state wholesale on rehydrate; apply the
           // coercion (status→stopped, unread→false, activeSessionId→null, drop
           // orphaned group entries) as a post-rehydrate cleanup.
-          useSessionsStore.setState(coerceRehydrated(state) as SessionsState);
+          const coerced = coerceRehydrated(state);
+          // Reassign all persisted paneIds to fresh globally-unique ones — the
+          // counter resets each launch, so two sessions from different runs can
+          // both hold "pane-101", which makes findSessionForPane resolve the
+          // wrong session (e.g. spawning a terminal in the wrong folder).
+          remapSessionPaneIds(coerced.sessions ?? {});
+          useSessionsStore.setState(coerced as SessionsState);
         },
       }
     ),
@@ -270,6 +277,51 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
   }
   const collapsedGroups = (state.collapsedGroups ?? []).filter((p) => folderSet.has(p));
   return { sessions, activeSessionId: null, groupLabels, collapsedGroups };
+}
+
+// Rebuild a layout tree with each paneId replaced via `mapper`.
+function remapTreePaneIds(node: LayoutNode, mapper: (old: PaneId) => PaneId): LayoutNode {
+  if (node.type === "leaf") return { ...node, paneId: mapper(node.paneId) };
+  return {
+    ...node,
+    left: remapTreePaneIds(node.left, mapper),
+    right: remapTreePaneIds(node.right, mapper),
+  };
+}
+
+/**
+ * Reassign every persisted session's paneIds to fresh, globally-unique ones.
+ *
+ * Why: the paneId counter (lib/paneIds) resets to a fixed base each launch and
+ * is never reserved past persisted ids, so two sessions created in different
+ * runs can both hold "pane-101". findSessionForPane then returns whichever is
+ * first in iteration order — the wrong session — which surfaced as a terminal
+ * spawning in the wrong folder (the cwd is resolved via the owning session).
+ *
+ * Remapping all panes through nextPaneId() in one pass on load guarantees
+ * uniqueness within and across sessions, advances the counter past everything
+ * in use (so mid-run new panes can't collide either), and self-heals
+ * collisions already on disk. Safe because rehydrated sessions are all stopped
+ * — no live PTY/Terminal references the old ids yet. Mutates in place; called
+ * on the fresh session copies produced by coerceRehydrated.
+ */
+export function remapSessionPaneIds(sessions: Record<SessionId, Session>): void {
+  for (const session of Object.values(sessions)) {
+    if (!session.layoutRoot) continue;
+    const map = new Map<PaneId, PaneId>();
+    const mapper = (old: PaneId): PaneId => {
+      let next = map.get(old);
+      if (next === undefined) {
+        next = nextPaneId();
+        map.set(old, next);
+      }
+      return next;
+    };
+    session.layoutRoot = remapTreePaneIds(session.layoutRoot, mapper);
+    if (session.focusedPaneId !== null) {
+      session.focusedPaneId = map.get(session.focusedPaneId) ?? null;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

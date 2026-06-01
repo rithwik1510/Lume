@@ -19,6 +19,8 @@ import {
   findSessionForPane,
   getActivePaneIds,
   coerceRehydrated,
+  remapSessionPaneIds,
+  type Session,
 } from "@/store/sessionsStore";
 
 describe("sessionsStore — initial state", () => {
@@ -381,6 +383,40 @@ describe("sessionsStore — rehydration coercion", () => {
     // Durable fields survive untouched.
     expect(out.sessions!.a.gitBranch).toBe("main");
     expect(out.sessions!.a.fileTreeOpen).toBe(true);
+  });
+
+  it("remapSessionPaneIds de-collides paneIds shared across sessions", () => {
+    const mk = (id: string, folderPath: string, paneId: string): Session => ({
+      id,
+      name: id,
+      folderPath,
+      layoutRoot: leaf(paneId),
+      focusedPaneId: paneId,
+      status: "stopped",
+      unread: false,
+      gitBranch: null,
+      fileTreeOpen: false,
+      createdAt: 1,
+      lastActiveAt: 2,
+    });
+    // Two sessions from different launches both holding "pane-101" — the
+    // collision that made findSessionForPane resolve the wrong folder.
+    const sessions: Record<string, Session> = {
+      home: mk("home", "/home", "pane-101"),
+      proj: mk("proj", "/proj", "pane-101"),
+    };
+    remapSessionPaneIds(sessions);
+
+    const homePane = (sessions.home.layoutRoot as { paneId: string }).paneId;
+    const projPane = (sessions.proj.layoutRoot as { paneId: string }).paneId;
+    expect(homePane).not.toBe(projPane); // de-collided
+    // focusedPaneId remapped consistently with the leaf in the same session
+    expect(sessions.home.focusedPaneId).toBe(homePane);
+    expect(sessions.proj.focusedPaneId).toBe(projPane);
+    // findSessionForPane now resolves each pane to its own session
+    const state = { sessions } as unknown as Parameters<typeof findSessionForPane>[0];
+    expect(findSessionForPane(state, homePane)?.id).toBe("home");
+    expect(findSessionForPane(state, projPane)?.id).toBe("proj");
   });
 
   it("drops groupLabels/collapsedGroups entries whose folderPath has no session", () => {
