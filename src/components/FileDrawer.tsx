@@ -8,16 +8,30 @@
 // until the renderer GCs the closure), and a fresh listDir + watch starts
 // on the new folder.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import styles from "@/components/FileDrawer.module.css";
 import { SidebarTree } from "@/components/SidebarTree";
+import { IconPlus } from "@/components/icons";
+import { beginResize, endResize } from "@/components/resizeBus";
 import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useToastStore } from "@/store/toastStore";
 import { listDir, writeTextFile } from "@/lib/fsClient";
 import { watchWorkspace } from "@/lib/fileWatcher";
+
+// Slightly longer than --dur-panel (300ms) so the resize gate releases just
+// after the width transition settles. Mirrors SessionsSidebar.
+const SLIDE_SETTLE_MS = 360;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 export function FileDrawer() {
   const activeId = useSessionsStore((s) => s.activeSessionId);
@@ -29,6 +43,39 @@ export function FileDrawer() {
   const setFilter = useSidebarStore((s) => s.setFilter);
   const storeEntries = useSidebarStore((s) => s.storeEntries);
   const openMdTab = useMdStore((s) => s.openMdTab);
+
+  // Suppress per-frame xterm fits while the drawer width-animates (the terminal
+  // area resizes by 240px); fit once at settle. Same gate the sidebar uses.
+  const firstRender = useRef(true);
+  const resizing = useRef(false);
+  const settleTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    if (prefersReducedMotion()) return;
+    if (!resizing.current) {
+      resizing.current = true;
+      beginResize();
+    }
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => {
+      settleTimer.current = null;
+      resizing.current = false;
+      endResize();
+    }, SLIDE_SETTLE_MS);
+  }, [drawerOpen]);
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+      if (resizing.current) {
+        resizing.current = false;
+        endResize();
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!drawerOpen || folder === null) return;
@@ -113,24 +160,33 @@ export function FileDrawer() {
     }
   };
 
-  if (!drawerOpen || folder === null) return null;
+  // No active session/folder → nothing to show (and nothing to slide).
+  // Otherwise the shell stays mounted and animates its width via .collapsed so
+  // it can slide in AND out; content stays mounted (clipped) during the slide.
+  if (folder === null) return null;
 
   return (
-    <div className={styles.drawer}>
-      <div className={styles.header}>
-        <input
-          className={styles.filter}
-          type="text"
-          placeholder="🔍 filter"
-          value={filterText}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        <button className={styles.iconButton} title="New .md file" onClick={onNewFile}>
-          ＋
-        </button>
-      </div>
-      <div className={styles.tree}>
-        <SidebarTree path={folder} depth={0} />
+    <div
+      className={`${styles.drawer} ${drawerOpen ? "" : styles.collapsed}`}
+      aria-hidden={!drawerOpen}
+      {...(drawerOpen ? {} : { inert: "" })}
+    >
+      <div className={styles.inner}>
+        <div className={styles.header}>
+          <input
+            className={styles.filter}
+            type="text"
+            placeholder="🔍 filter"
+            value={filterText}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          <button className={styles.iconButton} title="New .md file" onClick={onNewFile}>
+            <IconPlus size={14} />
+          </button>
+        </div>
+        <div className={styles.tree}>
+          <SidebarTree path={folder} depth={0} />
+        </div>
       </div>
     </div>
   );
