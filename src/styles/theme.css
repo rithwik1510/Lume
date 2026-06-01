@@ -67,6 +67,22 @@
   --dur-panel: 300ms;  /* large sliding surfaces (sidebar, drawers, dock) — long enough to show the deceleration */
 }
 
+/* Shared view-enter animation: a gentle fade + 4px rise. Used by full-area
+ * surfaces that mount/unmount on a mode switch (MD editor full view ↔ terminal
+ * area, Quick Viewer) so the incoming view eases in instead of snapping.
+ * Global keyframe (theme.css is a plain stylesheet, so the name isn't scoped)
+ * — component CSS modules reference it by name. */
+@keyframes view-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Accessibility: honour the OS "Reduce Motion" setting app-wide in one place.
  * Near-zero (not 0) so transitionend / animationend still fire for any JS that
  * waits on them. Individual components don't need their own reduced-motion

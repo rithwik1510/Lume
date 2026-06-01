@@ -4,6 +4,9 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
+  /* Ease in when the terminal area mounts (launch, and when returning from
+   * MD full view) so the mode swap reads as a smooth cross-fade. */
+  animation: view-fade-in var(--dur-base) var(--ease-out);
 }
 
 .sessionPane {

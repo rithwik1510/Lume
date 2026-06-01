@@ -12,6 +12,8 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-0);
+  /* Ease in when entering MD full view (Ctrl+E / 🗎 toggle). */
+  animation: view-fade-in var(--dur-base) var(--ease-out);
 }
 
 /* Header band: tab strip on the left (flex: 1, scrolls horizontally) +
