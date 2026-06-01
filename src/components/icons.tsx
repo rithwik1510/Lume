@@ -145,6 +145,28 @@ export function IconPlus(props: IconProps) {
   );
 }
 
+/** Chevron (points down). Group carets rotate this -90° when collapsed. */
+export function IconChevron(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <polyline points="6 9 12 15 18 9" />
+    </Stroke>
+  );
+}
+
+/** Trash can — delete actions (session/group). */
+export function IconTrash(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </Stroke>
+  );
+}
+
 // ── Window controls (frameless titlebar). Kept here so all titlebar glyphs
 //    live in one place; TopBar imports these too. ──────────────────────────
 

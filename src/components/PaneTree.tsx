@@ -30,6 +30,7 @@ import {
 } from "react-resizable-panels";
 
 import { TerminalPane } from "@/components/TerminalPane";
+import { IconClose } from "@/components/icons";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useLayoutStore, getPaneIds } from "@/store/layoutStore";
@@ -168,7 +169,7 @@ const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
               e.currentTarget.style.borderColor = "transparent";
             }}
           >
-            ×
+            <IconClose size={12} />
           </button>
         )}
       </div>

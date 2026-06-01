@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import styles from "@/components/SessionsSidebar.module.css";
 import { SessionGroup } from "@/components/SessionGroup";
+import { IconEllipsis } from "@/components/icons";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { pickAndCreateSession } from "@/lib/sessions/sessionEntryFlows";
 import { groupedSessions, useSessionsStore } from "@/store/sessionsStore";
@@ -99,7 +100,7 @@ export function SessionsSidebar() {
             + New session
           </button>
           <button className={styles.menuBtn} title="Filter & options" aria-label="Filter and options">
-            ⋯
+            <IconEllipsis size={16} />
           </button>
         </div>
         <div className={styles.list}>

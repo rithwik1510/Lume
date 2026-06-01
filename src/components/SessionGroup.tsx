@@ -9,6 +9,7 @@ import { SessionRow } from "@/components/SessionRow";
 import { useSessionsStore, type SessionGroupView } from "@/store/sessionsStore";
 import { createAndActivateSession } from "@/lib/sessions/sessionEntryFlows";
 import { InlineRename } from "@/components/InlineRename";
+import { IconChevron, IconPlus } from "@/components/icons";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { revealInExplorer } from "@/lib/revealInExplorer";
@@ -64,7 +65,7 @@ export function SessionGroup({ group }: Props) {
     <div className={styles.group} data-folder={group.folderPath}>
       <div className={styles.header} onClick={onHeaderClick} onContextMenu={onContextMenu} title={group.folderPath}>
         <span className={`${styles.caret} ${group.collapsed ? styles.caretCollapsed : ""}`}>
-          ▾
+          <IconChevron size={12} />
         </span>
         {renaming ? (
           <InlineRename
@@ -86,7 +87,7 @@ export function SessionGroup({ group }: Props) {
           title="Add session to this project"
           aria-label="Add session to group"
         >
-          +
+          <IconPlus size={14} />
         </button>
       </div>
       {!group.collapsed && (

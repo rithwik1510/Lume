@@ -7,6 +7,7 @@ import { useConfirmStore } from "@/store/confirmStore";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { revealInExplorer } from "@/lib/revealInExplorer";
 import { InlineRename } from "@/components/InlineRename";
+import { IconTrash } from "@/components/icons";
 
 interface Props {
   session: Session;
@@ -97,7 +98,7 @@ export function SessionRow({ session }: Props) {
         title="Delete session"
         aria-label="Delete session"
       >
-        ×
+        <IconTrash size={14} />
       </button>
     </div>
   );
