@@ -24,7 +24,7 @@
   justify-content: center;
   font-size: 10px;
   color: var(--fg-3);
-  transition: transform 120ms ease;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 .caretCollapsed {
   transform: rotate(-90deg);
@@ -49,7 +49,7 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 100ms ease, color 100ms ease, background 100ms ease;
+  transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 .header:hover .add {
   opacity: 1;

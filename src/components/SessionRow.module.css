@@ -7,7 +7,7 @@
   color: var(--fg-2);
   font-size: 13px;
   user-select: none;
-  transition: background 80ms ease, color 80ms ease;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .row:hover {
   background: var(--bg-2);
@@ -63,7 +63,7 @@
   cursor: pointer;
   opacity: 0;
   font-size: 12px;
-  transition: opacity 100ms ease, color 100ms ease, background 100ms ease;
+  transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 .row:hover .trash {
   opacity: 1;
