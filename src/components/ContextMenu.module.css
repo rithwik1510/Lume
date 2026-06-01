@@ -11,6 +11,23 @@
   min-width: 200px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   user-select: none;
+  /* Enter: scale + fade from the cursor (top-left). Only the top-level menu
+   * carries data-state; submenus render statically. */
+  transform-origin: top left;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.menu[data-state="closed"] {
+  opacity: 0;
+  transform: scale(0.96);
+  transition-timing-function: var(--ease-in);
+}
+
+.item {
+  transition: background var(--dur-fast) var(--ease-out);
 }
 
 .item {

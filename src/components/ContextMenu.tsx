@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import styles from "@/components/ContextMenu.module.css";
 import { useContextMenuStore, type ContextMenuItem } from "@/store/contextMenuStore";
+import { usePresence } from "@/hooks/usePresence";
 
 export function ContextMenu() {
   const open = useContextMenuStore((s) => s.open);
@@ -13,6 +14,7 @@ export function ContextMenu() {
   const y = useContextMenuStore((s) => s.y);
   const items = useContextMenuStore((s) => s.items);
   const close = useContextMenuStore((s) => s.close);
+  const { mounted, state } = usePresence(open, 120);
 
   useEffect(() => {
     if (!open) return;
@@ -31,8 +33,8 @@ export function ContextMenu() {
     };
   }, [open, close]);
 
-  if (!open) return null;
-  return <MenuLevel x={x} y={y} items={items} onPick={close} />;
+  if (!mounted) return null;
+  return <MenuLevel x={x} y={y} items={items} onPick={close} dataState={state} />;
 }
 
 function MenuLevel({
@@ -40,15 +42,19 @@ function MenuLevel({
   y,
   items,
   onPick,
+  dataState,
 }: {
   x: number;
   y: number;
   items: ContextMenuItem[];
   onPick: () => void;
+  // Only the top-level menu animates enter/exit; submenus omit this and
+  // render statically (they're hover-driven).
+  dataState?: "open" | "closed";
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   return (
-    <div className={styles.menu} style={{ left: x, top: y }}>
+    <div className={styles.menu} data-state={dataState} style={{ left: x, top: y }}>
       {items.map((item, idx) => {
         if (item.separator) return <div key={idx} className={styles.separator} />;
         const hasSub = !!item.submenu && item.submenu.length > 0;

@@ -14,6 +14,18 @@
   gap: 2px;
   z-index: var(--z-popover);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  /* Enter: scale + fade from the anchor (top-left, under the ⊞ button). */
+  transform-origin: top left;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.menu[data-state="closed"] {
+  opacity: 0;
+  transform: scale(0.96);
+  transition-timing-function: var(--ease-in);
 }
 
 .item {
@@ -29,6 +41,7 @@
   color: var(--fg-1);
   font-size: 14px;
   font-family: var(--font-ui);
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .item:hover {
   color: var(--fg-0);

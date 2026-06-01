@@ -13,6 +13,7 @@ import styles from "@/components/SplitMenu.module.css";
 import { nextPaneId } from "@/lib/paneIds";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useSplitMenuStore } from "@/store/splitMenuStore";
+import { usePresence } from "@/hooks/usePresence";
 
 export function SplitMenu() {
   const open = useSplitMenuStore((s) => s.open);
@@ -20,6 +21,7 @@ export function SplitMenu() {
   const y = useSplitMenuStore((s) => s.anchorY);
   const close = useSplitMenuStore((s) => s.close);
   const ref = useRef<HTMLDivElement | null>(null);
+  const { mounted, state } = usePresence(open, 120);
 
   // Click-outside closes; Esc closes. Capture-phase keydown so Esc wins
   // over xterm when a Terminal Pane has DOM focus underneath.
@@ -48,7 +50,7 @@ export function SplitMenu() {
     };
   }, [open, close]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const doSplit = (dir: "right" | "down" | "up") => {
     const focused = useLayoutStore.getState().focusedPaneId;
@@ -64,6 +66,7 @@ export function SplitMenu() {
     <div
       ref={ref}
       className={styles.menu}
+      data-state={state}
       style={{ left: x, top: y }}
       role="menu"
       aria-label="Split focused pane"
