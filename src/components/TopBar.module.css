@@ -23,7 +23,7 @@
 .left {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   padding-left: var(--space-2);
 }
 
@@ -39,11 +39,12 @@
   height: 100%;
 }
 
-/* Top-bar action button (Sidebar toggle, Split menu, etc.). 28x28, square
- * hit area, subtle hover. Active state for toggles uses --accent. */
+/* Top-bar action button (Sidebar toggle, Split menu, etc.). 30x30 square hit
+ * area holding a 16px stroke icon, subtle hover. Active state for toggles uses
+ * --accent (the icon inherits it via currentColor). */
 .btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -52,7 +53,6 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 14px;
   line-height: 1;
   padding: 0;
   transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);

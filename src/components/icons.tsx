@@ -1,0 +1,174 @@
+// Custom icon set — thin stroke (Lucide/Feather family) so the glyphs read
+// crisp and consistent, and `stroke="currentColor"` so they inherit the
+// button's colour automatically: --fg-1 at rest, --fg-0 on hover, --accent
+// (amber) when a toggle is active. Replaces the OS emoji we used to render,
+// which were colourful, off-theme, and rendered at different sizes per font.
+//
+// Every icon takes `size` (px, default 16) and an optional `strokeWidth`.
+// viewBox is a 24-grid; stroke caps/joins are rounded for a soft, premium feel.
+
+import type { PropsWithChildren } from "react";
+
+export interface IconProps {
+  size?: number;
+  strokeWidth?: number;
+}
+
+function Stroke({ size = 16, strokeWidth = 1.75, children }: PropsWithChildren<IconProps>) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** Toggle sessions sidebar — a panel with a left rail. */
+export function IconSidebar(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+    </Stroke>
+  );
+}
+
+/** Toggle file drawer — a folder. */
+export function IconFolder(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="M4 7a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.4.6L12 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+    </Stroke>
+  );
+}
+
+/** Open folder — switch/create a session (an open folder). */
+export function IconFolderOpen(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="M4 19V6a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.4.6L12 6h6a2 2 0 0 1 2 2v1" />
+      <path d="M2.7 12.4A1 1 0 0 1 3.65 11H21a1 1 0 0 1 .96 1.27l-1.7 6A1 1 0 0 1 19.3 19H4a1 1 0 0 1-1-1z" />
+    </Stroke>
+  );
+}
+
+/** Split focused pane — two columns. */
+export function IconSplit(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="12" y1="4" x2="12" y2="20" />
+    </Stroke>
+  );
+}
+
+/** Keyboard shortcuts. */
+export function IconKeyboard(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <line x1="6" y1="10" x2="6" y2="10" />
+      <line x1="10" y1="10" x2="10" y2="10" />
+      <line x1="14" y1="10" x2="14" y2="10" />
+      <line x1="18" y1="10" x2="18" y2="10" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </Stroke>
+  );
+}
+
+/** MD editor (full view) — a square with a pen: "edit". */
+export function IconEdit(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" />
+      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
+    </Stroke>
+  );
+}
+
+/** Quick viewer (read-only preview) — an eye. */
+export function IconEye(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </Stroke>
+  );
+}
+
+/** Settings — a gear. */
+export function IconSettings(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </Stroke>
+  );
+}
+
+/** Overflow menu — three dots (filled). */
+export function IconEllipsis({ size = 16 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
+    </svg>
+  );
+}
+
+/** Plus — for "new" actions. */
+export function IconPlus(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </Stroke>
+  );
+}
+
+// ── Window controls (frameless titlebar). Kept here so all titlebar glyphs
+//    live in one place; TopBar imports these too. ──────────────────────────
+
+export function IconMinimize({ size = 14, strokeWidth = 1.75 }: IconProps) {
+  return (
+    <Stroke size={size} strokeWidth={strokeWidth}>
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </Stroke>
+  );
+}
+
+export function IconMaximize({ size = 14, strokeWidth = 1.75 }: IconProps) {
+  return (
+    <Stroke size={size} strokeWidth={strokeWidth}>
+      <rect x="5" y="5" width="14" height="14" rx="1.5" />
+    </Stroke>
+  );
+}
+
+export function IconClose({ size = 14, strokeWidth = 1.75 }: IconProps) {
+  return (
+    <Stroke size={size} strokeWidth={strokeWidth}>
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </Stroke>
+  );
+}

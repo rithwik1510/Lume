@@ -1,11 +1,11 @@
 // src/components/TopBar.tsx
 //
 // Frameless custom titlebar (DESIGN.md §3, §5; CONTEXT.md "Frameless
-// titlebar"). 36px tall. Drag region in the middle. Five action buttons
-// on the left (☰ 🗂 ⊞ ⌨ 🗎), two action buttons on the right (📄 ⚙), and
-// three native window controls (min/max/close) on the far right.
-//   ☰  toggle sessions sidebar     🗂  toggle per-session file drawer
-//   ⊞  split menu    ⌨  shortcuts   🗎  MD editor full view
+// titlebar"). 36px tall. Drag region in the middle. Six action buttons on
+// the left (sidebar · files · split · open-folder · shortcuts · MD editor),
+// two on the right (quick-viewer · settings), and three native window
+// controls (min/max/close). All glyphs are custom stroke SVGs from
+// components/icons.tsx (currentColor → theme-aware), not OS emoji.
 //
 // Critical invariant: EVERY clickable element inside the titlebar sets
 // data-tauri-drag-region="false" on its root, otherwise the click is
@@ -15,6 +15,19 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 import styles from "@/components/TopBar.module.css";
+import {
+  IconSidebar,
+  IconFolder,
+  IconFolderOpen,
+  IconSplit,
+  IconKeyboard,
+  IconEdit,
+  IconEye,
+  IconSettings,
+  IconMinimize,
+  IconMaximize,
+  IconClose,
+} from "@/components/icons";
 import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
@@ -27,40 +40,6 @@ import {
   toggleMaximize,
   closeWindow,
 } from "@/lib/windowControls";
-
-/** Lucide-style minimize glyph: single horizontal stroke. */
-function MinIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinecap="round"
-      aria-hidden="true">
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
-/** Lucide-style maximize glyph: rounded square. */
-function MaxIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinejoin="round"
-      aria-hidden="true">
-      <rect x="5" y="5" width="14" height="14" rx="1" />
-    </svg>
-  );
-}
-
-/** Lucide-style close glyph: X. */
-function CloseIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinecap="round"
-      aria-hidden="true">
-      <line x1="6" y1="6" x2="18" y2="18" />
-      <line x1="18" y1="6" x2="6" y2="18" />
-    </svg>
-  );
-}
 
 export function TopBar() {
   const mdMode = useMdStore((s) => s.mdEditorMode);
@@ -133,7 +112,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={toggleSidebar}
         >
-          ☰
+          <IconSidebar />
         </button>
         <button
           className={`${styles.btn} ${fileDrawerOpen ? styles.active : ""}`}
@@ -142,7 +121,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={onToggleFileDrawer}
         >
-          🗂
+          <IconFolder />
         </button>
         <button
           className={styles.btn}
@@ -152,7 +131,7 @@ export function TopBar() {
           data-split-menu-trigger
           onClick={toggleSplitMenu}
         >
-          ⊞
+          <IconSplit />
         </button>
         <button
           className={styles.btn}
@@ -161,7 +140,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={() => void pickAndOpenFolder()}
         >
-          📂
+          <IconFolderOpen />
         </button>
         <button
           className={styles.btn}
@@ -170,7 +149,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={() => useShortcutsModalStore.getState().openModal()}
         >
-          ⌨
+          <IconKeyboard />
         </button>
         <button
           className={`${styles.btn} ${mdMode === "full" ? styles.active : ""}`}
@@ -179,7 +158,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={() => setMdEditorMode(mdMode === "full" ? "off" : "full")}
         >
-          🗎
+          <IconEdit />
         </button>
       </div>
 
@@ -199,7 +178,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={onToggleQuickViewer}
         >
-          📄
+          <IconEye />
         </button>
         <button
           className={styles.btn}
@@ -208,7 +187,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={onSettings}
         >
-          ⚙
+          <IconSettings />
         </button>
         <button
           className={styles.winBtn}
@@ -217,7 +196,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={() => void minimizeWindow()}
         >
-          <MinIcon />
+          <IconMinimize />
         </button>
         <button
           className={styles.winBtn}
@@ -226,7 +205,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={() => void toggleMaximize()}
         >
-          <MaxIcon />
+          <IconMaximize />
         </button>
         <button
           className={`${styles.winBtn} ${styles.close}`}
@@ -235,7 +214,7 @@ export function TopBar() {
           data-tauri-drag-region="false"
           onClick={() => void closeWindow()}
         >
-          <CloseIcon />
+          <IconClose />
         </button>
       </div>
     </div>
