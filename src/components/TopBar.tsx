@@ -151,14 +151,19 @@ export function TopBar() {
         >
           <IconKeyboard />
         </button>
+        {/* MD Editor entry point — labeled (icon + text) so it's an
+            unmistakable destination rather than just another glyph. A divider
+            sets it apart from the layout-control icons to its left. */}
+        <span className={styles.divider} aria-hidden="true" />
         <button
-          className={`${styles.btn} ${mdMode === "full" ? styles.active : ""}`}
-          title={mdMode === "full" ? "Close MD Editor (Ctrl+E)" : "Open MD Editor (Ctrl+E)"}
-          aria-label="Toggle MD Editor"
+          className={`${styles.btn} ${styles.labeled} ${mdMode === "full" ? styles.active : ""}`}
+          title={mdMode === "full" ? "Close Markdown editor (Ctrl+E)" : "Open Markdown editor (Ctrl+E)"}
+          aria-label="Toggle Markdown editor"
           data-tauri-drag-region="false"
           onClick={() => setMdEditorMode(mdMode === "full" ? "off" : "full")}
         >
-          <IconEdit />
+          <IconEdit size={16} />
+          <span className={styles.btnLabel}>Markdown</span>
         </button>
       </div>
 

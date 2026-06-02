@@ -68,6 +68,30 @@
   border-color: var(--accent-dim);
 }
 
+/* Labeled variant — icon + text (the MD Editor entry point). Wider than the
+ * square icon buttons; the label inherits the button colour (so it follows
+ * the rest / hover / active-amber states). */
+.labeled {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+}
+.btnLabel {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Thin separator between the icon controls and a labeled button. */
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
 /* Window control buttons (min/max/close) — 28x36 hit area matches DESIGN.md.
  * Square corners (no border-radius) on the window controls to read as native
  * Windows controls. Close hover is --error. */
