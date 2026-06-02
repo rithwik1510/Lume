@@ -9,9 +9,9 @@
   background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 4px;
+  padding: 6px;
   display: flex;
-  gap: 2px;
+  gap: 6px;
   z-index: var(--z-popover);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   /* Enter: scale + fade from the anchor (top-left, under the ⊞ button). */
@@ -29,22 +29,22 @@
 }
 
 .item {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid transparent;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--fg-1);
-  font-size: 14px;
+  /* Bright by default so the arrows read clearly on the dark popover. */
+  color: var(--fg-0);
   font-family: var(--font-ui);
   transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .item:hover {
-  color: var(--fg-0);
-  background: var(--bg-2);
+  color: var(--accent);
+  background: var(--bg-3);
   border-color: var(--accent-dim);
 }

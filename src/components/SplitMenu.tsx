@@ -10,6 +10,7 @@
 import { useEffect, useRef } from "react";
 
 import styles from "@/components/SplitMenu.module.css";
+import { IconArrowRight, IconArrowUp, IconArrowDown } from "@/components/icons";
 import { nextPaneId } from "@/lib/paneIds";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useSplitMenuStore } from "@/store/splitMenuStore";
@@ -78,7 +79,7 @@ export function SplitMenu() {
         aria-label="Split right"
         role="menuitem"
       >
-        →
+        <IconArrowRight size={20} strokeWidth={2.25} />
       </button>
       <button
         className={styles.item}
@@ -87,7 +88,7 @@ export function SplitMenu() {
         aria-label="Split up"
         role="menuitem"
       >
-        ↑
+        <IconArrowUp size={20} strokeWidth={2.25} />
       </button>
       <button
         className={styles.item}
@@ -96,7 +97,7 @@ export function SplitMenu() {
         aria-label="Split down"
         role="menuitem"
       >
-        ↓
+        <IconArrowDown size={20} strokeWidth={2.25} />
       </button>
     </div>
   );
