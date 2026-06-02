@@ -39,3 +39,8 @@ export async function watchConfig(
     channel.onmessage = () => undefined;
   };
 }
+
+/** Set one dotted config key on disk (format-preserving, Rust toml_edit). */
+export function setConfigValue(path: string, value: unknown): Promise<void> {
+  return invoke<void>("set_config_value", { path, value });
+}

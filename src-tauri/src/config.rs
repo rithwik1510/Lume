@@ -24,6 +24,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 use tauri::State;
+use toml_edit::{value as toml_value, DocumentMut, Item, Table};
 
 use crate::error::{AppError, AppResult};
 
@@ -32,11 +33,28 @@ use crate::error::{AppError, AppResult};
 // collapse a burst into one emission ~DEBOUNCE_MS after the LAST event.
 const DEBOUNCE_MS: u64 = 150;
 
+fn default_font_weight() -> u32 {
+    400
+}
+fn default_line_height() -> f64 {
+    1.2
+}
+fn default_cursor_style() -> String {
+    "block".to_string()
+}
+fn default_cursor_blink() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FontConfig {
     pub family: String,
     pub size: u32,
+    #[serde(default = "default_font_weight")]
+    pub weight: u32,
+    #[serde(default = "default_line_height")]
+    pub line_height: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -45,6 +63,10 @@ pub struct TerminalConfig {
     pub scrollback_lines: u32,
     pub ipc_batch_ms: u32,
     pub ring_buffer_mb: u32,
+    #[serde(default = "default_cursor_style")]
+    pub cursor_style: String,
+    #[serde(default = "default_cursor_blink")]
+    pub cursor_blink: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -109,11 +131,15 @@ impl Default for WorkstationConfig {
             font: FontConfig {
                 family: "JetBrains Mono".to_string(),
                 size: 14,
+                weight: 400,
+                line_height: 1.2,
             },
             terminal: TerminalConfig {
                 scrollback_lines: 10_000,
                 ipc_batch_ms: 32,
                 ring_buffer_mb: 8,
+                cursor_style: "block".to_string(),
+                cursor_blink: true,
             },
             md_editor: MdEditorConfig {
                 soft_wrap: true,
@@ -156,11 +182,15 @@ default_shell = "pwsh"
 [font]
 family = "JetBrains Mono"
 size = 14
+weight = 400              # 300 | 400 | 500 | 600
+line_height = 1.2         # 1.0 – 2.0
 
 [terminal]
 scrollback_lines = 10000
 ipc_batch_ms = 32
 ring_buffer_mb = 8
+cursor_style = "block"    # "bar" | "block" | "underline"
+cursor_blink = true
 
 [md_editor]
 soft_wrap = true
@@ -297,6 +327,83 @@ fn parse_config_or_default(text: &str) -> AppResult<WorkstationConfig> {
     }
 }
 
+// ----- Format-preserving config editing -----
+
+const WRITABLE_ROOTS: &[&str] = &[
+    "default_shell",
+    "font",
+    "terminal",
+    "md_editor",
+    "quick_viewer",
+    "sidebar",
+    "theme",
+    "log",
+];
+
+fn json_to_toml(v: &serde_json::Value) -> AppResult<toml_edit::Value> {
+    use serde_json::Value as J;
+    Ok(match v {
+        J::Bool(b) => toml_value(*b).into_value().unwrap(),
+        J::Number(n) if n.is_i64() => toml_value(n.as_i64().unwrap()).into_value().unwrap(),
+        J::Number(n) if n.is_u64() => toml_value(n.as_u64().unwrap() as i64).into_value().unwrap(),
+        J::Number(n) => toml_value(n.as_f64().unwrap()).into_value().unwrap(),
+        J::String(s) => toml_value(s.clone()).into_value().unwrap(),
+        J::Array(items) => {
+            let mut arr = toml_edit::Array::new();
+            for it in items {
+                match it {
+                    J::String(s) => arr.push(s.as_str()),
+                    _ => return Err(AppError::internal("array items must be strings")),
+                }
+            }
+            toml_edit::Value::Array(arr)
+        }
+        J::Null | J::Object(_) => return Err(AppError::internal("unsupported config value shape")),
+    })
+}
+
+fn apply_config_edit(text: &str, path: &str, value: serde_json::Value) -> AppResult<String> {
+    let segments: Vec<&str> = path.split('.').collect();
+    let root = *segments
+        .first()
+        .ok_or_else(|| AppError::internal("empty config path"))?;
+    if !WRITABLE_ROOTS.contains(&root) {
+        return Err(AppError::internal(format!(
+            "config path not writable: {path}"
+        )));
+    }
+    let mut doc = text
+        .parse::<DocumentMut>()
+        .map_err(|e| AppError::internal(format!("parse config.toml: {e}")))?;
+    let leaf = json_to_toml(&value)?;
+    if segments.len() == 1 {
+        doc[root] = Item::Value(leaf);
+        return Ok(doc.to_string());
+    }
+    let mut tbl: &mut Table = doc.as_table_mut();
+    for seg in &segments[..segments.len() - 1] {
+        let entry = tbl.entry(seg).or_insert(Item::Table(Table::new()));
+        tbl = entry
+            .as_table_mut()
+            .ok_or_else(|| AppError::internal(format!("config segment not a table: {seg}")))?;
+    }
+    let last = segments[segments.len() - 1];
+    tbl[last] = Item::Value(leaf);
+    Ok(doc.to_string())
+}
+
+#[tauri::command]
+pub fn set_config_value(path: String, value: serde_json::Value) -> AppResult<()> {
+    let p = config_path()?;
+    write_default_at(&p)?; // no-op if present; ensures a file to edit
+    let text = std::fs::read_to_string(&p)
+        .map_err(|e| AppError::internal(format!("read {}: {}", p.display(), e)))?;
+    let updated = apply_config_edit(&text, &path, value)?;
+    std::fs::write(&p, updated)
+        .map_err(|e| AppError::internal(format!("write {}: {}", p.display(), e)))?;
+    Ok(())
+}
+
 // ----- Hot reload -----
 
 #[derive(Debug, Clone, Serialize)]
@@ -396,6 +503,7 @@ pub fn watch_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn default_toml_round_trips() {
@@ -517,5 +625,37 @@ mod tests {
         let created = write_default_at(&path).unwrap();
         assert!(!created);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "existing = true");
+    }
+
+    #[test]
+    fn default_toml_has_cursor_and_typography_fields() {
+        let cfg: WorkstationConfig = toml::from_str(DEFAULT_TOML).expect("parse default toml");
+        assert_eq!(cfg.font.weight, 400);
+        assert!((cfg.font.line_height - 1.2).abs() < f64::EPSILON);
+        assert_eq!(cfg.terminal.cursor_style, "block");
+        assert!(cfg.terminal.cursor_blink);
+    }
+
+    #[test]
+    fn set_dotted_value_preserves_comments_and_other_tables() {
+        let original = "# top comment\n[font]\nsize = 14\n\n[keybindings]\n# custom\nsplit_right = \"Ctrl+\\\\\"\n";
+        let updated = apply_config_edit(original, "font.size", json!(18)).unwrap();
+        assert!(updated.contains("# top comment"));
+        assert!(updated.contains("[keybindings]"));
+        assert!(updated.contains("split_right = \"Ctrl+\\\\\""));
+        assert!(updated.contains("size = 18"));
+    }
+
+    #[test]
+    fn set_dotted_value_creates_missing_table() {
+        let updated = apply_config_edit("", "terminal.cursor_style", json!("bar")).unwrap();
+        assert!(updated.contains("[terminal]"));
+        assert!(updated.contains("cursor_style = \"bar\""));
+    }
+
+    #[test]
+    fn set_dotted_value_rejects_unknown_root() {
+        let err = apply_config_edit("", "bogus.key", json!(1));
+        assert!(err.is_err());
     }
 }

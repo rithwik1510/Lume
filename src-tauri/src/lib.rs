@@ -70,6 +70,7 @@ pub fn run() {
             crate::config::write_default_config_if_missing,
             crate::config::watch_config,
             crate::config::config_file_path,
+            crate::config::set_config_value,
             crate::git::git_current_branch,
         ])
         .run(tauri::generate_context!())

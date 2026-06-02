@@ -18,11 +18,13 @@ import type { WorkstationConfig } from "@/types/config";
 
 export const defaultSettings: WorkstationConfig = {
   default_shell: "pwsh",
-  font: { family: "JetBrains Mono", size: 14 },
+  font: { family: "JetBrains Mono", size: 14, weight: 400, line_height: 1.2 },
   terminal: {
     scrollback_lines: 10_000,
     ipc_batch_ms: 32,
     ring_buffer_mb: 8,
+    cursor_style: "block",
+    cursor_blink: true,
   },
   md_editor: {
     soft_wrap: true,

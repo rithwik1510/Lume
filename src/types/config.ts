@@ -7,12 +7,16 @@
 export interface FontConfig {
   family: string;
   size: number;
+  weight: number;       // 300 | 400 | 500 | 600
+  line_height: number;  // 1.0 – 2.0
 }
 
 export interface TerminalConfig {
   scrollback_lines: number;
   ipc_batch_ms: number;
   ring_buffer_mb: number;
+  cursor_style: "bar" | "block" | "underline";
+  cursor_blink: boolean;
 }
 
 export interface MdEditorConfig {
