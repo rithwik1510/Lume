@@ -15,6 +15,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 
 import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
+import { noteBell } from "@/sessions/attentionTracker";
 import "@xterm/xterm/css/xterm.css";
 import "@/styles/xterm-overrides.css";
 
@@ -89,6 +90,11 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
     }
     return true;
   });
+
+  // Terminal bell → attention cue. Agents/shells ring the bell (BEL) on
+  // completion or when they block for input; if this is a background session
+  // the tracker glows its sidebar dot. Disposed with the Terminal.
+  term.onBell(() => noteBell(paneId));
 
   const fit = new FitAddon();
   term.loadAddon(fit);

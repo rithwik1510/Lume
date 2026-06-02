@@ -33,14 +33,23 @@
   background: var(--accent);
   border: 1.5px solid var(--accent);
 }
+/* "Needs attention" — a background session whose agent finished a turn or
+ * wants input. An amber dot with a pulsing glow halo so it reads as a beacon.
+ * The base box-shadow stays even when the animation is frozen (reduced motion),
+ * so the unread dot is still distinguishable from the plain active dot. */
 .dotUnread {
   background: var(--accent);
   border: 1.5px solid var(--accent);
-  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 5px 1px var(--accent-alpha);
+  animation: dot-glow 1.6s ease-in-out infinite;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+@keyframes dot-glow {
+  0%, 100% {
+    box-shadow: 0 0 3px 0 var(--accent-alpha);
+  }
+  50% {
+    box-shadow: 0 0 9px 2px var(--accent);
+  }
 }
 
 .name {

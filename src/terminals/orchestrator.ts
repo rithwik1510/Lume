@@ -30,6 +30,7 @@ import {
 } from "@/terminals/registry";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
 import { detectShells } from "@/lib/shellsClient";
+import { noteOutput, disposeAttentionTracker } from "@/sessions/attentionTracker";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
 
 /**
@@ -114,6 +115,9 @@ export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
       writeToTerminal(paneId, new Uint8Array(evt.bytes));
       // Cheap throttled metadata bump for the UI's "active pane" indicator.
       usePtyStore.getState().markActivity(paneId);
+      // Feed the attention tracker: a background session that produces output
+      // then goes quiet glows its sidebar dot ("finished a turn / needs you").
+      noteOutput(paneId);
     } else if (evt.kind === "exit") {
       usePtyStore.getState().setStatus(paneId, "exited");
       term.write(`\r\n\x1b[33m[pty exited code=${evt.code ?? "?"}]\x1b[0m\r\n`);
@@ -216,5 +220,8 @@ export function installPtyOrchestrator(): () => void {
       console.error("detectShells failed", err);
     });
 
-  return sub;
+  return () => {
+    sub();
+    disposeAttentionTracker();
+  };
 }
