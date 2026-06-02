@@ -1,5 +1,11 @@
 // src/store/settingsStore.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
+
+vi.mock("@/lib/configClient", () => ({
+  setConfigValue: vi.fn(async () => undefined),
+}));
+
+import { setConfigValue as rustSetConfigValue } from "@/lib/configClient";
 import { useSettingsStore, defaultSettings } from "@/store/settingsStore";
 import type { WorkstationConfig } from "@/types/config";
 
@@ -51,5 +57,35 @@ describe("settingsStore", () => {
     expect(useSettingsStore.getState().config).toEqual(defaultSettings);
     useSettingsStore.getState().revertToLastValid();
     expect(useSettingsStore.getState().config).toEqual(defaultSettings);
+  });
+});
+
+describe("settingsStore.setConfigValue", () => {
+  beforeEach(() => {
+    useSettingsStore.getState().reset();
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+  it("updates the in-store config optimistically by dotted path", () => {
+    useSettingsStore.getState().setConfigValue("font.size", 18);
+    expect(useSettingsStore.getState().config.font.size).toBe(18);
+  });
+  it("persists via the Rust client (debounced)", async () => {
+    vi.useFakeTimers();
+    useSettingsStore.getState().setConfigValue("terminal.cursor_style", "bar");
+    useSettingsStore.getState().setConfigValue("terminal.cursor_style", "underline");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(rustSetConfigValue).toHaveBeenCalledTimes(1);
+    expect(rustSetConfigValue).toHaveBeenCalledWith("terminal.cursor_style", "underline");
+  });
+  it("reverts the optimistic value when the Rust write rejects", async () => {
+    vi.useFakeTimers();
+    (rustSetConfigValue as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("disk full"));
+    const before = useSettingsStore.getState().config.font.size;
+    useSettingsStore.getState().setConfigValue("font.size", 22);
+    expect(useSettingsStore.getState().config.font.size).toBe(22);
+    await vi.advanceTimersByTimeAsync(300);
+    await Promise.resolve();
+    expect(useSettingsStore.getState().config.font.size).toBe(before);
   });
 });

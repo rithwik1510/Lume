@@ -9,6 +9,7 @@ import {
 } from "@/lib/configClient";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useToastStore } from "@/store/toastStore";
+import { installSettingsApply } from "@/terminals/applySettings";
 
 // StrictMode intentionally OFF — see DESIGN.md §4 rule #2:
 // PTY lifecycle is keyed by paneId in module-level Map, not by React mount.
@@ -26,6 +27,7 @@ void (async () => {
     if (created) console.info("config.toml created with defaults");
     const cfg = await readConfig();
     useSettingsStore.getState().applyConfig(cfg);
+    installSettingsApply();
   } catch (err) {
     console.error("config bootstrap failed; keeping defaults", err);
     useToastStore.getState().push({

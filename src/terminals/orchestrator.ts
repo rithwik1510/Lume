@@ -29,8 +29,9 @@ import {
   fitTerminal,
 } from "@/terminals/registry";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
-import { detectShells } from "@/lib/shellsClient";
+import { detectShells, configIdMatchesShell } from "@/lib/shellsClient";
 import { noteOutput, disposeAttentionTracker } from "@/sessions/attentionTracker";
+import { useSettingsStore } from "@/store/settingsStore";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
 
 /**
@@ -63,16 +64,16 @@ interface PaneRuntime {
 const runtimes = new Map<PaneId, PaneRuntime>();
 
 /**
- * Default shell for a freshly-spawned pane. Weekend 1+2 hardcoded to
- * Windows PowerShell — the universal built-in Windows shell. The path
- * is unqualified; portable-pty's CommandBuilder resolves it via PATH.
- *
- * Weekend 3 will replace this with config-driven selection from
- * `config.toml`'s `default_shell` key, plus proper auto-detection of
- * pwsh / cmd / WSL distros and a per-pane "Change Shell..." right-click
- * menu (DESIGN.md §12 W3 #8-9).
+ * Default shell for a freshly-spawned pane. Prefers the shell configured
+ * in config.toml's `default_shell` key, matched against the detected shells.
+ * Falls back to Windows PowerShell if the configured shell isn't detected
+ * or detection hasn't completed yet.
  */
 function defaultShell(): Shell {
+  const configured = useSettingsStore.getState().config.default_shell;
+  const match = detectedShells.find((s) => configIdMatchesShell(configured, s));
+  if (match) return match;
+  // Fallback: Windows PowerShell — universally available on Windows.
   return { kind: "powershell", path: "powershell.exe" };
 }
 

@@ -22,3 +22,13 @@ export function shellLabel(s: Shell): string {
       return `WSL · ${s.distro}`;
   }
 }
+
+/** Stable config string for a Shell — what `default_shell` stores. */
+export function shellToConfigId(s: Shell): string {
+  return s.kind === "wsl" ? `wsl:${s.distro}` : s.kind;
+}
+
+/** Does a detected Shell match a `default_shell` config id? */
+export function configIdMatchesShell(id: string, s: Shell): boolean {
+  return shellToConfigId(s) === id;
+}

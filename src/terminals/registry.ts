@@ -10,7 +10,7 @@
 // Lifecycle is driven by layoutStore subscription in the PTY orchestrator.
 
 import { Terminal } from "@xterm/xterm";
-import type { IDisposable } from "@xterm/xterm";
+import type { IDisposable, ITerminalOptions } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 
@@ -22,6 +22,7 @@ import "@/styles/xterm-overrides.css";
 
 import { registerMdLinkProvider } from "@/terminals/mdLinkProvider";
 import type { PaneId } from "@/types";
+import { useSettingsStore } from "@/store/settingsStore";
 
 interface TerminalEntry {
   term: Terminal;
@@ -41,6 +42,15 @@ const entries = new Map<PaneId, TerminalEntry>();
 export const MOUSE_MODE_RESET =
   "\x1b[?9l\x1b[?1000l\x1b[?1001l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b[?1016l";
 
+/** Apply a partial option set to every live Terminal, then refit so the new
+ *  cell metrics reflow correctly. */
+export function applyOptionsToAll(opts: Partial<ITerminalOptions>): void {
+  for (const [, entry] of entries) {
+    Object.assign(entry.term.options, opts);
+    entry.fit.fit();
+  }
+}
+
 /**
  * Get the Terminal for `paneId`, creating it on first access. The instance
  * persists across React mounts/unmounts of any pane component.
@@ -49,17 +59,21 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
   const existing = entries.get(paneId);
   if (existing) return existing.term;
 
+  const cfg = useSettingsStore.getState().config;
   const term = new Terminal({
-    fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'JetBrains Mono Variable, Consolas, monospace',
-    fontSize: 14,
-    lineHeight: 1.2,
-    cursorBlink: true,
-    cursorStyle: "block",
+    fontFamily:
+      getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() ||
+      "JetBrains Mono Variable, Consolas, monospace",
+    fontSize: cfg.font.size,
+    fontWeight: String(cfg.font.weight) as ITerminalOptions["fontWeight"],
+    lineHeight: cfg.font.line_height,
+    cursorBlink: cfg.terminal.cursor_blink,
+    cursorStyle: cfg.terminal.cursor_style,
     // Theme is derived from the active CSS variables (which the App-level
     // theme effect sets via data-theme on :root). When the user switches
     // themes, applyXtermThemeToAll() walks the registry and re-applies.
     theme: xtermThemeFromCSS(),
-    scrollback: 10000,
+    scrollback: cfg.terminal.scrollback_lines,
     allowProposedApi: true,
   });
 

@@ -15,6 +15,22 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import type { WorkstationConfig } from "@/types/config";
+import { setConfigValue as rustSetConfigValue } from "@/lib/configClient";
+import { useToastStore } from "@/store/toastStore";
+
+const PERSIST_DEBOUNCE_MS = 250;
+const persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Immutably set a dotted path on a deep-cloned config. */
+function setDotted<T extends object>(obj: T, path: string, value: unknown): T {
+  const next = structuredClone(obj);
+  const segs = path.split(".");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let cur: any = next;
+  for (let i = 0; i < segs.length - 1; i++) cur = cur[segs[i]];
+  cur[segs[segs.length - 1]] = value;
+  return next;
+}
 
 export const defaultSettings: WorkstationConfig = {
   default_shell: "pwsh",
@@ -64,13 +80,14 @@ interface SettingsActions {
   applyConfig: (cfg: WorkstationConfig) => void;
   revertToLastValid: () => void;
   reset: () => void;
+  setConfigValue: (path: string, value: unknown) => void;
 }
 
 export type SettingsStore = SettingsState & SettingsActions;
 
 export const useSettingsStore = create<SettingsStore>()(
   devtools(
-    immer((set) => ({
+    immer((set, get) => ({
       config: defaultSettings,
       lastValidConfig: defaultSettings,
 
@@ -90,6 +107,31 @@ export const useSettingsStore = create<SettingsStore>()(
           s.config = defaultSettings;
           s.lastValidConfig = defaultSettings;
         }),
+
+      setConfigValue: (path, value) => {
+        const snapshot = get().config;
+        const updated = setDotted(snapshot, path, value);
+        set((s) => {
+          s.config = updated;
+        });
+        const existing = persistTimers.get(path);
+        if (existing) clearTimeout(existing);
+        persistTimers.set(
+          path,
+          setTimeout(() => {
+            persistTimers.delete(path);
+            void rustSetConfigValue(path, value).catch((err) => {
+              set((s) => {
+                s.config = snapshot;
+              });
+              useToastStore.getState().push({
+                severity: "error",
+                message: `Couldn't save settings: ${err instanceof Error ? err.message : String(err)}`,
+              });
+            });
+          }, PERSIST_DEBOUNCE_MS)
+        );
+      },
     })),
     { name: "settingsStore" }
   )
