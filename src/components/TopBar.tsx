@@ -31,9 +31,9 @@ import {
 import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
+import { useSettingsModalStore } from "@/store/settingsModalStore";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import { useSplitMenuStore } from "@/store/splitMenuStore";
-import { configFilePath } from "@/lib/configClient";
 import { pickAndOpenFolder } from "@/lib/sessions/sessionEntryFlows";
 import {
   minimizeWindow,
@@ -48,7 +48,6 @@ export function TopBar() {
   const qvPath = useMdStore((s) => s.quickViewer.path);
   const openMdInQuickViewer = useMdStore((s) => s.openMdInQuickViewer);
   const closeQuickViewer = useMdStore((s) => s.closeQuickViewer);
-  const openMdTab = useMdStore((s) => s.openMdTab);
 
   const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
@@ -96,10 +95,7 @@ export function TopBar() {
   };
 
   const onSettings = () => {
-    // Open ~/.workstation/config.toml in the MD Editor as a tab.
-    void configFilePath()
-      .then((path) => openMdTab(path))
-      .catch((err) => console.error("opening config.toml failed", err));
+    useSettingsModalStore.getState().openModal();
   };
 
   return (
@@ -187,7 +183,7 @@ export function TopBar() {
         </button>
         <button
           className={styles.btn}
-          title="Settings — open config.toml"
+          title="Settings (Ctrl+,)"
           aria-label="Settings"
           data-tauri-drag-region="false"
           onClick={onSettings}

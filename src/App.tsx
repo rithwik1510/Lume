@@ -23,6 +23,7 @@ import { MainArea } from "@/components/MainArea";
 import { MdEditor } from "@/components/MdEditor";
 import { QuickViewer } from "@/components/QuickViewer";
 import { SessionsSidebar } from "@/components/SessionsSidebar";
+import { SettingsModal } from "@/components/SettingsModal";
 import { ShortcutsModal } from "@/components/ShortcutsModal";
 import { SplitMenu } from "@/components/SplitMenu";
 import { StatusBar } from "@/components/StatusBar";
@@ -175,6 +176,7 @@ export default function App() {
       <ConfirmDialog />
       <SplitMenu />
       <ShortcutsModal />
+      <SettingsModal />
     </div>
   );
 }

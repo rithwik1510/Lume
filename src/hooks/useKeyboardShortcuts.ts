@@ -22,6 +22,7 @@ import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore, groupedSessions } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useConfirmStore } from "@/store/confirmStore";
+import { useSettingsModalStore } from "@/store/settingsModalStore";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import type { FocusDirection, SplitDirection } from "@/store/layout/tree";
 import { leaves } from "@/store/layout/tree";
@@ -311,6 +312,15 @@ const SHORTCUTS: Shortcut[] = [
     match: (e) =>
       e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "?" || e.key === "/"),
     run: () => openShortcutsModal(),
+  },
+
+  // Open Settings — Ctrl+, (mirrors the topbar gear button).
+  {
+    match: (e) => isCtrlOnly(e) && e.key === ",",
+    run: () => {
+      useSettingsModalStore.getState().openModal();
+      return true;
+    },
   },
 
   // ---- MD Editor Full View shortcuts (Phase 6) ----
