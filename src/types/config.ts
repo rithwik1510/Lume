@@ -32,8 +32,12 @@ export interface SidebarConfig {
   collapsed_dirs: string[];
 }
 
+// `accent` names a curated theme from src/lib/themes.ts. Field name stays
+// `accent` for config.toml back-compat — older configs that say `accent =
+// "amber"` won't fail to parse (the Rust side keeps it as String); unknown
+// values fall back to the default theme at apply time.
 export interface ThemeConfig {
-  accent: "amber"; // v0.1 lock; v0.2 expands
+  accent: "cobalt" | "coral" | "tokyo" | "gruvbox";
 }
 
 export interface LogConfig {

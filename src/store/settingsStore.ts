@@ -47,7 +47,7 @@ export const defaultSettings: WorkstationConfig = {
       ".cache",
     ],
   },
-  theme: { accent: "amber" },
+  theme: { accent: "cobalt" },
   log: { level: "info", path: "%LOCALAPPDATA%\\workstation\\logs" },
 };
 

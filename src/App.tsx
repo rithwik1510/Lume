@@ -34,9 +34,12 @@ import { runMigrationIfNeeded } from "@/sessions/migration";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore } from "@/store/sessionsStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
+import { applyXtermThemeToAll } from "@/terminals/registry";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { coerceThemeName } from "@/lib/themes";
 
 export default function App() {
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
@@ -91,6 +94,18 @@ export default function App() {
       dispose();
     };
   }, []);
+
+  // Theme application — settings.theme.accent → data-theme on :root.
+  // CSS modules read the swapped --bg/--fg/--accent variables, then every
+  // live xterm Terminal gets its theme re-applied so the WebGL atlas
+  // regenerates against the new palette. Atomic selector so we re-run only
+  // when the accent name changes, not on every settings field write.
+  const themeAccent = useSettingsStore((s) => s.config.theme.accent);
+  useEffect(() => {
+    const name = coerceThemeName(themeAccent);
+    document.documentElement.setAttribute("data-theme", name);
+    applyXtermThemeToAll();
+  }, [themeAccent]);
 
   // Wire keyboard shortcuts (W2-P3): split/focus/close.
   useKeyboardShortcuts();

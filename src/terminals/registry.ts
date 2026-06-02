@@ -16,6 +16,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 
 import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
 import { noteBell } from "@/sessions/attentionTracker";
+import { xtermThemeFromCSS } from "@/lib/themes";
 import "@xterm/xterm/css/xterm.css";
 import "@/styles/xterm-overrides.css";
 
@@ -54,12 +55,10 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
     lineHeight: 1.2,
     cursorBlink: true,
     cursorStyle: "block",
-    theme: {
-      background: "#0a0a0a",
-      foreground: "#e8e8e8",
-      cursor: "#d4a85c",
-      selectionBackground: "#d4a85c33",
-    },
+    // Theme is derived from the active CSS variables (which the App-level
+    // theme effect sets via data-theme on :root). When the user switches
+    // themes, applyXtermThemeToAll() walks the registry and re-applies.
+    theme: xtermThemeFromCSS(),
     scrollback: 10000,
     allowProposedApi: true,
   });
@@ -245,4 +244,18 @@ export function focusTerminal(paneId: PaneId): void {
 /** Test-only: nuke the registry. */
 export function __resetRegistry(): void {
   for (const id of Array.from(entries.keys())) disposeTerminal(id);
+}
+
+/**
+ * Re-apply the active CSS-driven xterm theme to every live Terminal.
+ * Called after a theme switch (App's theme effect sets data-theme on
+ * :root, then calls this so the WebGL atlas re-renders against the new
+ * palette). xterm regenerates its glyph atlas on theme assignment — a
+ * one-frame flash, acknowledged in DESIGN.md §10 risk #9.
+ */
+export function applyXtermThemeToAll(): void {
+  const theme = xtermThemeFromCSS();
+  for (const entry of entries.values()) {
+    entry.term.options.theme = theme;
+  }
 }

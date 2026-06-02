@@ -73,7 +73,12 @@ pub struct SidebarConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ThemeConfig {
-    pub accent: String, // "amber" (only valid v0.1)
+    // Curated theme name from src/lib/themes.ts. v0.2 ships:
+    //   "cobalt" (default), "coral", "tokyo", "gruvbox"
+    // Kept as a String (not an enum) so an unknown legacy value like
+    // "amber" still parses cleanly; the JS layer coerces unknown names
+    // back to the default theme at apply time.
+    pub accent: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -134,7 +139,7 @@ impl Default for WorkstationConfig {
                 ],
             },
             theme: ThemeConfig {
-                accent: "amber".to_string(),
+                accent: "cobalt".to_string(),
             },
             log: LogConfig {
                 level: "info".to_string(),
@@ -183,7 +188,8 @@ collapsed_dirs = [
 ]
 
 [theme]
-accent = "amber"
+# One of: "cobalt" (default), "coral", "tokyo", "gruvbox"
+accent = "cobalt"
 
 [log]
 level = "info"
@@ -427,7 +433,7 @@ mod tests {
         collapsed_dirs = []
 
         [theme]
-        accent = "amber"
+        accent = "cobalt"
 
         [log]
         level = "debug"
@@ -481,7 +487,7 @@ mod tests {
         collapsed_dirs = []
 
         [theme]
-        accent = "amber"
+        accent = "cobalt"
 
         [log]
         level = "debug"

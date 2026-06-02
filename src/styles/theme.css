@@ -1,9 +1,18 @@
-/* DESIGN.md §5 — "Amber on Black" palette. Single source of truth for
- * colour tokens. Anything that needs a colour should reference these
- * variables, not a raw hex. v0.2's accent presets swap only --accent* —
- * everything else stays. */
+/* Theme palettes — single source of truth for colour tokens.
+ *
+ * Four themes ship in v0.2:
+ *   cobalt   — pure black + iOS electric blue (DEFAULT)
+ *   coral    — neutral ash + warm coral
+ *   tokyo    — deep navy + neon cyan/mauve (Tokyo Night)
+ *   gruvbox  — warm umber + bright orange
+ *
+ * The root :root block holds the cobalt palette so first paint is correct
+ * before settings-driven JS sets a different data-theme attribute. Each
+ * other theme overrides only the variables it shifts — geometry, typography,
+ * motion, z-index ladders are shared across themes and live below. */
 
-:root {
+:root,
+:root[data-theme="cobalt"] {
   /* Surfaces */
   --bg-0: #0a0a0a;
   --bg-1: #111111;
@@ -16,19 +25,97 @@
   --fg-2: #6a6a6a;
   --fg-heading: #ffffff;
 
-  /* Amber accent */
-  --accent: #d4a85c;
-  --accent-alpha: rgba(212, 168, 92, 0.3);
-  --accent-dim: #a07c3f;
+  /* Accent — iOS electric blue */
+  --accent: #5fa8ff;
+  --accent-alpha: rgba(95, 168, 255, 0.3);
+  --accent-dim: #2f7adc;
 
   /* State */
   --error: #e85a5a;
   --success: #7fc26b;
+  --success-alpha: rgba(127, 194, 107, 0.3);
 
   /* Chrome */
   --border: #222222;
+}
 
-  /* Geometry — small set of utility tokens used by component CSS */
+:root[data-theme="coral"] {
+  /* Surfaces — neutral ash, lifted off pure black */
+  --bg-0: #1a1a1a;
+  --bg-1: #1f1f1f;
+  --bg-2: #252525;
+  --bg-3: #2c2c2c;
+
+  --fg-0: #e6e6e6;
+  --fg-1: #9a9a9a;
+  --fg-2: #6a6a6a;
+  --fg-heading: #ffffff;
+
+  /* Accent — warm coral */
+  --accent: #ff8a65;
+  --accent-alpha: rgba(255, 138, 101, 0.3);
+  --accent-dim: #c4624a;
+
+  --error: #e85a5a;
+  --success: #7fc26b;
+  --success-alpha: rgba(127, 194, 107, 0.3);
+
+  --border: #2c2c2c;
+}
+
+:root[data-theme="tokyo"] {
+  /* Surfaces — Tokyo Night deep navy */
+  --bg-0: #1a1b26;
+  --bg-1: #1f2335;
+  --bg-2: #292e42;
+  --bg-3: #3b4261;
+
+  --fg-0: #c0caf5;
+  --fg-1: #9aa5ce;
+  --fg-2: #565f89;
+  --fg-heading: #ffffff;
+
+  /* Accent — neon cyan, dim is the signature Tokyo blue */
+  --accent: #7dcfff;
+  --accent-alpha: rgba(125, 207, 255, 0.3);
+  --accent-dim: #7aa2f7;
+
+  /* Tokyo's red and green are tuned to the palette */
+  --error: #f7768e;
+  --success: #9ece6a;
+  --success-alpha: rgba(158, 206, 106, 0.3);
+
+  --border: #292e42;
+}
+
+:root[data-theme="gruvbox"] {
+  /* Surfaces — Gruvbox dark0 family */
+  --bg-0: #282828;
+  --bg-1: #32302f;
+  --bg-2: #3c3836;
+  --bg-3: #504945;
+
+  --fg-0: #ebdbb2;
+  --fg-1: #d5c4a1;
+  --fg-2: #a89984;
+  --fg-heading: #fbf1c7;
+
+  /* Accent — bright orange */
+  --accent: #fe8019;
+  --accent-alpha: rgba(254, 128, 25, 0.3);
+  --accent-dim: #d65d0e;
+
+  /* Gruvbox's bright red and green */
+  --error: #fb4934;
+  --success: #b8bb26;
+  --success-alpha: rgba(184, 187, 38, 0.3);
+
+  --border: #504945;
+}
+
+/* Shared, theme-independent tokens — these never change per theme. */
+:root {
+  /* Geometry */
   --radius-sm: 4px;
   --radius-md: 6px;
   --space-1: 4px;
@@ -37,9 +124,7 @@
   --space-4: 16px;
 
   /* Z-index ladder. All overlay surfaces in the app use these tokens.
-   * Higher number = on top. Phase 3 (SplitMenu popover, ShortcutsModal)
-   * will inherit this — don't introduce ad-hoc z-index numbers in any
-   * new component. */
+   * Higher number = on top. */
   --z-dropdown: 50;        /* future: titlebar dropdowns, autocomplete */
   --z-toast: 90;           /* Toaster — under modals so dialogs always own focus */
   --z-modal: 100;          /* ConfirmDialog, ShortcutsModal backdrop + body */

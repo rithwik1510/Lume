@@ -33,3 +33,6 @@ spike-archive/src-tauri/target/
 # Workstation runtime artifacts
 *.log
 .workstation-test-output/
+
+# Brainstorming companion mockups (local visual session state)
+.superpowers/
