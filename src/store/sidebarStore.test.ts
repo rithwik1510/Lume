@@ -11,7 +11,12 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   })),
 }));
 
-import { useSidebarStore } from "@/store/sidebarStore";
+import {
+  useSidebarStore,
+  SIDEBAR_MIN_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_DEFAULT_WIDTH,
+} from "@/store/sidebarStore";
 import type { DirEntry } from "@/types/fs";
 
 const fakeEntry = (name: string, isDir: boolean, parent: string): DirEntry => ({
@@ -82,5 +87,15 @@ describe("sidebarStore", () => {
     expect(useSidebarStore.getState().sidebarVisible).toBe(false);
     useSidebarStore.getState().setSidebarVisible(true);
     expect(useSidebarStore.getState().sidebarVisible).toBe(true);
+  });
+
+  it("setSidebarWidth clamps to [MIN, MAX] and rounds", () => {
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_DEFAULT_WIDTH);
+    useSidebarStore.getState().setSidebarWidth(300.6);
+    expect(useSidebarStore.getState().sidebarWidth).toBe(301);
+    useSidebarStore.getState().setSidebarWidth(10); // below min
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_MIN_WIDTH);
+    useSidebarStore.getState().setSidebarWidth(9999); // above max
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_MAX_WIDTH);
   });
 });

@@ -28,6 +28,12 @@ export const COLLAPSED_DIRS: ReadonlySet<string> = new Set([
   ".cache",
 ]);
 
+/** Sessions sidebar width clamps (px). The min keeps session names legible
+ *  (never a useless sliver); the max stops it eating the window. */
+export const SIDEBAR_MIN_WIDTH = 180;
+export const SIDEBAR_MAX_WIDTH = 480;
+export const SIDEBAR_DEFAULT_WIDTH = 220;
+
 export interface SidebarState {
   workspaceFolder: string | null;
   /** path → its direct children (already loaded). */
@@ -36,6 +42,8 @@ export interface SidebarState {
   expanded: Set<string>;
   filterText: string;
   sidebarVisible: boolean;
+  /** Open width of the sessions sidebar (px), user-resizable + persisted. */
+  sidebarWidth: number;
 
   // actions
   setWorkspaceFolder: (path: string) => void;
@@ -45,6 +53,8 @@ export interface SidebarState {
   matchesFilter: (name: string) => boolean;
   toggleSidebar: () => void;
   setSidebarVisible: (visible: boolean) => void;
+  /** Set the sidebar width, clamped to [MIN, MAX]. */
+  setSidebarWidth: (width: number) => void;
   reset: () => void;
 }
 
@@ -57,6 +67,7 @@ export const useSidebarStore = create<SidebarState>()(
       expanded: new Set(),
       filterText: "",
       sidebarVisible: true,
+      sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
 
       setWorkspaceFolder: (path) =>
         set((s) => {
@@ -100,6 +111,14 @@ export const useSidebarStore = create<SidebarState>()(
           s.sidebarVisible = visible;
         }),
 
+      setSidebarWidth: (width) =>
+        set((s) => {
+          s.sidebarWidth = Math.max(
+            SIDEBAR_MIN_WIDTH,
+            Math.min(SIDEBAR_MAX_WIDTH, Math.round(width))
+          );
+        }),
+
       reset: () =>
         set((s) => {
           s.workspaceFolder = null;
@@ -107,6 +126,7 @@ export const useSidebarStore = create<SidebarState>()(
           s.expanded = new Set();
           s.filterText = "";
           s.sidebarVisible = true;
+          s.sidebarWidth = SIDEBAR_DEFAULT_WIDTH;
         }),
     })),
       {
@@ -119,6 +139,7 @@ export const useSidebarStore = create<SidebarState>()(
         partialize: (state) => ({
           workspaceFolder: state.workspaceFolder,
           sidebarVisible: state.sidebarVisible,
+          sidebarWidth: state.sidebarWidth,
         }),
       }
     ),

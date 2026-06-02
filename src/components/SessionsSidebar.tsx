@@ -7,7 +7,13 @@
 // for the duration so the WebGL canvas doesn't re-clear every frame (same
 // flicker guard the splitter drag uses) — fit happens once, at settle.
 
-import { useEffect, useMemo, useRef } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import styles from "@/components/SessionsSidebar.module.css";
 import { SessionGroup } from "@/components/SessionGroup";
@@ -42,6 +48,35 @@ export function SessionsSidebar() {
   );
 
   const collapsed = !useSidebarStore((s) => s.sidebarVisible);
+
+  // Resizable open width (persisted + clamped in the store). The shell width
+  // and the right-anchored inner both track it; collapse sets the shell to 0
+  // while the inner stays this wide so it slides out cleanly.
+  const sidebarWidth = useSidebarStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useSidebarStore((s) => s.setSidebarWidth);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const draggingRef = useRef(false);
+
+  const onResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    setDragging(true);
+    beginResize(); // gate xterm fit while the terminal area reflows live
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current || !rootRef.current) return;
+    const left = rootRef.current.getBoundingClientRect().left;
+    setSidebarWidth(e.clientX - left); // store clamps to [MIN, MAX]
+  };
+  const onResizeUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    endResize();
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
 
   // Suppress per-frame xterm fits while the collapse width-animates, then fit
   // once after it settles. Skipped on first mount (no animation on launch) and
@@ -83,13 +118,17 @@ export function SessionsSidebar() {
 
   return (
     <div
+      ref={rootRef}
       className={`${styles.root} ${collapsed ? styles.collapsed : ""}`}
+      // Width is dynamic (resizable); collapse animates it to 0. Transition is
+      // disabled mid-drag so the edge tracks the cursor 1:1 instead of lagging.
+      style={{ width: collapsed ? 0 : sidebarWidth, transition: dragging ? "none" : undefined }}
       aria-hidden={collapsed}
       // `inert` (string form to avoid React 18 boolean-attr warnings) keeps Tab
       // focus out of the hidden sidebar while collapsed.
       {...(collapsed ? { inert: "" } : {})}
     >
-      <div className={styles.inner}>
+      <div className={styles.inner} style={{ width: sidebarWidth }}>
         <div className={styles.toolbar}>
           <button
             className={styles.newBtn}
@@ -115,6 +154,18 @@ export function SessionsSidebar() {
           )}
         </div>
       </div>
+      {!collapsed && (
+        <div
+          className={`${styles.resizeHandle} ${dragging ? styles.dragging : ""}`}
+          onPointerDown={onResizeDown}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeUp}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          title="Drag to resize"
+        />
+      )}
     </div>
   );
 }

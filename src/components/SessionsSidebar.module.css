@@ -1,12 +1,11 @@
-/* The animating shell. Width collapses 220 → 0 on an emphasised ease-out;
- * overflow:hidden clips the right-anchored .inner so the content slides left
- * and out (a true "slide away" rather than a right-to-left wipe). */
+/* The animating shell. Width is set inline (resizable + persisted) and
+ * collapses to 0 on an emphasised ease-out; overflow:hidden clips the
+ * right-anchored .inner so the content slides left and out (a true "slide
+ * away" rather than a right-to-left wipe). No CSS width / min-width here —
+ * both would fight the inline width and the open-animation. flex-shrink:0
+ * holds the set width in the flex row. */
 .root {
   position: relative;
-  width: 220px;
-  /* No min-width: it can't be transitioned, so on OPEN it would snap to 220px
-   * instantly and kill the width animation (closing worked because .collapsed
-   * set min-width:0). flex-shrink:0 alone holds the open width in the flex row. */
   flex-shrink: 0;
   background: var(--bg-1);
   border-right: 1px solid var(--border);
@@ -16,24 +15,49 @@
 }
 
 .collapsed {
-  width: 0;
   border-right-width: 0;
   pointer-events: none;
 }
 
-/* Content is pinned to the shell's RIGHT edge at a fixed width, so as the
- * shell narrows the content translates leftward and clips past the left edge
- * — the premium slide-away feel — instead of reflowing/wrapping as it shrinks. */
+/* Content pinned to the shell's RIGHT edge; its width is set inline to the
+ * open width so on collapse it translates leftward and clips past the left
+ * edge (premium slide-away) instead of reflowing as the shell narrows. */
 .inner {
   position: absolute;
   inset: 0 0 0 auto;
   right: 0;
-  width: 220px;
   display: flex;
   flex-direction: column;
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--fg-1);
+}
+
+/* Drag-to-resize affordance on the right edge. Transparent strip with a
+ * col-resize cursor; a 2px accent bar appears on hover / while dragging. */
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+.resizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.resizeHandle:hover::after,
+.resizeHandle.dragging::after {
+  background: var(--accent-dim);
 }
 /* Reduced-motion is handled globally in theme.css. */
 
