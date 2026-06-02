@@ -67,6 +67,7 @@ describe("sessionsStore — createSession", () => {
     expect(s.name).toBe("New session");
     expect(s.status).toBe("stopped");
     expect(s.unread).toBe(false);
+    expect(s.working).toBe(false);
     expect(s.layoutRoot).toBeNull();
     expect(s.focusedPaneId).toBeNull();
     expect(s.gitBranch).toBeNull();
@@ -208,6 +209,50 @@ describe("sessionsStore — metadata mutations", () => {
     useSessionsStore.getState().activateSession(id);
     useSessionsStore.getState().bumpUnread(id);
     expect(useSessionsStore.getState().sessions[id].unread).toBe(false);
+  });
+
+  it("setWorking flips working; no-op turning on when session is active", () => {
+    const a = useSessionsStore.getState().createSession("/p");
+    const b = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(b); // a is background, b is visible
+
+    useSessionsStore.getState().setWorking(a, true);
+    expect(useSessionsStore.getState().sessions[a].working).toBe(true);
+    useSessionsStore.getState().setWorking(a, false);
+    expect(useSessionsStore.getState().sessions[a].working).toBe(false);
+
+    // Refuses to light up the visible session.
+    useSessionsStore.getState().setWorking(b, true);
+    expect(useSessionsStore.getState().sessions[b].working).toBe(false);
+  });
+
+  it("setWorking(true) clears unread (mutually exclusive); bumpUnread clears working", () => {
+    const a = useSessionsStore.getState().createSession("/p");
+    const b = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(b);
+
+    // unread first, then a new burst of output → working wins, unread cleared.
+    useSessionsStore.getState().bumpUnread(a);
+    expect(useSessionsStore.getState().sessions[a].unread).toBe(true);
+    useSessionsStore.getState().setWorking(a, true);
+    expect(useSessionsStore.getState().sessions[a].working).toBe(true);
+    expect(useSessionsStore.getState().sessions[a].unread).toBe(false);
+
+    // working then idle (bumpUnread) → unread wins, working cleared.
+    useSessionsStore.getState().bumpUnread(a);
+    expect(useSessionsStore.getState().sessions[a].unread).toBe(true);
+    expect(useSessionsStore.getState().sessions[a].working).toBe(false);
+  });
+
+  it("activateSession clears working in addition to unread", () => {
+    const a = useSessionsStore.getState().createSession("/p");
+    const b = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(b);
+    useSessionsStore.getState().setWorking(a, true);
+    expect(useSessionsStore.getState().sessions[a].working).toBe(true);
+    useSessionsStore.getState().activateSession(a);
+    expect(useSessionsStore.getState().sessions[a].working).toBe(false);
+    expect(useSessionsStore.getState().sessions[a].unread).toBe(false);
   });
 
   it("updateBranch sets gitBranch", () => {
@@ -366,6 +411,7 @@ describe("sessionsStore — rehydration coercion", () => {
           focusedPaneId: null,
           status: "active" as const,
           unread: true,
+          working: true,
           gitBranch: "main",
           fileTreeOpen: true,
           createdAt: 1,
@@ -379,6 +425,7 @@ describe("sessionsStore — rehydration coercion", () => {
     const out = coerceRehydrated(raw);
     expect(out.sessions!.a.status).toBe("stopped");
     expect(out.sessions!.a.unread).toBe(false);
+    expect(out.sessions!.a.working).toBe(false);
     expect(out.activeSessionId).toBeNull();
     // Durable fields survive untouched.
     expect(out.sessions!.a.gitBranch).toBe("main");
@@ -394,6 +441,7 @@ describe("sessionsStore — rehydration coercion", () => {
       focusedPaneId: paneId,
       status: "stopped",
       unread: false,
+      working: false,
       gitBranch: null,
       fileTreeOpen: false,
       createdAt: 1,
@@ -430,6 +478,7 @@ describe("sessionsStore — rehydration coercion", () => {
           focusedPaneId: null,
           status: "stopped" as const,
           unread: false,
+          working: false,
           gitBranch: null,
           fileTreeOpen: false,
           createdAt: 1,

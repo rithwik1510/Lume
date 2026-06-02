@@ -21,8 +21,15 @@ export function SessionRow({ session }: Props) {
   const isActive = session.id === activeId;
   const [renaming, setRenaming] = useState(false);
 
+  // Tri-state attention dot — see attentionTracker.ts:
+  //   active   → solid amber  (this is the visible session)
+  //   working  → green pulse  (background session streaming output now)
+  //   unread   → amber pulse  (background session finished a turn / bell)
+  //   else     → hollow grey  (idle / stopped)
   const dotClass = isActive
     ? styles.dotActive
+    : session.working
+    ? styles.dotWorking
     : session.unread
     ? styles.dotUnread
     : styles.dotStopped;

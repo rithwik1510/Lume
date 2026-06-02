@@ -33,6 +33,25 @@
   background: var(--accent);
   border: 1.5px solid var(--accent);
 }
+/* "Working" — a background session that's currently streaming output. Green
+ * dot with a pulsing halo so it reads as live activity, distinct from the
+ * amber "needs you" state. Faster pulse than unread (1s vs 1.6s) so the eye
+ * registers it as ongoing motion rather than a "done" beacon. */
+.dotWorking {
+  background: var(--success);
+  border: 1.5px solid var(--success);
+  box-shadow: 0 0 5px 1px var(--success-alpha);
+  animation: dot-glow-working 1s ease-in-out infinite;
+}
+@keyframes dot-glow-working {
+  0%, 100% {
+    box-shadow: 0 0 3px 0 var(--success-alpha);
+  }
+  50% {
+    box-shadow: 0 0 8px 2px var(--success);
+  }
+}
+
 /* "Needs attention" — a background session whose agent finished a turn or
  * wants input. An amber dot with a pulsing glow halo so it reads as a beacon.
  * The base box-shadow stays even when the animation is frozen (reduced motion),

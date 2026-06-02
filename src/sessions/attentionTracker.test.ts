@@ -27,6 +27,7 @@ function sessionWithPane(folder: string, paneId: string): string {
 }
 
 const unread = (id: string) => useSessionsStore.getState().sessions[id].unread;
+const working = (id: string) => useSessionsStore.getState().sessions[id].working;
 
 describe("attentionTracker", () => {
   beforeEach(() => {
@@ -47,8 +48,10 @@ describe("attentionTracker", () => {
 
     noteOutput("pane-bg");
     expect(unread(bg)).toBe(false); // still "working" — timer pending
+    expect(working(bg)).toBe(true); // green pulse while streaming
     vi.advanceTimersByTime(IDLE_MS);
     expect(unread(bg)).toBe(true); // quiet long enough → finished a turn
+    expect(working(bg)).toBe(false); // amber supersedes green
   });
 
   it("never glows the visible (active) session", () => {
@@ -89,5 +92,39 @@ describe("attentionTracker", () => {
 
     noteBell("pane-fg");
     expect(unread(fg)).toBe(false);
+  });
+
+  it("new output on an already-unread session flips amber back to green", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    // Drive the bg session to amber (idle-after-output).
+    noteOutput("pane-bg");
+    vi.advanceTimersByTime(IDLE_MS);
+    expect(unread(bg)).toBe(true);
+    expect(working(bg)).toBe(false);
+
+    // Agent starts a new turn — fresh output should green-pulse, not stay amber.
+    noteOutput("pane-bg");
+    expect(working(bg)).toBe(true);
+    expect(unread(bg)).toBe(false);
+  });
+
+  it("a bell cancels the pending idle timer (no late re-glow)", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    noteOutput("pane-bg"); // working + idle timer armed
+    noteBell("pane-bg"); // explicit "done" — should consume the cue
+    expect(unread(bg)).toBe(true);
+    expect(working(bg)).toBe(false);
+
+    // User dismisses, then waits past the original idle window. The cancelled
+    // timer must NOT fire and re-set unread.
+    useSessionsStore.getState().clearUnread(bg);
+    vi.advanceTimersByTime(IDLE_MS * 2);
+    expect(unread(bg)).toBe(false);
   });
 });

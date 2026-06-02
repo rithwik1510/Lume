@@ -6,8 +6,16 @@
 // Lifecycle invariants:
 //   - status is NEVER persisted; rehydration coerces every session to "stopped"
 //   - activeSessionId is NEVER persisted; cold start = null (all-stopped)
-//   - unread is transient; cleared on activate
+//   - unread / working are transient; cleared on activate and on rehydrate
 //   - PTY processes don't survive restart (DESIGN.md §1 invariant 5)
+//
+// `working` and `unread` together form a tri-state attention dot for the
+// sidebar (see attentionTracker): a background session that's actively
+// streaming output is "working" (green pulse); after IDLE_MS of silence it
+// flips to "unread" (amber pulse, "finished a turn / needs you"). They are
+// mutually exclusive — setWorking(id, true) clears unread; bumpUnread clears
+// working — but both fields exist on the row so render precedence is explicit
+// rather than implicit in a single enum.
 //
 // Grouping is derived: every distinct folderPath across `sessions` forms a
 // group. No separate Group entity — just label overrides and collapsed-state,
@@ -35,6 +43,7 @@ export interface Session {
   focusedPaneId: PaneId | null;
   status: SessionStatus;
   unread: boolean;
+  working: boolean;
   gitBranch: string | null;
   fileTreeOpen: boolean;
   createdAt: number;
@@ -58,6 +67,7 @@ export interface SessionsState {
   toggleGroupCollapsed: (folderPath: string) => void;
   bumpUnread: (id: SessionId) => void;
   clearUnread: (id: SessionId) => void;
+  setWorking: (id: SessionId, on: boolean) => void;
   updateBranch: (id: SessionId, branch: string | null) => void;
   setLayoutRoot: (id: SessionId, root: LayoutNode | null) => void;
   setFocusedPane: (id: SessionId, paneId: PaneId | null) => void;
@@ -94,6 +104,7 @@ export const useSessionsStore = create<SessionsState>()(
               focusedPaneId: null,
               status: "stopped",
               unread: false,
+              working: false,
               gitBranch: null,
               fileTreeOpen: false,
               createdAt: now,
@@ -108,6 +119,7 @@ export const useSessionsStore = create<SessionsState>()(
             if (!session) return;
             session.status = "active";
             session.unread = false;
+            session.working = false;
             session.lastActiveAt = Date.now();
             s.activeSessionId = id;
           }),
@@ -171,12 +183,27 @@ export const useSessionsStore = create<SessionsState>()(
             if (!session) return;
             if (s.activeSessionId === id) return;
             session.unread = true;
+            // unread (idle-after-output) and working (streaming now) are
+            // mutually exclusive — flipping to unread ends the working window.
+            session.working = false;
           }),
 
         clearUnread: (id) =>
           set((s) => {
             const session = s.sessions[id];
             if (session) session.unread = false;
+          }),
+
+        setWorking: (id, on) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            // Never light up the visible session — you're already looking at it.
+            if (on && s.activeSessionId === id) return;
+            session.working = on;
+            // Fresh output supersedes a prior "finished a turn" amber dot —
+            // the agent is doing something again.
+            if (on) session.unread = false;
           }),
 
         updateBranch: (id, branch) =>
@@ -236,6 +263,7 @@ export const useSessionsStore = create<SessionsState>()(
                 lastActiveAt: s.lastActiveAt,
                 status: "stopped" as SessionStatus,
                 unread: false,
+                working: false,
               },
             ])
           ),
@@ -268,7 +296,7 @@ export const useSessionsStore = create<SessionsState>()(
 export function coerceRehydrated(state: Partial<SessionsState>): Partial<SessionsState> {
   const sessions: Record<string, Session> = {};
   for (const [id, s] of Object.entries(state.sessions ?? {})) {
-    sessions[id] = { ...s, status: "stopped", unread: false } as Session;
+    sessions[id] = { ...s, status: "stopped", unread: false, working: false } as Session;
   }
   const folderSet = new Set(Object.values(sessions).map((s) => s.folderPath));
   const groupLabels: Record<string, string> = {};
