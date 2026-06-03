@@ -20,6 +20,7 @@ import { detectShells, shellLabel, shellToConfigId } from "@/lib/shellsClient";
 import type { Shell } from "@/types";
 import type { ThemeName } from "@/lib/themes";
 import { FONT_PAIRS } from "@/lib/fontPairs";
+import { IconClose } from "@/components/icons";
 
 const CATEGORIES: { id: SettingsCategory; label: string }[] = [
   { id: "appearance", label: "Appearance" },
@@ -88,7 +89,7 @@ export function SettingsModal() {
         <div className={styles.header} id="settings-modal-title">
           Settings
           <button className={styles.closeBtn} onClick={close} aria-label="Close settings" title="Close (Esc)">
-            ×
+            <IconClose size={12} />
           </button>
         </div>
 

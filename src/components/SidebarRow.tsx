@@ -2,6 +2,12 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 import styles from "@/components/Sidebar.module.css";
+import {
+  IconChevron,
+  IconFile,
+  IconFileText,
+  IconFolder,
+} from "@/components/icons";
 
 interface Props {
   name: string;
@@ -25,8 +31,6 @@ export function SidebarRow({
   onContextMenu,
 }: Props) {
   const indent = depth * 12;
-  const chevron = isDir ? (expanded ? "▾" : "▸") : "";
-  const icon = isDir ? "▢" : name.endsWith(".md") ? "✎" : "·";
   const rowClass = [
     styles.row,
     selected ? styles.selected : "",
@@ -34,6 +38,17 @@ export function SidebarRow({
   ]
     .filter(Boolean)
     .join(" ");
+  // Chevron: only directories get a real one; files render an invisible
+  // placeholder so labels still align. Folders rotate -90deg when collapsed.
+  const chevronClass = isDir
+    ? `${styles.chevron} ${expanded ? "" : styles.chevronCollapsed}`
+    : `${styles.chevron} ${styles.placeholder}`;
+  // Leaf icon: folder, .md (text-bearing doc), or generic file.
+  const LeafIcon = isDir
+    ? IconFolder
+    : name.endsWith(".md")
+    ? IconFileText
+    : IconFile;
   return (
     <div
       className={rowClass}
@@ -41,8 +56,12 @@ export function SidebarRow({
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      <span className={isDir ? styles.chevron : `${styles.chevron} ${styles.placeholder}`}>{chevron}</span>
-      <span className={styles.icon}>{icon}</span>
+      <span className={chevronClass} aria-hidden="true">
+        <IconChevron size={12} />
+      </span>
+      <span className={styles.icon} aria-hidden="true">
+        <LeafIcon size={13} />
+      </span>
       <span className={styles.label}>{name}</span>
     </div>
   );

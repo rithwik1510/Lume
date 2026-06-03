@@ -105,8 +105,17 @@
   width: 16px;
   display: inline-flex;
   justify-content: center;
+  align-items: center;
   color: var(--fg-2);
-  font-size: 10px;
+  /* Rotation transition matches SessionGroup's collapse arrow so the two
+   * tree affordances feel like the same control. */
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+/* Collapsed = point right. Expanded (default) = point down (the IconChevron
+ * native orientation). */
+.chevronCollapsed {
+  transform: rotate(-90deg);
 }
 
 .chevron.placeholder {
@@ -117,8 +126,8 @@
   width: 16px;
   display: inline-flex;
   justify-content: center;
+  align-items: center;
   color: var(--fg-1);
-  font-size: 12px;
   margin-right: var(--space-1);
 }
 

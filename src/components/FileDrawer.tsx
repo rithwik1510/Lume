@@ -12,7 +12,7 @@ import { useEffect, useRef } from "react";
 
 import styles from "@/components/FileDrawer.module.css";
 import { SidebarTree } from "@/components/SidebarTree";
-import { IconPlus } from "@/components/icons";
+import { IconPlus, IconSearch } from "@/components/icons";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore } from "@/store/sessionsStore";
@@ -173,13 +173,19 @@ export function FileDrawer() {
     >
       <div className={styles.inner}>
         <div className={styles.header}>
-          <input
-            className={styles.filter}
-            type="text"
-            placeholder="🔍 filter"
-            value={filterText}
-            onChange={(e) => setFilter(e.target.value)}
-          />
+          <div className={styles.filterWrap}>
+            <span className={styles.filterIcon} aria-hidden="true">
+              <IconSearch size={13} />
+            </span>
+            <input
+              className={styles.filter}
+              type="text"
+              placeholder="Filter"
+              value={filterText}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Filter files"
+            />
+          </div>
           <button className={styles.iconButton} title="New .md file" onClick={onNewFile}>
             <IconPlus size={14} />
           </button>

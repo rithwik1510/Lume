@@ -11,6 +11,7 @@
 import { useEffect } from "react";
 
 import styles from "@/components/QuickViewer.module.css";
+import { IconClose } from "@/components/icons";
 import { MdEditorPreview } from "@/components/MdEditorPreview";
 import { useMdStore } from "@/store/mdStore";
 
@@ -81,7 +82,7 @@ export function QuickViewer() {
             aria-label="Close Quick Viewer"
             onClick={close}
           >
-            ✕
+            <IconClose size={13} />
           </button>
         </div>
       </div>

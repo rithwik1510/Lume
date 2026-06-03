@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 
 import styles from "@/components/Toaster.module.css";
+import { IconClose } from "@/components/icons";
 import { useToastStore } from "@/store/toastStore";
 
 type Toast = ReturnType<typeof useToastStore.getState>["toasts"][number];
@@ -78,7 +79,7 @@ export function Toaster() {
               aria-label="Dismiss notification"
               title="Dismiss"
             >
-              ×
+              <IconClose size={12} />
             </button>
           </div>
         </div>

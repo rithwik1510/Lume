@@ -48,11 +48,44 @@
   background: var(--bg-1);
 }
 
-.filter {
+/* Filter input wraps an absolutely-positioned leading IconSearch so the
+ * magnifying glass sits inside the field at the left edge and the input
+ * text starts after it. The wrap supplies the border / background so the
+ * icon and input share one visual surface. */
+.filterWrap {
   flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.filterWrap:focus-within {
+  border-color: var(--accent-dim);
+}
+
+.filterIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: var(--space-2);
+  color: var(--fg-2);
+  pointer-events: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.filterWrap:focus-within .filterIcon {
+  color: var(--fg-1);
+}
+
+.filter {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
   color: var(--fg-0);
   font-family: var(--font-ui);
   font-size: 12px;
@@ -62,10 +95,6 @@
 
 .filter::placeholder {
   color: var(--fg-2);
-}
-
-.filter:focus {
-  border-color: var(--accent-dim);
 }
 
 .iconButton {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import styles from "@/components/settings/controls.module.css";
+import { IconClose } from "@/components/icons";
 
 export function ChipList({
   values,
@@ -30,7 +31,7 @@ export function ChipList({
               aria-label={`Remove ${v}`}
               onClick={() => onChange(values.filter((x) => x !== v))}
             >
-              ×
+              <IconClose size={10} />
             </button>
           </span>
         ))}

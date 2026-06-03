@@ -19,6 +19,7 @@
 import { useEffect } from "react";
 
 import styles from "@/components/ShortcutsModal.module.css";
+import { IconClose } from "@/components/icons";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import { usePresence } from "@/hooks/usePresence";
 
@@ -101,7 +102,7 @@ export function ShortcutsModal() {
             aria-label="Close shortcuts modal"
             title="Close (Esc)"
           >
-            ×
+            <IconClose size={12} />
           </button>
         </div>
         <div className={styles.body}>
