@@ -5,10 +5,15 @@
   gap: var(--space-3);
   padding: var(--space-2) 0;
 }
-.rowText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* flex:1 + min-width:0 lets the label column claim the remaining width and
+ * keeps it from collapsing to one-word-per-line when a wide control sits
+ * next to it (native <select> can size to widest option). */
+.rowText { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
 .rowLabel { font-size: 13px; color: var(--fg-0); }
 .rowDesc { font-size: 11px; color: var(--fg-2); }
-.rowControl { flex-shrink: 0; }
+/* Cap controls so a long native <select> option doesn't blow out the row; the
+ * dropdown ellipsises its selected-text via overflow:hidden + text-overflow. */
+.rowControl { flex-shrink: 0; max-width: 60%; }
 
 .toggle {
   width: 34px; height: 18px; border-radius: 9px;
@@ -39,6 +44,12 @@
   background: var(--bg-2); color: var(--fg-0); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 4px 8px; font-family: var(--font-ui);
   font-size: 13px; cursor: pointer; min-width: 140px;
+  /* Cap so a long option text can never blow out the row even if a future
+   * pair name grows. Native <select> truncates with its own ellipsis. */
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .dropdown:hover { background: var(--bg-3); }
 

@@ -129,10 +129,13 @@ export function SettingsModal() {
                 />
                 <SettingRow
                   label="Font pair"
-                  description="A matched UI + monospace pair, applied app-wide. Terminal stays monospace; sidebar and editor swap to the pair's sans-serif."
+                  description={
+                    FONT_PAIRS.find((p) => p.id === config.font.pair)?.description ??
+                    "Matched UI + monospace family, applied app-wide."
+                  }
                   control={
                     <Dropdown ariaLabel="Font pair" value={config.font.pair}
-                      options={FONT_PAIRS.map((p) => ({ value: p.id, label: `${p.label} — ${p.description}` }))}
+                      options={FONT_PAIRS.map((p) => ({ value: p.id, label: p.label }))}
                       onChange={(v) => set("font.pair", v)} />
                   } />
                 <SettingRow label="Font size" control={
