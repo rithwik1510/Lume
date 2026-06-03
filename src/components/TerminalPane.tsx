@@ -11,14 +11,11 @@ import {
   memo,
   useEffect,
   useRef,
-  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 
 import { onResizeEnd, isResizing } from "@/components/resizeBus";
 import { useDropTargetStore } from "@/store/dropTargetStore";
-import { pasteFileToPane } from "@/lib/pasteFileToPane";
-import { WORKSTATION_FILE_MIME } from "@/lib/attachPath";
 import {
   attach,
   detach,
@@ -44,29 +41,12 @@ interface Props {
 function TerminalPaneImpl({ paneId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
+  // Highlighted while a file is dragged over this pane. The drop itself is
+  // handled outside this component — by the internal pointer-drag
+  // (lib/internalFileDrag) and the external OS drop (hooks/useExternalFileDrop),
+  // both of which hit-test the `data-pane-id` below. HTML5 drop handlers don't
+  // work here: Tauri's dragDropEnabled suppresses them on WebView2.
   const isDropTarget = useDropTargetStore((s) => s.paneId === paneId);
-
-  const onDragOver = (e: ReactDragEvent<HTMLDivElement>) => {
-    if (!e.dataTransfer.types.includes(WORKSTATION_FILE_MIME)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    useDropTargetStore.getState().setDropTarget(paneId);
-  };
-  const onDragLeave = (e: ReactDragEvent<HTMLDivElement>) => {
-    // Ignore dragleave when moving onto a descendant (e.g. the xterm host) —
-    // only a true exit of the pane should clear the highlight.
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    if (useDropTargetStore.getState().paneId === paneId) {
-      useDropTargetStore.getState().setDropTarget(null);
-    }
-  };
-  const onDrop = (e: ReactDragEvent<HTMLDivElement>) => {
-    const path = e.dataTransfer.getData(WORKSTATION_FILE_MIME);
-    useDropTargetStore.getState().setDropTarget(null);
-    if (!path) return;
-    e.preventDefault();
-    pasteFileToPane(paneId, path);
-  };
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -178,9 +158,6 @@ function TerminalPaneImpl({ paneId }: Props) {
       data-pane-id={paneId}
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
       style={{
         position: "relative",
         width: "100%",

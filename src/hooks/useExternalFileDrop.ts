@@ -17,14 +17,14 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 import { useDropTargetStore } from "@/store/dropTargetStore";
 import { pasteFileToPane } from "@/lib/pasteFileToPane";
+import { paneIdAtClientPoint } from "@/lib/paneHitTest";
 import { useToastStore } from "@/store/toastStore";
 import type { PaneId } from "@/types";
 
 function paneIdAtPhysical(x: number, y: number): PaneId | null {
+  // Tauri reports PHYSICAL pixels; paneIdAtClientPoint wants CSS pixels.
   const dpr = window.devicePixelRatio || 1;
-  const el = document.elementFromPoint(x / dpr, y / dpr);
-  const host = (el?.closest("[data-pane-id]") as HTMLElement | null) ?? null;
-  return (host?.dataset.paneId as PaneId | undefined) ?? null;
+  return paneIdAtClientPoint(x / dpr, y / dpr);
 }
 
 export function useExternalFileDrop(): void {

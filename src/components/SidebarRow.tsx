@@ -18,6 +18,7 @@ interface Props {
   dimmed: boolean;
   onClick: () => void;
   onContextMenu?: (e: ReactMouseEvent<HTMLDivElement>) => void;
+  onMouseDown?: (e: ReactMouseEvent<HTMLDivElement>) => void;
   draggable?: boolean;
   onDragStart?: (e: ReactDragEvent<HTMLDivElement>) => void;
 }
@@ -31,6 +32,7 @@ export function SidebarRow({
   dimmed,
   onClick,
   onContextMenu,
+  onMouseDown,
   draggable,
   onDragStart,
 }: Props) {
@@ -59,6 +61,7 @@ export function SidebarRow({
       style={{ paddingLeft: indent }}
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onMouseDown={onMouseDown}
       draggable={draggable}
       onDragStart={onDragStart}
     >
