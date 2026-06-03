@@ -1,8 +1,9 @@
 // Recursive renderer. Reads sidebarStore. Triggers lazy listDir when a folder
 // is expanded for the first time.
-import { useEffect, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import { SidebarRow } from "@/components/SidebarRow";
+import { WORKSTATION_FILE_MIME } from "@/lib/attachPath";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { useMdStore } from "@/store/mdStore";
 import { useSidebarStore, COLLAPSED_DIRS } from "@/store/sidebarStore";
@@ -77,6 +78,14 @@ export function SidebarTree({ path, depth }: Props) {
                   },
                 ]);
               };
+          // Files are draggable onto a terminal pane (drag-drop file attach).
+          // Directories are not — you attach files, not folders.
+          const onDragStart = entry.is_dir
+            ? undefined
+            : (e: ReactDragEvent<HTMLDivElement>) => {
+                e.dataTransfer.setData(WORKSTATION_FILE_MIME, entry.path);
+                e.dataTransfer.effectAllowed = "copy";
+              };
           return (
             <div key={entry.path}>
               <SidebarRow
@@ -88,6 +97,8 @@ export function SidebarTree({ path, depth }: Props) {
                 dimmed={dimmed}
                 onClick={onClick}
                 onContextMenu={onContextMenu}
+                draggable={!entry.is_dir}
+                onDragStart={onDragStart}
               />
               {entry.is_dir && isExpanded && (
                 <SidebarTree path={entry.path} depth={depth + 1} />

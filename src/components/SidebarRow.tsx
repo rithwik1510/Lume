@@ -1,5 +1,5 @@
 // One file-or-folder row. Visual only; container handles click logic.
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
 
 import styles from "@/components/Sidebar.module.css";
 import {
@@ -18,6 +18,8 @@ interface Props {
   dimmed: boolean;
   onClick: () => void;
   onContextMenu?: (e: ReactMouseEvent<HTMLDivElement>) => void;
+  draggable?: boolean;
+  onDragStart?: (e: ReactDragEvent<HTMLDivElement>) => void;
 }
 
 export function SidebarRow({
@@ -29,6 +31,8 @@ export function SidebarRow({
   dimmed,
   onClick,
   onContextMenu,
+  draggable,
+  onDragStart,
 }: Props) {
   const indent = depth * 12;
   const rowClass = [
@@ -55,6 +59,8 @@ export function SidebarRow({
       style={{ paddingLeft: indent }}
       onClick={onClick}
       onContextMenu={onContextMenu}
+      draggable={draggable}
+      onDragStart={onDragStart}
     >
       <span className={chevronClass} aria-hidden="true">
         <IconChevron size={12} />

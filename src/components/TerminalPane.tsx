@@ -7,9 +7,19 @@
 // React.memo'd because re-renders should be cheap (no per-byte work happens
 // here — bytes flow Channel → registry.writeToTerminal directly).
 
-import { memo, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 import { onResizeEnd, isResizing } from "@/components/resizeBus";
+import { useDropTargetStore } from "@/store/dropTargetStore";
+import { pasteFileToPane } from "@/lib/pasteFileToPane";
+import { WORKSTATION_FILE_MIME } from "@/lib/attachPath";
 import {
   attach,
   detach,
@@ -34,6 +44,33 @@ interface Props {
 
 function TerminalPaneImpl({ paneId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+
+  const isDropTarget = useDropTargetStore((s) => s.paneId === paneId);
+  // Local flag mirrors the store but lets dragLeave clear instantly without a
+  // store round-trip for the internal-drag case.
+  const [, setDragging] = useState(false);
+
+  const onDragOver = (e: ReactDragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes(WORKSTATION_FILE_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragging(true);
+    useDropTargetStore.getState().setDropTarget(paneId);
+  };
+  const onDragLeave = () => {
+    setDragging(false);
+    if (useDropTargetStore.getState().paneId === paneId) {
+      useDropTargetStore.getState().setDropTarget(null);
+    }
+  };
+  const onDrop = (e: ReactDragEvent<HTMLDivElement>) => {
+    const path = e.dataTransfer.getData(WORKSTATION_FILE_MIME);
+    setDragging(false);
+    useDropTargetStore.getState().setDropTarget(null);
+    if (!path) return;
+    e.preventDefault();
+    pasteFileToPane(paneId, path);
+  };
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -142,8 +179,12 @@ function TerminalPaneImpl({ paneId }: Props) {
 
   return (
     <div
+      data-pane-id={paneId}
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       style={{
         position: "relative",
         width: "100%",
@@ -154,6 +195,20 @@ function TerminalPaneImpl({ paneId }: Props) {
       }}
     >
       <div ref={hostRef} style={{ width: "100%", height: "100%" }} />
+      {isDropTarget && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            border: "2px solid var(--accent)",
+            background: "color-mix(in srgb, var(--accent) 10%, transparent)",
+            boxSizing: "border-box",
+            zIndex: 3,
+          }}
+        />
+      )}
     </div>
   );
 }
