@@ -2,11 +2,16 @@
 //
 // Localhost preview panel state. A sibling to the MD Quick Viewer (mdStore's
 // quickViewer slice). `url` survives close so re-opening returns to the last
-// address. `reloadNonce` is bumped to force the <iframe> to remount. Transient
-// — not persisted in v1.
+// address, and defaults to the most common dev-server port so the panel shows
+// something useful the moment it's opened. `reloadNonce` is bumped to force the
+// <iframe> to remount. Transient — not persisted in v1.
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
+
+/** The port most local dev servers use — opened to by default so the user
+ *  doesn't have to type a URL for the common case. */
+const DEFAULT_PREVIEW_URL = "http://localhost:3000";
 
 interface PreviewState {
   open: boolean;
@@ -22,7 +27,7 @@ interface PreviewActions {
 }
 export type PreviewStore = PreviewState & PreviewActions;
 
-const initial: PreviewState = { open: false, url: "", reloadNonce: 0 };
+const initial: PreviewState = { open: false, url: DEFAULT_PREVIEW_URL, reloadNonce: 0 };
 
 export const usePreviewStore = create<PreviewStore>()(
   devtools(

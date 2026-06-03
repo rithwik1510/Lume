@@ -4,10 +4,10 @@ import { usePreviewStore } from "@/store/previewStore";
 describe("previewStore", () => {
   beforeEach(() => usePreviewStore.getState().reset());
 
-  it("starts closed with no url", () => {
+  it("starts closed, defaulting to localhost:3000", () => {
     const s = usePreviewStore.getState();
     expect(s.open).toBe(false);
-    expect(s.url).toBe("");
+    expect(s.url).toBe("http://localhost:3000");
   });
   it("openPreview opens and optionally sets the url", () => {
     usePreviewStore.getState().openPreview("http://localhost:3000");
