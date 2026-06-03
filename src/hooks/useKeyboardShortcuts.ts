@@ -19,6 +19,7 @@ import { useEffect } from "react";
 
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
+import { usePreviewStore } from "@/store/previewStore";
 import { useSessionsStore, groupedSessions } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useConfirmStore } from "@/store/confirmStore";
@@ -178,6 +179,13 @@ function toggleQuickViewer(): boolean {
   return true;
 }
 
+function togglePreview(): boolean {
+  const s = usePreviewStore.getState();
+  if (s.open) s.closePreview();
+  else s.openPreview();
+  return true;
+}
+
 // Ctrl+E — toggle MD Editor Full View. Fires regardless of current mode.
 function toggleMdMode(): boolean {
   const cur = useMdStore.getState().mdEditorMode;
@@ -302,6 +310,13 @@ const SHORTCUTS: Shortcut[] = [
     match: (e) =>
       e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "M" || e.key === "m"),
     run: () => toggleQuickViewer(),
+  },
+
+  // Toggle the localhost Preview panel — Ctrl+Shift+L.
+  {
+    match: (e) =>
+      e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === "L" || e.key === "l"),
+    run: () => togglePreview(),
   },
 
   // Show keyboard shortcuts — Ctrl+? (DESIGN.md §7). On most keyboards

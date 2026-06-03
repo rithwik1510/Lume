@@ -1,0 +1,88 @@
+/* src/components/Preview.module.css
+ * Mirrors QuickViewer.module.css — a right-docked panel with a header bar and
+ * a flexed body. The body hosts an <iframe> that fills it. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-0);
+  border-left: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+}
+
+.urlInput {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.urlInput:focus {
+  outline: none;
+  border-color: var(--accent-dim);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.iconButton {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.iconButton:hover {
+  color: var(--fg-0);
+  background: var(--bg-2);
+  border-color: var(--accent-dim);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff; /* most dev servers render light; avoid a black flash */
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-3);
+  color: var(--fg-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}

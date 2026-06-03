@@ -17,6 +17,7 @@
     "log:default",
     "store:default",
     "shell:default",
+    "shell:allow-open",
     "dialog:default"
   ]
 }

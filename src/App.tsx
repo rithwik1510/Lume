@@ -21,6 +21,7 @@ import { ContextMenu } from "@/components/ContextMenu";
 import { FileDrawer } from "@/components/FileDrawer";
 import { MainArea } from "@/components/MainArea";
 import { MdEditor } from "@/components/MdEditor";
+import { Preview } from "@/components/Preview";
 import { QuickViewer } from "@/components/QuickViewer";
 import { SessionsSidebar } from "@/components/SessionsSidebar";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -34,6 +35,7 @@ import { installBranchPoller } from "@/sessions/branchPoller";
 import { runMigrationIfNeeded } from "@/sessions/migration";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
+import { usePreviewStore } from "@/store/previewStore";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
@@ -46,6 +48,7 @@ import { coerceFontPair } from "@/lib/fontPairs";
 
 export default function App() {
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
+  const previewOpen = usePreviewStore((s) => s.open);
   const mdMode = useMdStore((s) => s.mdEditorMode);
 
   useEffect(() => {
@@ -159,8 +162,23 @@ export default function App() {
           {mdMode === "full" ? (
             <MdEditor />
           ) : (
-            <PanelGroup direction="horizontal" id="pg-root-h">
-              <Panel defaultSize={quickViewerOpen ? 75 : 100} minSize={40}>
+            <PanelGroup
+              direction="horizontal"
+              id="pg-root-h"
+              key={`pg-root-${quickViewerOpen ? 1 : 0}-${previewOpen ? 1 : 0}`}
+            >
+              <Panel
+                defaultSize={
+                  quickViewerOpen && previewOpen
+                    ? 45
+                    : previewOpen
+                      ? 55
+                      : quickViewerOpen
+                        ? 75
+                        : 100
+                }
+                minSize={40}
+              >
                 <MainArea />
               </Panel>
               {quickViewerOpen && (
@@ -179,6 +197,20 @@ export default function App() {
                   />
                   <Panel defaultSize={25} minSize={20} maxSize={60}>
                     <QuickViewer />
+                  </Panel>
+                </>
+              )}
+              {previewOpen && (
+                <>
+                  <PanelResizeHandle
+                    onDragging={(isDragging) => {
+                      if (isDragging) beginResize();
+                      else endResize();
+                    }}
+                    style={{ width: 3, background: "var(--border)", cursor: "col-resize" }}
+                  />
+                  <Panel defaultSize={quickViewerOpen ? 30 : 45} minSize={25} maxSize={70}>
+                    <Preview />
                   </Panel>
                 </>
               )}

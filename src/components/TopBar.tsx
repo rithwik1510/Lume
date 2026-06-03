@@ -23,12 +23,14 @@ import {
   IconKeyboard,
   IconEdit,
   IconEye,
+  IconGlobe,
   IconSettings,
   IconMinimize,
   IconMaximize,
   IconClose,
 } from "@/components/icons";
 import { useMdStore } from "@/store/mdStore";
+import { usePreviewStore } from "@/store/previewStore";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { useSettingsModalStore } from "@/store/settingsModalStore";
@@ -48,6 +50,13 @@ export function TopBar() {
   const qvPath = useMdStore((s) => s.quickViewer.path);
   const openMdInQuickViewer = useMdStore((s) => s.openMdInQuickViewer);
   const closeQuickViewer = useMdStore((s) => s.closeQuickViewer);
+
+  const previewOpen = usePreviewStore((s) => s.open);
+  const onTogglePreview = () => {
+    const s = usePreviewStore.getState();
+    if (s.open) s.closePreview();
+    else s.openPreview();
+  };
 
   const sidebarVisible = useSidebarStore((s) => s.sidebarVisible);
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
@@ -172,6 +181,15 @@ export function TopBar() {
       />
 
       <div className={styles.right} data-tauri-drag-region="false">
+        <button
+          className={`${styles.btn} ${previewOpen ? styles.active : ""}`}
+          title={previewOpen ? "Close Preview (Ctrl+Shift+L)" : "Open Preview (Ctrl+Shift+L)"}
+          aria-label="Toggle Preview"
+          data-tauri-drag-region="false"
+          onClick={onTogglePreview}
+        >
+          <IconGlobe />
+        </button>
         <button
           className={`${styles.btn} ${qvOpen ? styles.active : ""}`}
           title={qvOpen ? "Close Quick Viewer (Ctrl+Shift+M)" : "Open Quick Viewer (Ctrl+Shift+M)"}
