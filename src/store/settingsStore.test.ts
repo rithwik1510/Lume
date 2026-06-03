@@ -88,4 +88,25 @@ describe("settingsStore.setConfigValue", () => {
     await Promise.resolve();
     expect(useSettingsStore.getState().config.font.size).toBe(before);
   });
+
+  it("a failed write reverts only its own path, preserving a concurrent edit", async () => {
+    vi.useFakeTimers();
+    const mock = rustSetConfigValue as unknown as ReturnType<typeof vi.fn>;
+    // Timers fire in scheduling order: font.size first (rejects), then
+    // terminal.cursor_blink (resolves).
+    mock
+      .mockImplementationOnce(async () => {
+        throw new Error("boom");
+      })
+      .mockImplementationOnce(async () => undefined);
+    const beforeSize = useSettingsStore.getState().config.font.size;
+    useSettingsStore.getState().setConfigValue("font.size", 28);
+    useSettingsStore.getState().setConfigValue("terminal.cursor_blink", false);
+    await vi.advanceTimersByTimeAsync(300);
+    await Promise.resolve();
+    await Promise.resolve();
+    const cfg = useSettingsStore.getState().config;
+    expect(cfg.font.size).toBe(beforeSize); // failed path reverted
+    expect(cfg.terminal.cursor_blink).toBe(false); // concurrent success preserved
+  });
 });

@@ -7,7 +7,7 @@ import {
   watchConfig,
   writeDefaultConfigIfMissing,
 } from "@/lib/configClient";
-import { useSettingsStore } from "@/store/settingsStore";
+import { useSettingsStore, isConfigSelfWrite } from "@/store/settingsStore";
 import { useToastStore } from "@/store/toastStore";
 import { installSettingsApply } from "@/terminals/applySettings";
 
@@ -39,6 +39,10 @@ void (async () => {
   try {
     await watchConfig(async (e) => {
       if (e.kind !== "changed") return;
+      // Skip the echo from our own GUI writes — the store is already authoritative
+      // during an active edit, and re-reading would clobber in-flight changes.
+      // External edits (made while not editing in the panel) still hot-reload.
+      if (isConfigSelfWrite()) return;
       try {
         const cfg = await readConfig();
         useSettingsStore.getState().applyConfig(cfg);

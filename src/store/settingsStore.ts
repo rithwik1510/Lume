@@ -32,6 +32,31 @@ function setDotted<T extends object>(obj: T, path: string, value: unknown): T {
   return next;
 }
 
+/** Read a dotted path from a config object (undefined if any segment missing). */
+function getDotted(obj: unknown, path: string): unknown {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let cur: any = obj;
+  for (const seg of path.split(".")) cur = cur?.[seg];
+  return cur;
+}
+
+// Self-write echo suppression. A GUI edit writes config.toml, which the file
+// watcher then sees — re-reading it and replacing the whole store would clobber
+// any still-in-flight optimistic edits and cause visible flicker on rapid
+// multi-key changes. While we're actively writing our own changes, the store is
+// the authority; the watcher skips reconcile inside this window. Each edit
+// extends it past the debounce + write + watch-latency tail. External edits
+// (made while NOT editing in the GUI) still hot-reload normally.
+let selfWriteUntil = 0;
+const SELF_WRITE_WINDOW_MS = PERSIST_DEBOUNCE_MS + 950;
+function markSelfWrite(): void {
+  selfWriteUntil = Math.max(selfWriteUntil, Date.now() + SELF_WRITE_WINDOW_MS);
+}
+/** True while a GUI-originated config write is settling — watcher should skip. */
+export function isConfigSelfWrite(): boolean {
+  return Date.now() < selfWriteUntil;
+}
+
 export const defaultSettings: WorkstationConfig = {
   default_shell: "pwsh",
   font: { family: "JetBrains Mono", size: 14, weight: 400, line_height: 1.2 },
@@ -109,10 +134,18 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
 
       setConfigValue: (path, value) => {
-        const snapshot = get().config;
-        const updated = setDotted(snapshot, path, value);
+        markSelfWrite(); // suppress the watcher echo from the write we're about to make
+        // Capture only this path's prior leaf so a failed write reverts JUST
+        // this key — never a whole-config snapshot, which would silently undo
+        // a concurrent successful edit to a different key.
+        const prevLeaf = getDotted(get().config, path);
+        // structuredClone (inside setDotted) can't clone an immer draft Proxy,
+        // so compute the next objects from the plain get() state, then assign.
+        const nextConfig = setDotted(get().config, path, value);
+        const nextValid = setDotted(get().lastValidConfig, path, value);
         set((s) => {
-          s.config = updated;
+          s.config = nextConfig;
+          s.lastValidConfig = nextValid;
         });
         const existing = persistTimers.get(path);
         if (existing) clearTimeout(existing);
@@ -120,9 +153,13 @@ export const useSettingsStore = create<SettingsStore>()(
           path,
           setTimeout(() => {
             persistTimers.delete(path);
+            markSelfWrite(); // extend the window across the actual disk write
             void rustSetConfigValue(path, value).catch((err) => {
+              const revertedConfig = setDotted(get().config, path, prevLeaf);
+              const revertedValid = setDotted(get().lastValidConfig, path, prevLeaf);
               set((s) => {
-                s.config = snapshot;
+                s.config = revertedConfig;
+                s.lastValidConfig = revertedValid;
               });
               useToastStore.getState().push({
                 severity: "error",

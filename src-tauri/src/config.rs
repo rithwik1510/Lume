@@ -658,4 +658,30 @@ mod tests {
         let err = apply_config_edit("", "bogus.key", json!(1));
         assert!(err.is_err());
     }
+
+    #[test]
+    fn set_dotted_value_writes_string_array() {
+        // The collapsed_dirs chip list is the only array writer — exercise the
+        // J::Array branch and confirm it round-trips back into a parseable doc.
+        let updated = apply_config_edit(
+            "",
+            "sidebar.collapsed_dirs",
+            json!(["node_modules", "dist"]),
+        )
+        .unwrap();
+        assert!(updated.contains("[sidebar]"));
+        assert!(updated.contains("collapsed_dirs"));
+        assert!(updated.contains("\"node_modules\""));
+        assert!(updated.contains("\"dist\""));
+        // Re-parse to prove valid TOML with the array intact.
+        let doc = updated.parse::<toml_edit::DocumentMut>().unwrap();
+        let arr = doc["sidebar"]["collapsed_dirs"].as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+    }
+
+    #[test]
+    fn set_dotted_value_rejects_non_string_array() {
+        let err = apply_config_edit("", "sidebar.collapsed_dirs", json!([1, 2]));
+        assert!(err.is_err());
+    }
 }
