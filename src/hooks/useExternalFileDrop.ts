@@ -35,7 +35,8 @@ export function useExternalFileDrop(): void {
     void getCurrentWebview()
       .onDragDropEvent((event) => {
         const p = event.payload;
-        if (p.type === "over") {
+        // "enter" and "over" both carry a position — track the hovered pane.
+        if (p.type === "enter" || p.type === "over") {
           useDropTargetStore.getState().setDropTarget(paneIdAtPhysical(p.position.x, p.position.y));
           return;
         }
@@ -52,7 +53,7 @@ export function useExternalFileDrop(): void {
           }
           return;
         }
-        // "leave" (and any other) — clear the highlight.
+        // "leave" — the drag left the window; clear the highlight.
         useDropTargetStore.getState().setDropTarget(null);
       })
       .then((fn) => {
