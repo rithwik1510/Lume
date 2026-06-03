@@ -18,6 +18,7 @@ import { configFilePath } from "@/lib/configClient";
 import { useMdStore } from "@/store/mdStore";
 import { detectShells, shellLabel, shellToConfigId } from "@/lib/shellsClient";
 import type { Shell } from "@/types";
+import type { ThemeName } from "@/lib/themes";
 
 const CATEGORIES: { id: SettingsCategory; label: string }[] = [
   { id: "appearance", label: "Appearance" },
@@ -26,13 +27,15 @@ const CATEGORIES: { id: SettingsCategory; label: string }[] = [
   { id: "sidebar", label: "Sidebar" },
 ];
 
-// Accent presets: only "amber" is live in v0.1. Others are display-only.
-const ACCENT_PRESETS = [
-  { id: "amber", color: "#d4a85c", enabled: true },
-  { id: "blue", color: "#5c8fd4", enabled: false },
-  { id: "green", color: "#7fc26b", enabled: false },
-  { id: "magenta", color: "#c46bbf", enabled: false },
-  { id: "red", color: "#d45c5c", enabled: false },
+// Theme presets — the four curated palettes that ship in v0.2. Swatch color
+// is each theme's accent; clicking sets data-theme on :root via the App-level
+// effect (App.tsx) and re-applies the xterm theme to every live Terminal.
+// Single source of truth for the palette set lives in src/lib/themes.ts.
+const ACCENT_PRESETS: { id: ThemeName; label: string; color: string }[] = [
+  { id: "cobalt", label: "Cobalt", color: "#5fa8ff" },
+  { id: "coral", label: "Coral", color: "#ff8a65" },
+  { id: "tokyo", label: "Tokyo Night", color: "#7dcfff" },
+  { id: "gruvbox", label: "Gruvbox", color: "#fe8019" },
 ];
 
 export function SettingsModal() {
@@ -105,19 +108,19 @@ export function SettingsModal() {
             {category === "appearance" && (
               <>
                 <SettingRow
-                  label="Accent"
-                  description="Theme accent. More presets arrive in v0.2."
+                  label="Theme"
+                  description="Each theme swaps the base palette and accent. The change applies live to every pane."
                   control={
                     <div className={styles.swatches}>
                       {ACCENT_PRESETS.map((p) => (
                         <button
                           key={p.id}
-                          className={`${styles.swatch} ${config.theme.accent === p.id ? styles.swatchActive : ""} ${!p.enabled ? styles.swatchDisabled : ""}`}
+                          className={`${styles.swatch} ${config.theme.accent === p.id ? styles.swatchActive : ""}`}
                           style={{ background: p.color }}
-                          disabled={!p.enabled}
-                          title={p.enabled ? p.id : `${p.id} — coming in v0.2`}
-                          aria-label={p.enabled ? p.id : `${p.id} (coming in v0.2)`}
-                          onClick={() => p.enabled && set("theme.accent", p.id)}
+                          title={p.label}
+                          aria-label={p.label}
+                          aria-pressed={config.theme.accent === p.id}
+                          onClick={() => set("theme.accent", p.id)}
                         />
                       ))}
                     </div>
