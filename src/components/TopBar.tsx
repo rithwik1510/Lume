@@ -3,8 +3,8 @@
 // Frameless custom titlebar (DESIGN.md §3, §5; CONTEXT.md "Frameless
 // titlebar"). 36px tall. Drag region in the middle. Six action buttons on
 // the left (sidebar · files · split · open-folder · shortcuts · MD editor),
-// two on the right (quick-viewer · settings), and three native window
-// controls (min/max/close). All glyphs are custom stroke SVGs from
+// three on the right (preview · quick-viewer · settings), and three native
+// window controls (min/max/close). All glyphs are custom stroke SVGs from
 // components/icons.tsx (currentColor → theme-aware), not OS emoji.
 //
 // Critical invariant: EVERY clickable element inside the titlebar sets

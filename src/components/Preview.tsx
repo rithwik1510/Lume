@@ -69,7 +69,12 @@ export function Preview() {
 
   const commit = () => {
     const normalized = normalizePreviewUrl(draft);
-    if (normalized === null) return;
+    if (normalized === null) {
+      // Empty/whitespace input — snap the bar back to the live URL rather
+      // than leaving it blank while the iframe still shows the old page.
+      setDraft(url);
+      return;
+    }
     setUrl(normalized);
     setDraft(normalized);
   };

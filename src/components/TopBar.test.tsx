@@ -96,7 +96,7 @@ describe("TopBar — drag region invariant", () => {
   it("every clickable control has data-tauri-drag-region=\"false\"", () => {
     const { container } = render(<TopBar />);
     const clickables = container.querySelectorAll("button, [role='button']");
-    expect(clickables.length).toBeGreaterThanOrEqual(9); // 6 left + 3 right
+    expect(clickables.length).toBeGreaterThanOrEqual(9); // 6 left + 4 right action btns + 3 window controls
     for (const el of Array.from(clickables)) {
       expect(
         el.getAttribute("data-tauri-drag-region"),
