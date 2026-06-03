@@ -11,7 +11,6 @@ import {
   memo,
   useEffect,
   useRef,
-  useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -46,26 +45,23 @@ function TerminalPaneImpl({ paneId }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
   const isDropTarget = useDropTargetStore((s) => s.paneId === paneId);
-  // Local flag mirrors the store but lets dragLeave clear instantly without a
-  // store round-trip for the internal-drag case.
-  const [, setDragging] = useState(false);
 
   const onDragOver = (e: ReactDragEvent<HTMLDivElement>) => {
     if (!e.dataTransfer.types.includes(WORKSTATION_FILE_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    setDragging(true);
     useDropTargetStore.getState().setDropTarget(paneId);
   };
-  const onDragLeave = () => {
-    setDragging(false);
+  const onDragLeave = (e: ReactDragEvent<HTMLDivElement>) => {
+    // Ignore dragleave when moving onto a descendant (e.g. the xterm host) —
+    // only a true exit of the pane should clear the highlight.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
     if (useDropTargetStore.getState().paneId === paneId) {
       useDropTargetStore.getState().setDropTarget(null);
     }
   };
   const onDrop = (e: ReactDragEvent<HTMLDivElement>) => {
     const path = e.dataTransfer.getData(WORKSTATION_FILE_MIME);
-    setDragging(false);
     useDropTargetStore.getState().setDropTarget(null);
     if (!path) return;
     e.preventDefault();
