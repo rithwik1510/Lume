@@ -19,6 +19,7 @@ import { useMdStore } from "@/store/mdStore";
 import { detectShells, shellLabel, shellToConfigId } from "@/lib/shellsClient";
 import type { Shell } from "@/types";
 import type { ThemeName } from "@/lib/themes";
+import { FONT_PAIRS } from "@/lib/fontPairs";
 
 const CATEGORIES: { id: SettingsCategory; label: string }[] = [
   { id: "appearance", label: "Appearance" },
@@ -126,16 +127,14 @@ export function SettingsModal() {
                     </div>
                   }
                 />
-                <SettingRow label="Font family" control={
-                  <Dropdown ariaLabel="Font family" value={config.font.family}
-                    options={[
-                      { value: "JetBrains Mono", label: "JetBrains Mono" },
-                      { value: "Consolas", label: "Consolas" },
-                      { value: "Cascadia Code", label: "Cascadia Code" },
-                      { value: "Fira Code", label: "Fira Code" },
-                    ]}
-                    onChange={(v) => set("font.family", v)} />
-                } />
+                <SettingRow
+                  label="Font pair"
+                  description="A matched UI + monospace pair, applied app-wide. Terminal stays monospace; sidebar and editor swap to the pair's sans-serif."
+                  control={
+                    <Dropdown ariaLabel="Font pair" value={config.font.pair}
+                      options={FONT_PAIRS.map((p) => ({ value: p.id, label: `${p.label} — ${p.description}` }))}
+                      onChange={(v) => set("font.pair", v)} />
+                  } />
                 <SettingRow label="Font size" control={
                   <Stepper ariaLabel="Font size" value={config.font.size} min={8} max={32}
                     onChange={(v) => set("font.size", v)} />

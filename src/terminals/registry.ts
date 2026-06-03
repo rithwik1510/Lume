@@ -17,6 +17,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
 import { noteBell } from "@/sessions/attentionTracker";
 import { xtermThemeFromCSS } from "@/lib/themes";
+import { currentMonoFamily } from "@/lib/fontPairs";
 import "@xterm/xterm/css/xterm.css";
 import "@/styles/xterm-overrides.css";
 
@@ -272,4 +273,17 @@ export function applyXtermThemeToAll(): void {
   for (const entry of entries.values()) {
     entry.term.options.theme = theme;
   }
+}
+
+/**
+ * Push the currently-active --font-mono stack to every live Terminal and
+ * re-fit so the new cell metrics reflow correctly. Called after the user
+ * switches the font pair — the CSS variable has already been swapped by
+ * the App-level data-font-pair effect, but xterm caches its own
+ * fontFamily option per Terminal and won't notice without an explicit
+ * assignment.
+ */
+export function applyXtermFontFamilyToAll(): void {
+  const fontFamily = currentMonoFamily();
+  applyOptionsToAll({ fontFamily });
 }

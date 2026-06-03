@@ -45,6 +45,9 @@ fn default_cursor_style() -> String {
 fn default_cursor_blink() -> bool {
     true
 }
+fn default_font_pair() -> String {
+    "modern".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -55,6 +58,12 @@ pub struct FontConfig {
     pub weight: u32,
     #[serde(default = "default_line_height")]
     pub line_height: f64,
+    // Named font pair from src/lib/fontPairs.ts. Drives both UI and mono via
+    // data-font-pair on :root. Defaulted via serde so older configs (without
+    // this field) deserialize cleanly; unknown values are coerced back to the
+    // default on the JS side.
+    #[serde(default = "default_font_pair")]
+    pub pair: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -133,6 +142,7 @@ impl Default for WorkstationConfig {
                 size: 14,
                 weight: 400,
                 line_height: 1.2,
+                pair: "modern".to_string(),
             },
             terminal: TerminalConfig {
                 scrollback_lines: 10_000,
@@ -184,6 +194,7 @@ family = "JetBrains Mono"
 size = 14
 weight = 400              # 300 | 400 | 500 | 600
 line_height = 1.2         # 1.0 – 2.0
+pair = "modern"           # "modern" | "geist" | "plex" | "system"
 
 [terminal]
 scrollback_lines = 10000

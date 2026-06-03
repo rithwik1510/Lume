@@ -59,7 +59,7 @@ export function isConfigSelfWrite(): boolean {
 
 export const defaultSettings: WorkstationConfig = {
   default_shell: "pwsh",
-  font: { family: "JetBrains Mono", size: 14, weight: 400, line_height: 1.2 },
+  font: { family: "JetBrains Mono", size: 14, weight: 400, line_height: 1.2, pair: "modern" },
   terminal: {
     scrollback_lines: 10_000,
     ipc_batch_ms: 32,

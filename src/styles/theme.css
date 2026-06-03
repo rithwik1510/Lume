@@ -131,14 +131,6 @@
   --z-popover: 200;        /* SplitMenu and similar anchored popovers */
   --z-context-menu: 1000;  /* right-click ContextMenu — always on top */
 
-  /* Typography stacks. Inter for UI, JetBrains Mono for code/terminals. */
-  --font-ui:
-    "Inter Variable", "Inter", -apple-system, "Segoe UI Variable", "Segoe UI",
-    sans-serif;
-  --font-mono:
-    "JetBrains Mono Variable", "JetBrains Mono", Consolas, "Courier New",
-    monospace;
-
   /* Motion — the single source of truth for the app's "feel". Premium UIs
    * (macOS, Linear, etc.) favour an emphasised EASE-OUT: the motion covers
    * most of the distance fast, then decelerates into a long, gentle settle.
@@ -150,6 +142,47 @@
   --dur-fast: 120ms;   /* hovers, tiny state changes, exits */
   --dur-base: 200ms;   /* overlays, mode swaps, tabs */
   --dur-panel: 300ms;  /* large sliding surfaces (sidebar, drawers, dock) — long enough to show the deceleration */
+}
+
+/* Font pairs — matched UI + monospace families. data-font-pair on :root swaps
+ * --font-ui and --font-mono together so the whole app reads as one type system.
+ * Bundled woff2 files live in src/styles/fonts.css. "modern" is the default
+ * (also held on :root with no attribute, for first paint). */
+
+:root,
+:root[data-font-pair="modern"] {
+  --font-ui:
+    "Inter Variable", "Inter", -apple-system, "Segoe UI Variable", "Segoe UI",
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", Consolas, "Courier New",
+    monospace;
+}
+
+:root[data-font-pair="geist"] {
+  --font-ui:
+    "Geist Variable", "Geist", -apple-system, "Segoe UI Variable", sans-serif;
+  --font-mono:
+    "Geist Mono Variable", "Geist Mono", "JetBrains Mono Variable", Consolas,
+    monospace;
+}
+
+:root[data-font-pair="plex"] {
+  --font-ui:
+    "IBM Plex Sans Variable", "IBM Plex Sans", -apple-system,
+    "Segoe UI Variable", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", "JetBrains Mono Variable", Consolas, monospace;
+}
+
+:root[data-font-pair="system"] {
+  /* No bundled fonts — fall straight through to the OS pair. On macOS this
+   * resolves to SF Pro + SF Mono; on Windows to Segoe UI + Cascadia/Consolas. */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
+    system-ui, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Courier New", monospace;
 }
 
 /* Shared view-enter animation: a gentle fade + 4px rise. Used by full-area

@@ -9,6 +9,10 @@ export interface FontConfig {
   size: number;
   weight: number;       // 300 | 400 | 500 | 600
   line_height: number;  // 1.0 – 2.0
+  // Named font pair from src/lib/fontPairs.ts. Drives both --font-ui and
+  // --font-mono. `family` above remains for back-compat / future override but
+  // the pair is the primary surface in the Settings panel.
+  pair: "modern" | "geist" | "plex" | "system";
 }
 
 export interface TerminalConfig {

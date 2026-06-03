@@ -22,7 +22,7 @@ describe("settingsStore", () => {
     const cfg: WorkstationConfig = {
       ...defaultSettings,
       default_shell: "cmd",
-      font: { family: "Inter", size: 16, weight: 400, line_height: 1.2 },
+      font: { family: "Inter", size: 16, weight: 400, line_height: 1.2, pair: "modern" },
     };
     useSettingsStore.getState().applyConfig(cfg);
     expect(useSettingsStore.getState().config.default_shell).toBe("cmd");

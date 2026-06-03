@@ -37,10 +37,11 @@ import { useMdStore } from "@/store/mdStore";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
-import { applyXtermThemeToAll } from "@/terminals/registry";
+import { applyXtermFontFamilyToAll, applyXtermThemeToAll } from "@/terminals/registry";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { coerceThemeName } from "@/lib/themes";
+import { coerceFontPair } from "@/lib/fontPairs";
 
 export default function App() {
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
@@ -107,6 +108,18 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", name);
     applyXtermThemeToAll();
   }, [themeAccent]);
+
+  // Font pair application — settings.font.pair → data-font-pair on :root.
+  // CSS swaps --font-ui and --font-mono atomically; xterm then needs an
+  // explicit fontFamily push so existing Terminals re-measure cells against
+  // the new mono. New Terminals already pick the resolved stack up via
+  // registry.ts reading --font-mono at construction.
+  const fontPair = useSettingsStore((s) => s.config.font.pair);
+  useEffect(() => {
+    const name = coerceFontPair(fontPair);
+    document.documentElement.setAttribute("data-font-pair", name);
+    applyXtermFontFamilyToAll();
+  }, [fontPair]);
 
   // Wire keyboard shortcuts (W2-P3): split/focus/close.
   useKeyboardShortcuts();

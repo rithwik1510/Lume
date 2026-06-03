@@ -1,14 +1,25 @@
-/* Bundle two font families inside the binary. @fontsource-variable ships
- * variable woff2 files so we get all weights from one file per family.
- * System fallbacks are listed in DESIGN.md §5. */
+/* Bundle four matched UI + mono font pairs inside the binary.
+ *
+ *   Modern Default — Inter Variable          + JetBrains Mono Variable
+ *   Geist          — Geist Variable          + Geist Mono Variable
+ *   IBM Plex       — IBM Plex Sans Variable  + IBM Plex Mono (static, 400+600)
+ *   System         — -apple-system / Segoe UI + ui-monospace / Consolas
+ *
+ * @fontsource-variable ships a single woff2 per family covering every weight.
+ * IBM Plex Mono has no variable version yet, so we cherry-pick the two weights
+ * the font-weight stepper actually exposes (400, 600) to keep the bundle tight.
+ *
+ * The per-pair --font-ui / --font-mono assignments live in theme.css under
+ * :root[data-font-pair="..."] so they swap atomically with the rest of the
+ * theme tokens. */
 
 @import "@fontsource-variable/inter/index.css";
 @import "@fontsource-variable/jetbrains-mono/index.css";
-
-:root {
-  --font-ui: "Inter Variable", -apple-system, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", "Consolas", "Cascadia Mono", ui-monospace, monospace;
-}
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+@import "@fontsource-variable/ibm-plex-sans/index.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/600.css";
 
 html, body, #root {
   font-family: var(--font-ui);
