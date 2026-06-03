@@ -10,7 +10,7 @@
 // Codex both accept forward slashes on Windows, and it sidesteps escaping.
 
 /** Private vendor MIME type for in-app file drags (sidebar row → pane). */
-export const WORKSTATION_FILE_MIME = "application/x-workstation-file";
+export const LUME_FILE_MIME = "application/x-lume-file";
 
 function normalizeForCompare(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();

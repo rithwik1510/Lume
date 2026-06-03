@@ -1,4 +1,4 @@
-// Workstation Rust entry point.
+// Lume Rust entry point.
 
 pub mod config;
 pub mod error;
@@ -74,5 +74,5 @@ pub fn run() {
             crate::git::git_current_branch,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running workstation");
+        .expect("error while running lume");
 }

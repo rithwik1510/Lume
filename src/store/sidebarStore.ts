@@ -131,7 +131,7 @@ export const useSidebarStore = create<SidebarState>()(
     })),
       {
         name: "sidebar",
-        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        storage: createJSONStorage(() => tauriPersistStorage("lume-store.json")),
         version: 1,
         // Persist only the durable bits. entries (Map) and expanded (Set)
         // are session state — they get re-read from disk on launch via

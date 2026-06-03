@@ -1,15 +1,15 @@
-# Workstation
+# Lume
 
 A desktop app that combines smooth multi-terminal tiling, a file sidebar, and a markdown editor into one workspace, so a developer can run AI coding agents and edit notes/plans without leaving the app.
 
 ## Language
 
-**Workstation**:
-The product itself. The combination of smooth tiled terminal panes, a file sidebar, and a markdown editor in one window — the "whole shebang." One running instance is one Workstation.
+**Lume**:
+The product itself. The combination of smooth tiled terminal panes, a file sidebar, and a markdown editor in one window — the "whole shebang." One running instance is one Lume.
 _Avoid_: App, program, IDE, terminal, tool.
 
 **Pane**:
-A rectangular cell inside the Workstation's tiling area that holds one piece of content. Has a stable identity (Pane ID), a size, and a position in the Layout tree. Does not include the Sidebar.
+A rectangular cell inside the Lume's tiling area that holds one piece of content. Has a stable identity (Pane ID), a size, and a position in the Layout tree. Does not include the Sidebar.
 _Avoid_: Tile, cell, widget, frame, view.
 
 **Pane Content**:
@@ -21,7 +21,7 @@ A live PTY session rendered by xterm.js with the WebGL renderer. Each Terminal o
 _Avoid_: Console, shell pane, term.
 
 **Shell**:
-The OS-level program that backs a Terminal. v0.1 auto-detects on launch and supports: `pwsh.exe`, `powershell.exe`, `cmd.exe`, each installed WSL distro (e.g., "Ubuntu", "Debian"), and `Git Bash`. The detected list is offered wherever a shell choice is needed (new Tab, split with shell choice, per-Pane "Change Shell..."). The Workstation's `default_shell` (in `config.toml`) is used for any "+ / split" action without an explicit choice.
+The OS-level program that backs a Terminal. v0.1 auto-detects on launch and supports: `pwsh.exe`, `powershell.exe`, `cmd.exe`, each installed WSL distro (e.g., "Ubuntu", "Debian"), and `Git Bash`. The detected list is offered wherever a shell choice is needed (new Tab, split with shell choice, per-Pane "Change Shell..."). The Lume's `default_shell` (in `config.toml`) is used for any "+ / split" action without an explicit choice.
 _Avoid_: Interpreter, command line.
 
 **Split Direction**:
@@ -29,11 +29,11 @@ The direction in which a Split places the new Pane relative to the focused Pane.
 _Avoid_: Orientation, axis, position.
 
 **Tiling Area**:
-The main area of the Workstation that contains all Panes. Sits between the Sidebar (left) and the optional MD Quick Viewer (right). When the MD Editor is in Full View, the Tiling Area is hidden.
+The main area of the Lume that contains all Panes. Sits between the Sidebar (left) and the optional MD Quick Viewer (right). When the MD Editor is in Full View, the Tiling Area is hidden.
 _Avoid_: Grid, workspace, main pane, central area.
 
 **MD Editor** (Full View):
-A dedicated top-level mode of the Workstation, distinct from the Tiling Area. Each open file lives in an **MD Editor Tab**. The body shows ONE pane at a time, in one of two modes:
+A dedicated top-level mode of the Lume, distinct from the Tiling Area. Each open file lives in an **MD Editor Tab**. The body shows ONE pane at a time, in one of two modes:
 - **View mode** (default): the tab's markdown rendered to HTML via `markdown-it` (linkify on) and sanitized through DOMPurify before injection (DESIGN.md §4 #10). Inter 15px sans-serif body, JetBrains Mono for fenced code blocks. Read-only — clicks don't edit.
 - **Edit mode**: CodeMirror 6 source editor with markdown syntax highlighting and line numbers ON.
 
@@ -53,7 +53,7 @@ The horizontal strip at the TOP of the MD Editor area (NOT spanning the Sidebar)
 _Avoid_: Editor tabs, document strip, file bar.
 
 **MD Quick Viewer**:
-A right-side resizable Panel (not a fixed-width drawer) that opens alongside the Tiling Area. Default width 25% of the Workstation; resizable via a Splitter (sub-pixel smooth) between Tiling Area and Quick Viewer. Min width 250px, max width 60%. **Read-only rendered HTML** (markdown-it + DOMPurify, same pipeline as MD Editor view mode) bound to one markdown file. Designed for glancing at files an agent just wrote — terminals stay visible and running on the left while the file is open on the right. Closed by default on launch; opened by Ctrl+Click on an MD Link in a Terminal, by clicking an `.md` file in the Sidebar, by the Quick Viewer toggle icon in the top bar, or by Ctrl+Shift+M. The header carries two icons: a **pencil (`✎`)** that opens the file in the MD Editor Full View as a tab (for sustained editing), and a close (`✕`). There is no editing surface inside the Quick Viewer itself — all editing happens in the MD Editor Full View, so the model stays "one editing surface, one file open at a time" without sync risk.
+A right-side resizable Panel (not a fixed-width drawer) that opens alongside the Tiling Area. Default width 25% of the Lume; resizable via a Splitter (sub-pixel smooth) between Tiling Area and Quick Viewer. Min width 250px, max width 60%. **Read-only rendered HTML** (markdown-it + DOMPurify, same pipeline as MD Editor view mode) bound to one markdown file. Designed for glancing at files an agent just wrote — terminals stay visible and running on the left while the file is open on the right. Closed by default on launch; opened by Ctrl+Click on an MD Link in a Terminal, by clicking an `.md` file in the Sidebar, by the Quick Viewer toggle icon in the top bar, or by Ctrl+Shift+M. The header carries two icons: a **pencil (`✎`)** that opens the file in the MD Editor Full View as a tab (for sustained editing), and a close (`✕`). There is no editing surface inside the Quick Viewer itself — all editing happens in the MD Editor Full View, so the model stays "one editing surface, one file open at a time" without sync risk.
 _Avoid_: Drawer (it's a resizable Panel, not an overlay), side panel, preview pane, peek view, sidebar (the left Sidebar is separate), editor (Quick Viewer cannot edit — it dispatches to the MD Editor).
 
 **MD Link** (in Terminal Pane):
@@ -65,13 +65,13 @@ The fixed left-side surface that holds the file tree, rooted at the current Work
 _Avoid_: File panel, drawer, navigator, explorer pane.
 
 **Status Bar**:
-The 24px-tall bar at the bottom of the Workstation. Background `bg.1`, single 1px top border, JetBrains Mono 12px in `fg.1` color. Two segments:
+The 24px-tall bar at the bottom of the Lume. Background `bg.1`, single 1px top border, JetBrains Mono 12px in `fg.1` color. Two segments:
 - **LEFT** (auto-changes with focus): a focused-element summary. Terminal Pane focused → `[shell] · [pane cwd]`. MD Editor tab focused → `[file name] · Ln N, Col M` (with selection count appended when text is selected). Quick Viewer focused → same as MD Editor tab. Sidebar focused → Workspace Folder path.
 - **RIGHT** (always): `[workspace short name]` + active-process indicator `⏵ N` if any Terminal Panes have active child processes (the dot uses accent color; omitted when N=0). Click on the indicator in v0.3+ jumps to the Dashboard; in v0.1 it is informational only.
 _Avoid_: Footer, info bar, bottom bar.
 
 **Workspace Folder**:
-The stable folder anchor for the Workstation. The Sidebar's file tree is rooted at it. New Terminal Panes spawned with no other context inherit this as their cwd. Existing Terminal Panes are never auto-`cd`'d when the Workspace Folder changes — each shell tracks its own pwd. Persists across restarts. On first launch, defaults to the user's home directory. Changed by the user explicitly via the top-bar "Open Folder" button or Ctrl+K Ctrl+O.
+The stable folder anchor for the Lume. The Sidebar's file tree is rooted at it. New Terminal Panes spawned with no other context inherit this as their cwd. Existing Terminal Panes are never auto-`cd`'d when the Workspace Folder changes — each shell tracks its own pwd. Persists across restarts. On first launch, defaults to the user's home directory. Changed by the user explicitly via the top-bar "Open Folder" button or Ctrl+K Ctrl+O.
 _Avoid_: Project, root, workspace, working directory (the term "working directory" is reserved for a Terminal's own pwd).
 
 **Layout**:
@@ -87,14 +87,14 @@ The draggable handle between two Panes (or between an internal split node and it
 _Avoid_: Divider, gutter, handle, separator.
 
 **Tab** (v0.2+):
-A complete, switchable Workspace within the Workstation. Each Tab owns its own Workspace Folder, Sidebar expand state, Layout tree, and set of Panes (with their PTYs). Switching Tabs swaps which Tab is visible; the inactive Tabs keep their PTYs running in the background. Tab label auto-derives from the Workspace Folder name and can be renamed by the user (right-click → Rename). Tabs are independent: closing one does not affect the others. **Not in v0.1** — v0.1 ships with one Workspace Folder open at a time, no Tab Strip in the UI.
-_Avoid_: Window (Workstation has one Window; Tabs are inside it), session, project.
+A complete, switchable Workspace within the Lume. Each Tab owns its own Workspace Folder, Sidebar expand state, Layout tree, and set of Panes (with their PTYs). Switching Tabs swaps which Tab is visible; the inactive Tabs keep their PTYs running in the background. Tab label auto-derives from the Workspace Folder name and can be renamed by the user (right-click → Rename). Tabs are independent: closing one does not affect the others. **Not in v0.1** — v0.1 ships with one Workspace Folder open at a time, no Tab Strip in the UI.
+_Avoid_: Window (Lume has one Window; Tabs are inside it), session, project.
 
 **Tab Strip** (v0.2+):
-The horizontal strip across the top of the Workstation that displays one chip per open Tab, plus a "+" button to create a new Tab. Active Tab is highlighted. Click a chip to switch. Click X on a chip to close (with confirm if any of that Tab's Panes have active child processes). **Not in v0.1.**
+The horizontal strip across the top of the Lume that displays one chip per open Tab, plus a "+" button to create a new Tab. Active Tab is highlighted. Click a chip to switch. Click X on a chip to close (with confirm if any of that Tab's Panes have active child processes). **Not in v0.1.**
 _Avoid_: Tab bar, navigation, header.
 
-## Workstation surfaces (top-level UI structure)
+## Lume surfaces (top-level UI structure)
 
 ```
 +----------------------------------------------------------------------+
@@ -143,9 +143,9 @@ Inter is bundled as woff2 inside the binary (~150KB). JetBrains Mono is bundled 
 
 ## Initial state (on launch)
 
-A fresh Workstation opens with: Sidebar visible, one Pane filling the Tiling Area, Pane Content set to Terminal with the user's home directory as the working directory. MD Quick Viewer closed. MD Editor toggle in the "off" state (Tiling Area visible, not the editor).
+A fresh Lume opens with: Sidebar visible, one Pane filling the Tiling Area, Pane Content set to Terminal with the user's home directory as the working directory. MD Quick Viewer closed. MD Editor toggle in the "off" state (Tiling Area visible, not the editor).
 
-## Workstation invariants
+## Lume invariants
 
 These hold at all times:
 
@@ -153,9 +153,9 @@ These hold at all times:
 2. **A Pane always has exactly one Pane Content mounted.** Empty Panes do not exist.
 3. **Closing a Terminal Pane with an active child process** (anything beyond an idle shell — e.g., a running Claude Code session, a build, a long task) **shows a confirm dialog** before terminating the PTY. Closing an idle-shell Terminal Pane is silent.
 4. **The Workspace Folder is always set.** On first launch it defaults to the user's home directory; on subsequent launches it is restored from persisted state.
-5. **PTYs do not survive Workstation restart.** Each Pane re-spawns a fresh shell at its saved cwd when the Workstation reopens. Running agents (Claude Code, builds, etc.) are NOT resumed — the Layout shape is restored, the live processes are not.
+5. **PTYs do not survive Lume restart.** Each Pane re-spawns a fresh shell at its saved cwd when the Lume reopens. Running agents (Claude Code, builds, etc.) are NOT resumed — the Layout shape is restored, the live processes are not.
 
-(v0.2 adds: the Workstation always has at least one Tab; closing the last Tab is not allowed.)
+(v0.2 adds: the Lume always has at least one Tab; closing the last Tab is not allowed.)
 
 ## Flagged ambiguities
 
@@ -163,7 +163,7 @@ These hold at all times:
 
 ## Example dialogue
 
-> **Dev A:** Are you using the Workstation for the auth refactor?
+> **Dev A:** Are you using the Lume for the auth refactor?
 > **Dev B:** Yeah, three terminals on the right — Claude Code, Codex, and a build watcher. Plan is open in the MD pane on the left, file tree pinned to the auth folder.
 > **Dev A:** Nice. Did you have to switch out to Sublime for the spec?
-> **Dev B:** No, it's all in the Workstation now. That's the point.
+> **Dev B:** No, it's all in the Lume now. That's the point.

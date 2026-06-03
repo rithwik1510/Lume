@@ -1,14 +1,14 @@
 // src/lib/configClient.ts
 //
 // Wrappers around the Rust config commands. Hot-reload subscription uses
-// a Tauri Channel that emits ConfigEvent records when ~/.workstation/
+// a Tauri Channel that emits ConfigEvent records when ~/.lume/
 // config.toml changes on disk.
 
 import { invoke, Channel } from "@tauri-apps/api/core";
-import type { WorkstationConfig } from "@/types/config";
+import type { LumeConfig } from "@/types/config";
 
-export function readConfig(): Promise<WorkstationConfig> {
-  return invoke<WorkstationConfig>("read_config");
+export function readConfig(): Promise<LumeConfig> {
+  return invoke<LumeConfig>("read_config");
 }
 
 export function writeDefaultConfigIfMissing(): Promise<boolean> {

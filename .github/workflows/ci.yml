@@ -1,4 +1,4 @@
-# Workstation CI — Weekend 1 baseline per DESIGN.md §12.
+# Lume CI — Weekend 1 baseline per DESIGN.md §12.
 # Runs npm test (vitest) + cargo test on every push and PR.
 # windows-latest is the primary target; v0.1 ships Windows only.
 # Linux/macOS jobs land alongside §11 distribution work in v0.4+.

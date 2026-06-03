@@ -1,4 +1,4 @@
-# Workstation
+# Lume
 
 > Smooth tiled terminals + markdown editor on the desktop. Built to host
 > multiple AI coding agents in parallel without breaking visually.

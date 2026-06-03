@@ -10,7 +10,7 @@ export function basename(path: string): string {
 }
 
 /**
- * Path equality, case-insensitive (Windows app). The workstation is
+ * Path equality, case-insensitive (Windows app). Lume is
  * Windows-only (see CONTEXT.md — default shell is PowerShell, homeDir
  * bootstrap), so we always compare case-insensitively rather than trying
  * to sniff the path shape. Trailing slashes are stripped before comparison

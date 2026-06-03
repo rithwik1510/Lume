@@ -184,7 +184,7 @@ export const useLayoutStore = create<LayoutStore>()(
         // (it writes an empty object, never meaningful state). version:2 also
         // discards any leftover v0.1 "layout" key on a migrating user's disk.
         name: "layout",
-        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        storage: createJSONStorage(() => tauriPersistStorage("lume-store.json")),
         version: 2,
         partialize: () => ({}),
       }

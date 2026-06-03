@@ -1,4 +1,4 @@
-// Workstation keyboard shortcuts (W2-P3 — DESIGN.md §7 + §12 Weekend 2 #3).
+// Lume keyboard shortcuts (W2-P3 — DESIGN.md §7 + §12 Weekend 2 #3).
 //
 // We install ONE window-level keydown listener (capture phase) so the
 // shortcuts fire before xterm.js consumes the keystroke. Without capture,

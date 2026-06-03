@@ -1,6 +1,6 @@
 // src/store/settingsStore.ts
 //
-// Mirror of ~/.workstation/config.toml. Hot-reloads when the file changes
+// Mirror of ~/.lume/config.toml. Hot-reloads when the file changes
 // on disk via the watch_config Tauri command (see configClient.watchConfig).
 //
 // DESIGN.md §6: "Unknown keys produce a warn toast but don't break the
@@ -14,7 +14,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
-import type { WorkstationConfig } from "@/types/config";
+import type { LumeConfig } from "@/types/config";
 import { setConfigValue as rustSetConfigValue } from "@/lib/configClient";
 import { useToastStore } from "@/store/toastStore";
 
@@ -57,7 +57,7 @@ export function isConfigSelfWrite(): boolean {
   return Date.now() < selfWriteUntil;
 }
 
-export const defaultSettings: WorkstationConfig = {
+export const defaultSettings: LumeConfig = {
   default_shell: "pwsh",
   font: { family: "JetBrains Mono", size: 14, weight: 400, line_height: 1.2, pair: "modern" },
   terminal: {
@@ -91,18 +91,18 @@ export const defaultSettings: WorkstationConfig = {
     ],
   },
   theme: { accent: "cobalt" },
-  log: { level: "info", path: "%LOCALAPPDATA%\\workstation\\logs" },
+  log: { level: "info", path: "%LOCALAPPDATA%\\lume\\logs" },
 };
 
 interface SettingsState {
-  config: WorkstationConfig;
+  config: LumeConfig;
   /** Snapshot of the last config that successfully applied. Used to recover
    *  from a bad hot-reload. */
-  lastValidConfig: WorkstationConfig;
+  lastValidConfig: LumeConfig;
 }
 
 interface SettingsActions {
-  applyConfig: (cfg: WorkstationConfig) => void;
+  applyConfig: (cfg: LumeConfig) => void;
   revertToLastValid: () => void;
   reset: () => void;
   setConfigValue: (path: string, value: unknown) => void;

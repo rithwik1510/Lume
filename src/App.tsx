@@ -1,4 +1,4 @@
-// Workstation root. Horizontal flex layout, left → right:
+// Lume root. Horizontal flex layout, left → right:
 //   SessionsSidebar (sessions grouped by folder; toggled by ☰ / Ctrl+B)
 //   FileDrawer      (active session's file tree; toggled by 🗂 / Ctrl+Shift+E,
 //                    renders null when the active session's fileTreeOpen is false)

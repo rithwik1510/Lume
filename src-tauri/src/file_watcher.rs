@@ -1,6 +1,6 @@
 // File-watcher Channel for the Sidebar's tree refresh.
 //
-// Architecture: a single per-Workstation watcher rooted at the current
+// Architecture: a single per-Lume watcher rooted at the current
 // workspace folder. When notify emits a fs event for a file/folder, we
 // emit a FsEvent over a Tauri Channel that the JS side subscribes to.
 // JS picks the parent folder of the changed path, invalidates that

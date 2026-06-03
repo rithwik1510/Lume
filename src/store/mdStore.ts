@@ -165,7 +165,7 @@ export const useMdStore = create<MdStoreState>()(
     })),
       {
         name: "md",
-        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        storage: createJSONStorage(() => tauriPersistStorage("lume-store.json")),
         version: 1,
         // tabs / quickViewer / focusedSurface are ephemeral session state.
         // Only mdEditorMode survives restart (DESIGN.md §4 EXCLUDED list).

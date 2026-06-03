@@ -7,7 +7,7 @@ vi.mock("@/lib/configClient", () => ({
 
 import { setConfigValue as rustSetConfigValue } from "@/lib/configClient";
 import { useSettingsStore, defaultSettings } from "@/store/settingsStore";
-import type { WorkstationConfig } from "@/types/config";
+import type { LumeConfig } from "@/types/config";
 
 describe("settingsStore", () => {
   beforeEach(() => {
@@ -19,7 +19,7 @@ describe("settingsStore", () => {
   });
 
   it("applyConfig replaces config with the input", () => {
-    const cfg: WorkstationConfig = {
+    const cfg: LumeConfig = {
       ...defaultSettings,
       default_shell: "cmd",
       font: { family: "Inter", size: 16, weight: 400, line_height: 1.2, pair: "modern" },
@@ -30,7 +30,7 @@ describe("settingsStore", () => {
   });
 
   it("applyConfig records a lastValidConfig snapshot", () => {
-    const cfg: WorkstationConfig = {
+    const cfg: LumeConfig = {
       ...defaultSettings,
       default_shell: "powershell",
     };
@@ -39,7 +39,7 @@ describe("settingsStore", () => {
   });
 
   it("revertToLastValid restores the snapshot", () => {
-    const good: WorkstationConfig = { ...defaultSettings, default_shell: "pwsh" };
+    const good: LumeConfig = { ...defaultSettings, default_shell: "pwsh" };
     useSettingsStore.getState().applyConfig(good);
 
     // Force an in-place mutation as if a hot-reload had brought bad data
@@ -51,7 +51,7 @@ describe("settingsStore", () => {
   });
 
   it("reset returns to defaults and revert is a no-op", () => {
-    const cfg: WorkstationConfig = { ...defaultSettings, default_shell: "cmd" };
+    const cfg: LumeConfig = { ...defaultSettings, default_shell: "cmd" };
     useSettingsStore.getState().applyConfig(cfg);
     useSettingsStore.getState().reset();
     expect(useSettingsStore.getState().config).toEqual(defaultSettings);

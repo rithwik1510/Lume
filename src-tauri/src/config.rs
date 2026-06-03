@@ -1,10 +1,10 @@
 // src-tauri/src/config.rs
 //
-// Workstation config.toml schema, default generation, parse, file watch.
-// Path: dirs::config_dir().join("workstation/config.toml")
-//   Windows: %APPDATA%\workstation\config.toml
-//   macOS:   ~/Library/Application Support/workstation/config.toml
-//   Linux:   ~/.config/workstation/config.toml
+// Lume config.toml schema, default generation, parse, file watch.
+// Path: dirs::config_dir().join("lume/config.toml")
+//   Windows: %APPDATA%\lume\config.toml
+//   macOS:   ~/Library/Application Support/lume/config.toml
+//   Linux:   ~/.config/lume/config.toml
 //
 // Schema lives in DESIGN.md §6. Unknown keys are logged at WARN level and
 // then ignored — they do not abort the load (matches DESIGN.md §6 "Unknown
@@ -12,7 +12,7 @@
 // deferred to a later weekend; logging is the durable record until then.
 
 // `Config as NotifyConfig` rename avoids a name collision with our own
-// `WorkstationConfig` in this module — keeping notify's type accessible
+// `LumeConfig` in this module — keeping notify's type accessible
 // under a distinct alias.
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
@@ -120,7 +120,7 @@ pub struct LogConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WorkstationConfig {
+pub struct LumeConfig {
     pub default_shell: String,
     pub font: FontConfig,
     pub terminal: TerminalConfig,
@@ -133,7 +133,7 @@ pub struct WorkstationConfig {
     // expansion lands once we have a keybinding resolver in place.
 }
 
-impl Default for WorkstationConfig {
+impl Default for LumeConfig {
     fn default() -> Self {
         Self {
             default_shell: "pwsh".to_string(),
@@ -179,13 +179,13 @@ impl Default for WorkstationConfig {
             },
             log: LogConfig {
                 level: "info".to_string(),
-                path: "%LOCALAPPDATA%\\workstation\\logs".to_string(),
+                path: "%LOCALAPPDATA%\\lume\\logs".to_string(),
             },
         }
     }
 }
 
-const DEFAULT_TOML: &str = r#"# Workstation config — edit this file directly; changes hot-reload.
+const DEFAULT_TOML: &str = r#"# Lume config — edit this file directly; changes hot-reload.
 # Full schema is documented in DESIGN.md §6.
 default_shell = "pwsh"
 
@@ -234,7 +234,7 @@ accent = "cobalt"
 
 [log]
 level = "info"
-path = "%LOCALAPPDATA%\\workstation\\logs"
+path = "%LOCALAPPDATA%\\lume\\logs"
 
 [keybindings]
 # Override any key from DESIGN.md §7. Example:
@@ -243,7 +243,7 @@ path = "%LOCALAPPDATA%\\workstation\\logs"
 
 pub fn config_dir() -> AppResult<PathBuf> {
     dirs::config_dir()
-        .map(|p| p.join("workstation"))
+        .map(|p| p.join("lume"))
         .ok_or_else(|| AppError::internal("config_dir unavailable"))
 }
 
@@ -279,11 +279,11 @@ pub fn write_default_config_if_missing() -> AppResult<bool> {
 }
 
 #[tauri::command]
-pub fn read_config() -> AppResult<WorkstationConfig> {
+pub fn read_config() -> AppResult<LumeConfig> {
     let path = config_path()?;
     if !path.exists() {
         log::info!("config.toml missing; returning defaults (file not created here)");
-        return Ok(WorkstationConfig::default());
+        return Ok(LumeConfig::default());
     }
     let text = std::fs::read_to_string(&path)
         .map_err(|e| AppError::internal(format!("read {}: {}", path.display(), e)))?;
@@ -313,7 +313,7 @@ fn warn_unknown_top_level(value: &toml::Value) {
     }
 }
 
-/// Parse a TOML string into a WorkstationConfig.
+/// Parse a TOML string into a LumeConfig.
 /// - Returns `Err` if the TOML is syntactically invalid (the caller may
 ///   surface this to the user).
 /// - Returns `Ok(default)` if the TOML parses but fails strict schema
@@ -325,15 +325,15 @@ fn warn_unknown_top_level(value: &toml::Value) {
 /// - Returns `Ok(parsed)` on success.
 ///
 /// Also emits a WARN for every unknown TOP-LEVEL key encountered.
-fn parse_config_or_default(text: &str) -> AppResult<WorkstationConfig> {
+fn parse_config_or_default(text: &str) -> AppResult<LumeConfig> {
     let value: toml::Value =
         toml::from_str(text).map_err(|e| AppError::internal(format!("toml parse: {}", e)))?;
     warn_unknown_top_level(&value);
-    match toml::from_str::<WorkstationConfig>(text) {
+    match toml::from_str::<LumeConfig>(text) {
         Ok(cfg) => Ok(cfg),
         Err(e) => {
             log::warn!("config.toml: strict parse failed ({}); using defaults", e);
-            Ok(WorkstationConfig::default())
+            Ok(LumeConfig::default())
         }
     }
 }
@@ -518,8 +518,8 @@ mod tests {
 
     #[test]
     fn default_toml_round_trips() {
-        let cfg: WorkstationConfig = toml::from_str(DEFAULT_TOML).expect("parse default toml");
-        assert_eq!(cfg, WorkstationConfig::default());
+        let cfg: LumeConfig = toml::from_str(DEFAULT_TOML).expect("parse default toml");
+        assert_eq!(cfg, LumeConfig::default());
     }
 
     #[test]
@@ -613,7 +613,7 @@ mod tests {
         path = "/tmp"
         "#;
         let cfg = parse_config_or_default(text).expect("falls back");
-        assert_eq!(cfg, WorkstationConfig::default());
+        assert_eq!(cfg, LumeConfig::default());
     }
 
     #[test]
@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn default_toml_has_cursor_and_typography_fields() {
-        let cfg: WorkstationConfig = toml::from_str(DEFAULT_TOML).expect("parse default toml");
+        let cfg: LumeConfig = toml::from_str(DEFAULT_TOML).expect("parse default toml");
         assert_eq!(cfg.font.weight, 400);
         assert!((cfg.font.line_height - 1.2).abs() < f64::EPSILON);
         assert_eq!(cfg.terminal.cursor_style, "block");

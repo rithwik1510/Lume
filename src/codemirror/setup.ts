@@ -4,7 +4,7 @@ import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 
 import { markdownExtensions } from "@/codemirror/markdownExtensions";
-import { workstationTheme } from "@/codemirror/theme";
+import { lumeTheme } from "@/codemirror/theme";
 
 export interface BuildEditorOptions {
   parent: HTMLElement;
@@ -19,7 +19,7 @@ export function buildEditor(opts: BuildEditorOptions): EditorView {
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     ...markdownExtensions(),
-    workstationTheme,
+    lumeTheme,
     EditorState.readOnly.of(!!opts.readOnly),
   ];
   if (opts.lineNumbersOn) {

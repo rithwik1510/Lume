@@ -1,4 +1,4 @@
-// PTY infrastructure for Workstation Weekend 1.
+// PTY infrastructure for Lume Weekend 1.
 //
 // Architecture (per DESIGN.md §4 + §6 + §10 risk #2):
 //   - One PTY process per pane (paneId-keyed).

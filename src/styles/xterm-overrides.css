@@ -85,7 +85,7 @@
  * Content reflows once at drag-end.
  *
  * NOTE: an earlier iteration of this fix ALSO hid xterm via
- * `body.workstation-resizing .xterm { visibility: hidden }`. That worked
+ * `body.lume-resizing .xterm { visibility: hidden }`. That worked
  * but produced a black-out during every drag, which the user reported as
  * "screen goes black when sliding." Removed because the ResizeObserver
  * bail above is already sufficient to prevent the canvas-clear flicker.

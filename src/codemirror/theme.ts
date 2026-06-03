@@ -1,7 +1,7 @@
 // src/codemirror/theme.ts — minimal dark theme keyed on our CSS tokens.
 import { EditorView } from "@codemirror/view";
 
-export const workstationTheme = EditorView.theme(
+export const lumeTheme = EditorView.theme(
   {
     "&": {
       backgroundColor: "var(--bg-0)",

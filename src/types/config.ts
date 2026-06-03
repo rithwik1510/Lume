@@ -1,6 +1,6 @@
 // src/types/config.ts
 //
-// Mirror of src-tauri/src/config.rs WorkstationConfig. Field names and
+// Mirror of src-tauri/src/config.rs LumeConfig. Field names and
 // nesting must match exactly — TOML ↔ serde ↔ JSON ↔ this type.
 // If you change one side, change the other.
 
@@ -53,7 +53,7 @@ export interface LogConfig {
   path: string;
 }
 
-export interface WorkstationConfig {
+export interface LumeConfig {
   default_shell: string;
   font: FontConfig;
   terminal: TerminalConfig;

@@ -4,10 +4,10 @@
 import type { ITerminalOptions } from "@xterm/xterm";
 import { useSettingsStore } from "@/store/settingsStore";
 import { applyOptionsToAll } from "@/terminals/registry";
-import type { WorkstationConfig } from "@/types/config";
+import type { LumeConfig } from "@/types/config";
 
 /** The subset of xterm options the Settings panel controls. */
-export function terminalOptionsFromConfig(cfg: WorkstationConfig): Partial<ITerminalOptions> {
+export function terminalOptionsFromConfig(cfg: LumeConfig): Partial<ITerminalOptions> {
   return {
     fontSize: cfg.font.size,
     fontWeight: String(cfg.font.weight) as ITerminalOptions["fontWeight"],

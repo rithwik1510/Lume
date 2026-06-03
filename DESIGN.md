@@ -1,4 +1,4 @@
-# Workstation — Design Specification
+# Lume — Design Specification
 
 **Status:** DRAFT (post-/grill-with-docs)
 **Date:** 2026-05-21
@@ -35,13 +35,13 @@ The smallest version that replaces the user's daily Sublime + Windows Terminal +
 - MD Quick Viewer (right Panel, ~25% width default, resizable) triggered by Sidebar click, MD Link Ctrl+Click in a terminal, top-bar icon, or Ctrl+Shift+M. **Read-only rendered view** (markdown-it + DOMPurify) — no editing surface. A pencil icon in the Quick Viewer header opens the file in the MD Editor Full View as a tab; that's the path for sustained editing. Single editing surface across the app keeps the model simple and removes any sync risk between two editing views of the same file.
 - Sidebar with file tree rooted at the Workspace Folder.
 - Shell auto-detection: pwsh, powershell.exe, cmd.exe, **all installed WSL distros**.
-- Config file (`~/.workstation/config.toml`) with hot reload via `notify`.
+- Config file (`~/.lume/config.toml`) with hot reload via `notify`.
 - "Amber on Black" theme (single locked palette).
 - **Frameless custom titlebar** (Tauri `decorations: false`) — drag region + minimize/maximize/close. Mica blur deferred to v0.2.
 - Layered typography: Inter for UI and MD body; JetBrains Mono for terminals and MD code blocks.
 - Settings gear opens `config.toml` in an MD Editor tab.
 - Status Bar showing focused-element info + workspace summary.
-- Workstation invariants: ≥1 Pane always; PTYs do not survive restart.
+- Lume invariants: ≥1 Pane always; PTYs do not survive restart.
 - **No Tabs in v0.1.** Single Workspace Folder, like Sublime Text's "Open Folder" model.
 
 ### v0.2 — Tabs + Mac polish (~3-4 weekends)
@@ -124,10 +124,10 @@ A **pen icon (`✎`)** sits in the top-right of the MD Editor toolbar. In view m
 - **`portable-pty`** (Rust crate) for PTY management
 - **`notify`** (Rust crate) for config file watching
 - **`toml`** (Rust crate) for config parsing
-- **`dirs`** (Rust crate) for cross-platform config/data path resolution. All `~/.workstation`-style paths in this spec resolve via `dirs::config_dir().join("workstation")` on Rust side. Concretely on Windows that's `%APPDATA%\workstation\` (Roaming) for config and `%LOCALAPPDATA%\workstation\` for logs; macOS `~/Library/Application Support/workstation/`; Linux `~/.config/workstation/`.
+- **`dirs`** (Rust crate) for cross-platform config/data path resolution. All `~/.lume`-style paths in this spec resolve via `dirs::config_dir().join("lume")` on Rust side. Concretely on Windows that's `%APPDATA%\lume\` (Roaming) for config and `%LOCALAPPDATA%\lume\` for logs; macOS `~/Library/Application Support/lume/`; Linux `~/.config/lume/`.
 - **`@tauri-apps/plugin-store`** (Tauri v2 official) — backing storage for Zustand's `persist` middleware. `localStorage` is webview-scoped and size-limited; the Tauri Store plugin writes to disk via Rust, atomically, in the platform config dir. Layout / Workspace Folder / Sidebar visibility / MD mode toggle persist there, not in localStorage.
 - **`react-resizable-panels`** for split / splitter UI
-- **`tauri-plugin-log`** + Rust `log` crate facade for logging. Front-end calls `log::info!(...)` style through a TS binding; logs are written to disk via the plugin in `dirs::data_local_dir().join("workstation/logs")`.
+- **`tauri-plugin-log`** + Rust `log` crate facade for logging. Front-end calls `log::info!(...)` style through a TS binding; logs are written to disk via the plugin in `dirs::data_local_dir().join("lume/logs")`.
 
 ### Error handling pattern (mandatory)
 - **Rust side:** every Tauri command returns `Result<T, AppError>` where `AppError` is a single `thiserror`-derived enum. No `unwrap()` in production code paths. The Channel for PTY output uses `Result<Vec<u8>, AppError>` so front-end can render inline errors per pane.
@@ -238,7 +238,7 @@ accent = "amber"                # only "amber" in v0.1; v0.2 expands
 
 [log]
 level = "info"                  # debug | info | warn | error
-path = "%LOCALAPPDATA%\\workstation\\logs"
+path = "%LOCALAPPDATA%\\lume\\logs"
 
 [keybindings]
 # Override any key from §7. Example:
@@ -277,7 +277,7 @@ All keybindings configurable in `[keybindings]` of `config.toml`.
 
 ### Clipboard convention (terminal-aware)
 
-Clipboard shortcuts are **surface-aware**, not global. The Workstation routes them based on the focused surface.
+Clipboard shortcuts are **surface-aware**, not global. Lume routes them based on the focused surface.
 
 - **In a Terminal Pane:** `Ctrl+Shift+C` / `Ctrl+Shift+V`. This is the universal terminal convention — Windows Terminal, iTerm2, WezTerm, Alacritty, VS Code integrated terminal, and Claude Code all use it. The reason:
   - `Ctrl+C` is reserved for **SIGINT** (abort the foreground process). Repurposing it would make every terminal user lose the ability to abort commands.
@@ -286,9 +286,9 @@ Clipboard shortcuts are **surface-aware**, not global. The Workstation routes th
 
 ### Terminal mouse-mode panic key
 
-`Ctrl+Shift+R` (when a Terminal Pane is focused) writes the full sequence to disable every mouse-tracking mode (`?9 / ?1000 / ?1001 / ?1002 / ?1003 / ?1004 / ?1005 / ?1006 / ?1015 / ?1016` all off). Captured in Weekend 0 spike: an app killed with SIGTERM (e.g. `timeout 5 top`) skips its cleanup hook and leaves mouse tracking enabled, after which every cursor movement spams the PTY with reports and the pane becomes unusable from inside. The panic key is the recovery hatch. Additionally, the Workstation should write the same disable sequence proactively whenever a new PTY is spawned, as defensive hygiene.
+`Ctrl+Shift+R` (when a Terminal Pane is focused) writes the full sequence to disable every mouse-tracking mode (`?9 / ?1000 / ?1001 / ?1002 / ?1003 / ?1004 / ?1005 / ?1006 / ?1015 / ?1016` all off). Captured in Weekend 0 spike: an app killed with SIGTERM (e.g. `timeout 5 top`) skips its cleanup hook and leaves mouse tracking enabled, after which every cursor movement spams the PTY with reports and the pane becomes unusable from inside. The panic key is the recovery hatch. Additionally, Lume should write the same disable sequence proactively whenever a new PTY is spawned, as defensive hygiene.
 
-Reserved for v0.2+: `Ctrl+T` (New Tab), `Ctrl+Tab` at the Workstation level.
+Reserved for v0.2+: `Ctrl+T` (New Tab), `Ctrl+Tab` at the Lume level.
 Reserved for v0.3+: `Ctrl+K` (Spotlight), `Ctrl+Shift+D` (Dashboard).
 
 ---
@@ -315,7 +315,7 @@ Triggers (v0.1):
 ## 9. Success criteria
 
 ### The honest test
-Within 8 weeks of starting Weekend 0, the builder has stopped opening Sublime + Windows Terminal + VS Code separately for daily work and instead opens the Workstation first. If the swap doesn't happen, v0.1 failed.
+Within 8 weeks of starting Weekend 0, the builder has stopped opening Sublime + Windows Terminal + VS Code separately for daily work and instead opens Lume first. If the swap doesn't happen, v0.1 failed.
 
 ### Smoothness acceptance test
 **Four Panes open simultaneously:**
@@ -429,7 +429,7 @@ Goal: confirm the stack is viable before sinking real weekends.
 
 ### Weekend 4 — Frameless titlebar + Config + Theme + Status bar
 1. Frameless titlebar (`decorations: false`); custom HTML titlebar with drag region and Lucide icon controls.
-2. `~/.workstation/config.toml` schema (§6); `notify` file watcher; hot reload.
+2. `~/.lume/config.toml` schema (§6); `notify` file watcher; hot reload.
 3. Settings gear opens `config.toml` in MD Editor tab.
 4. "Amber on Black" theme via CSS custom properties.
 5. Status Bar with focused-element segment + workspace summary + active-process indicator.
@@ -464,7 +464,7 @@ Permanently skipped:
 - AI agent integration (Warp's "Open AI agent" pattern).
 
 Deferred to v0.2+:
-- Tabs (Workstation-level).
+- Tabs (Lume-level).
 - Mac-native polish layer (Mica blur, frameless titlebar, spring animations).
 - MD Editor unsaved-prompt, tab persistence, tab overflow handling.
 - 5 accent presets.

@@ -240,7 +240,7 @@ export const useSessionsStore = create<SessionsState>()(
       })),
       {
         name: "sessions",
-        storage: createJSONStorage(() => tauriPersistStorage("workstation-store.json")),
+        storage: createJSONStorage(() => tauriPersistStorage("lume-store.json")),
         version: 1,
         // Persist the durable per-session fields + grouping state. status and
         // unread are written as stopped/false (they're never meaningfully

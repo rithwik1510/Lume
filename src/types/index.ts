@@ -1,4 +1,4 @@
-// Workstation type definitions — single source of truth per DESIGN.md §4 rule #10.
+// Lume type definitions — single source of truth per DESIGN.md §4 rule #10.
 // Keep this file lean. Types mirror Rust counterparts where applicable.
 
 // ---------- Pane / shell primitives ----------

@@ -4,7 +4,7 @@ import {
   relativeUnder,
   quoteIfNeeded,
   formatAttachPath,
-  WORKSTATION_FILE_MIME,
+  LUME_FILE_MIME,
 } from "@/lib/attachPath";
 
 describe("relativeUnder", () => {
@@ -49,8 +49,8 @@ describe("formatAttachPath", () => {
   });
 });
 
-describe("WORKSTATION_FILE_MIME", () => {
+describe("LUME_FILE_MIME", () => {
   it("is a private vendor MIME type", () => {
-    expect(WORKSTATION_FILE_MIME).toBe("application/x-workstation-file");
+    expect(LUME_FILE_MIME).toBe("application/x-lume-file");
   });
 });

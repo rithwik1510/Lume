@@ -32,7 +32,7 @@
 // multiple drag sessions are conceptually active, the body class and the
 // "is resizing" flag stay set until all of them have ended).
 
-const BODY_CLASS = "workstation-resizing";
+const BODY_CLASS = "lume-resizing";
 
 let dragRefCount = 0;
 const resizeEndListeners = new Set<() => void>();
