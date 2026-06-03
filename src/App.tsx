@@ -39,6 +39,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { applyXtermFontFamilyToAll, applyXtermThemeToAll } from "@/terminals/registry";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
+import { useExternalFileDrop } from "@/hooks/useExternalFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { coerceThemeName } from "@/lib/themes";
 import { coerceFontPair } from "@/lib/fontPairs";
@@ -123,6 +124,8 @@ export default function App() {
 
   // Wire keyboard shortcuts (W2-P3): split/focus/close.
   useKeyboardShortcuts();
+
+  useExternalFileDrop();
 
   return (
     <div
