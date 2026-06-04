@@ -30,7 +30,6 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "createUpdaterArtifacts": true,
     "publisher": "Posan",
     "category": "DeveloperTool",
     "shortDescription": "Smooth tiled terminals + markdown for AI coding agents",
