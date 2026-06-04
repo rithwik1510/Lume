@@ -1,0 +1,3 @@
+# Updater signing key — never commit. Lives in GitHub Actions secrets for CI.
+lume-updater.key
+lume-updater.key.pub

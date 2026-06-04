@@ -45,6 +45,7 @@ import { useExternalFileDrop } from "@/hooks/useExternalFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { coerceThemeName } from "@/lib/themes";
 import { coerceFontPair } from "@/lib/fontPairs";
+import { checkForUpdatesOnLaunch } from "@/lib/updater";
 
 export default function App() {
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
@@ -116,6 +117,15 @@ export default function App() {
       disposePoller();
       dispose();
     };
+  }, []);
+
+  // Update check — runs once at boot in release builds only.
+  // Dev builds have no updater endpoint, so we guard on import.meta.env.PROD
+  // to avoid noisy network errors during development.
+  useEffect(() => {
+    if (import.meta.env.PROD) {
+      void checkForUpdatesOnLaunch();
+    }
   }, []);
 
   // Theme application — settings.theme.accent → data-theme on :root.
