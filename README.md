@@ -3,7 +3,29 @@
 > Smooth tiled terminals + markdown editor on the desktop. Built to host
 > multiple AI coding agents in parallel without breaking visually.
 
-**Status:** v0.1-alpha — Weekend 1 foundation. Smoothness baseline passes.
+**Status:** v0.1.0-beta.1 — public Windows beta.
+
+## Install (Windows)
+
+**Easiest — one command** (needs Node 18+):
+
+```bash
+npx lume-desktop
+```
+
+**Direct download:** grab `Lume_<version>_x64-setup.exe` from the
+[Releases page](https://github.com/rithwik1510/Workflow/releases) and run it.
+
+The installer is **unsigned** during the beta, so Windows SmartScreen shows
+"Windows protected your PC." Click **More info → Run anyway**. It installs to
+your user profile (no admin needed) and auto-updates itself from then on.
+
+Windows 11 ships the WebView2 runtime Lume needs. On older Windows 10 machines
+without it, install the
+[Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+first.
+
+macOS and Linux are not in the beta yet.
 
 ## What this is
 
