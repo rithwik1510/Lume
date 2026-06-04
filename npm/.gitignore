@@ -1,0 +1,3 @@
+# This package has no build step and no deps; nothing to ignore yet.
+# Present so the directory's intent is explicit.
+node_modules
