@@ -18,8 +18,14 @@
 
 import { Channel } from "@tauri-apps/api/core";
 
-import { useSessionsStore, getActivePaneIds, findSessionForPane } from "@/store/sessionsStore";
+import {
+  useSessionsStore,
+  getActivePaneIds,
+  findSessionForPane,
+  paneLaunchSpec,
+} from "@/store/sessionsStore";
 import { usePtyStore } from "@/store/ptyStore";
+import { makeCommandCapture } from "@/lib/commandCapture";
 import {
   getOrCreateTerminal,
   resetMouseModes,
@@ -77,15 +83,24 @@ function defaultShell(): Shell {
   return { kind: "powershell", path: "powershell.exe" };
 }
 
-export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
+export async function spawnPane(
+  paneId: PaneId,
+  shell: Shell,
+  opts?: { prefill?: string }
+): Promise<void> {
   // Resolve the owning session's folder so the shell starts there instead of
   // the app's cwd. By the time the orchestrator fires spawnPane, the paneId is
   // already a leaf in some active session's layoutRoot, so findSessionForPane
   // resolves it. undefined → Rust inherits the default cwd. A stale/deleted
   // path is ignored server-side (pty_open guards on is_dir).
-  const cwd = findSessionForPane(useSessionsStore.getState(), paneId)?.folderPath;
+  const session = findSessionForPane(useSessionsStore.getState(), paneId);
+  const cwd = session?.folderPath;
   // Diagnostic: shows in DevTools what folder we resolved for this pane.
   console.info(`[pty] spawn ${paneId} cwd=${cwd ?? "(none)"}`);
+
+  // Remember the resolved shell on the pane's layout leaf so a reopened session
+  // revives with the real shell instead of the global default (feature B).
+  if (session) useSessionsStore.getState().setPaneShell(session.id, paneId, shell);
 
   // 1. Create/get the Terminal in the registry. Doesn't open into a DOM
   //    container yet — the TerminalPane component handles attach().
@@ -94,9 +109,24 @@ export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
   // 2. Defensive: clear any leftover mouse modes from a prior session.
   resetMouseModes(paneId);
 
+  // First-command capture (feature B): on a FRESH pane (no command remembered
+  // yet) we reconstruct the first line the user submits and store it on the
+  // leaf, so a later reopen can pre-fill it. Skipped on revive (the pane
+  // already carries a command — we don't want to overwrite it).
+  const capture = paneLaunchSpec(useSessionsStore.getState(), paneId)?.startupCommand
+    ? null
+    : makeCommandCapture();
+
   // 3. Register the input wire BEFORE opening the PTY. If the user is fast
   //    enough to type before pty_open resolves we just enqueue invokes.
   const inputDisposer = onTerminalData(paneId, (data) => {
+    if (capture) {
+      const cmd = capture.feed(data);
+      if (cmd) {
+        const sid = findSessionForPane(useSessionsStore.getState(), paneId)?.id;
+        if (sid) useSessionsStore.getState().setPaneStartupCommand(sid, paneId, cmd);
+      }
+    }
     void writePty(paneId, data).catch((e) => {
       const msg = isAppError(e) ? formatAppError(e) : String(e);
       term.write(`\r\n\x1b[31m[pty_write failed: ${msg}]\x1b[0m\r\n`);
@@ -107,6 +137,11 @@ export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
   // 4. Pre-allocate the metadata record so the UI can render the pane shell
   //    while the spawn races.
   usePtyStore.getState().addPane(paneId, shell);
+
+  // Pre-fill the remembered command (feature B revive). We wait for the shell's
+  // first output (its prompt) before typing it, and do NOT send a newline — the
+  // user presses Enter to resume, so we never silently start an agent turn.
+  let prefillPending = opts?.prefill?.trim() || null;
 
   // 5. Open the PTY. The Channel is created here and wires Rust → xterm.
   const channel = new Channel<PtyEvent>();
@@ -119,6 +154,12 @@ export async function spawnPane(paneId: PaneId, shell: Shell): Promise<void> {
       // Feed the attention tracker: a background session that produces output
       // then goes quiet glows its sidebar dot ("finished a turn / needs you").
       noteOutput(paneId);
+      // First prompt is up — drop the remembered command at the prompt (no CR).
+      if (prefillPending) {
+        const text = prefillPending;
+        prefillPending = null;
+        void writePty(paneId, text).catch(() => undefined);
+      }
     } else if (evt.kind === "exit") {
       usePtyStore.getState().setStatus(paneId, "exited");
       term.write(`\r\n\x1b[33m[pty exited code=${evt.code ?? "?"}]\x1b[0m\r\n`);
@@ -163,6 +204,17 @@ async function killPane(paneId: PaneId): Promise<void> {
 }
 
 /**
+ * Spawn a pane from its persisted launch memory: the shell it last ran (or the
+ * default if none recorded) and, on revive, the remembered first command
+ * pre-filled at the prompt. Used both for the install-time sweep and for live
+ * session activation (feature A/B — session restore).
+ */
+function reviveSpawn(paneId: PaneId): void {
+  const spec = paneLaunchSpec(useSessionsStore.getState(), paneId);
+  void spawnPane(paneId, spec?.shell ?? defaultShell(), { prefill: spec?.startupCommand });
+}
+
+/**
  * Install the orchestrator at app boot. Call ONCE from App.tsx. Returns an
  * unsubscriber for tests / hot reload.
  *
@@ -196,7 +248,7 @@ export function installPtyOrchestrator(): () => void {
       runtimes.get(id)?.inputDisposer.dispose();
       runtimes.delete(id);
       disposeTerminal(id);
-      void spawnPane(id, defaultShell());
+      reviveSpawn(id);
     })();
   }
 
@@ -205,7 +257,7 @@ export function installPtyOrchestrator(): () => void {
     const before = getActivePaneIds(prev);
     const added = curr.filter((id) => !before.includes(id));
     const removed = before.filter((id) => !curr.includes(id));
-    for (const id of added) void spawnPane(id, defaultShell());
+    for (const id of added) reviveSpawn(id);
     for (const id of removed) void killPane(id);
   });
 

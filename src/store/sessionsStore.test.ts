@@ -12,12 +12,13 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 }));
 
 import { useSessionsStore } from "@/store/sessionsStore";
-import { leaf, leaf as makeLeaf } from "@/store/layout/tree";
+import { leaf, leaf as makeLeaf, split } from "@/store/layout/tree";
 import {
   sessionsForFolder,
   groupedSessions,
   findSessionForPane,
   getActivePaneIds,
+  paneLaunchSpec,
   coerceRehydrated,
   remapSessionPaneIds,
   type Session,
@@ -492,5 +493,104 @@ describe("sessionsStore — rehydration coercion", () => {
     const out = coerceRehydrated(raw);
     expect(out.groupLabels).toEqual({ "/live": "Live" });
     expect(out.collapsedGroups).toEqual(["/live"]);
+  });
+});
+
+describe("sessionsStore — session restore (features A + B)", () => {
+  beforeEach(() => useSessionsStore.getState().reset());
+
+  it("activateSession records lastActiveSessionId", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    expect(useSessionsStore.getState().lastActiveSessionId).toBeNull();
+    useSessionsStore.getState().activateSession(id);
+    expect(useSessionsStore.getState().lastActiveSessionId).toBe(id);
+  });
+
+  it("purgeSession clears lastActiveSessionId when it matches", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().activateSession(id);
+    useSessionsStore.getState().purgeSession(id);
+    expect(useSessionsStore.getState().lastActiveSessionId).toBeNull();
+  });
+
+  it("reopenLastSession defaults true; setReopenLastSession flips it", () => {
+    expect(useSessionsStore.getState().reopenLastSession).toBe(true);
+    useSessionsStore.getState().setReopenLastSession(false);
+    expect(useSessionsStore.getState().reopenLastSession).toBe(false);
+  });
+
+  it("setPaneShell writes the shell onto the matching (nested) leaf only", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore
+      .getState()
+      .setLayoutRoot(id, split("horizontal", 0.5, leaf("pane-1"), leaf("pane-2")));
+    const shell = { kind: "wsl", distro: "Ubuntu" } as const;
+    useSessionsStore.getState().setPaneShell(id, "pane-2", shell);
+    expect(paneLaunchSpec(useSessionsStore.getState(), "pane-2")?.shell).toEqual(shell);
+    // sibling untouched
+    expect(paneLaunchSpec(useSessionsStore.getState(), "pane-1")?.shell).toBeUndefined();
+  });
+
+  it("setPaneStartupCommand writes the command onto the matching leaf", () => {
+    const id = useSessionsStore.getState().createSession("/p");
+    useSessionsStore.getState().setLayoutRoot(id, makeLeaf("pane-1"));
+    useSessionsStore.getState().setPaneStartupCommand(id, "pane-1", "claude");
+    expect(paneLaunchSpec(useSessionsStore.getState(), "pane-1")?.startupCommand).toBe("claude");
+  });
+
+  it("paneLaunchSpec returns null for an unknown pane", () => {
+    expect(paneLaunchSpec(useSessionsStore.getState(), "pane-nope")).toBeNull();
+  });
+
+  it("coerceRehydrated preserves lastActiveSessionId + reopenLastSession", () => {
+    const raw = {
+      sessions: {
+        a: {
+          id: "a",
+          name: "A",
+          folderPath: "/p",
+          layoutRoot: makeLeaf("pane-1"),
+          focusedPaneId: "pane-1",
+          status: "active" as const,
+          unread: false,
+          working: false,
+          gitBranch: null,
+          fileTreeOpen: false,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      },
+      activeSessionId: "a",
+      lastActiveSessionId: "a",
+      reopenLastSession: false,
+      groupLabels: {},
+      collapsedGroups: [],
+    };
+    const out = coerceRehydrated(raw);
+    expect(out.activeSessionId).toBeNull(); // still all-stopped at rehydrate time
+    expect(out.lastActiveSessionId).toBe("a"); // survives so boot can revive it
+    expect(out.reopenLastSession).toBe(false);
+  });
+
+  it("coerceRehydrated drops a dangling lastActiveSessionId whose session is gone", () => {
+    const out = coerceRehydrated({
+      sessions: {},
+      activeSessionId: null,
+      lastActiveSessionId: "ghost",
+      reopenLastSession: true,
+      groupLabels: {},
+      collapsedGroups: [],
+    });
+    expect(out.lastActiveSessionId).toBeNull();
+  });
+
+  it("coerceRehydrated defaults reopenLastSession to true when absent", () => {
+    const out = coerceRehydrated({
+      sessions: {},
+      activeSessionId: null,
+      groupLabels: {},
+      collapsedGroups: [],
+    });
+    expect(out.reopenLastSession).toBe(true);
   });
 });

@@ -74,7 +74,7 @@
 
 import type { Draft } from "immer";
 
-import type { PaneId } from "@/types";
+import type { PaneId, Shell } from "@/types";
 
 // ---------- Types ----------
 
@@ -85,6 +85,18 @@ export type FocusDirection = "left" | "right" | "up" | "down";
 export interface LeafNode {
   type: "leaf";
   paneId: PaneId;
+  /**
+   * Shell this pane last ran. Persisted with the layout so a reopened session
+   * revives each pane with its real shell instead of the global default.
+   * Undefined on a freshly-created leaf (the orchestrator records it on spawn).
+   */
+  shell?: Shell;
+  /**
+   * First command the user ran in this pane (e.g. "claude"). On session revive
+   * it is PRE-FILLED at the prompt — never auto-executed — so the agent comes
+   * back without silently starting a turn. Undefined until captured.
+   */
+  startupCommand?: string;
 }
 
 export interface SplitNode {
@@ -107,8 +119,16 @@ export interface Rect {
 
 // ---------- Constructors ----------
 
-export function leaf(paneId: PaneId): LeafNode {
-  return { type: "leaf", paneId };
+export function leaf(
+  paneId: PaneId,
+  data?: { shell?: Shell; startupCommand?: string }
+): LeafNode {
+  // Spread only defined fields so a bare leaf(paneId) stays { type, paneId }
+  // (keeps the persisted JSON minimal and tree equality checks clean).
+  const node: LeafNode = { type: "leaf", paneId };
+  if (data?.shell) node.shell = data.shell;
+  if (data?.startupCommand) node.startupCommand = data.startupCommand;
+  return node;
 }
 
 export function split(
@@ -198,7 +218,10 @@ function splitPaneInner(
     if (node.paneId !== targetId) return node;
     const orientation: Orientation =
       direction === "right" ? "horizontal" : "vertical";
-    const oldLeaf = leaf(node.paneId);
+    // Reuse the existing leaf node (not leaf(node.paneId)) so the split keeps
+    // its shell / startupCommand — otherwise splitting a pane would forget
+    // which agent it was running.
+    const oldLeaf = node;
     const newLeaf = leaf(newPaneId);
     // right / down: [old, new]; up: [new, old]
     const [left, right] = direction === "up" ? [newLeaf, oldLeaf] : [oldLeaf, newLeaf];

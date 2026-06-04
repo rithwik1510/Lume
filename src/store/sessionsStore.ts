@@ -25,9 +25,9 @@ import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
-import type { LayoutNode } from "@/store/layout/tree";
+import type { LayoutNode, LeafNode } from "@/store/layout/tree";
 import { leaves as treeLeaves } from "@/store/layout/tree";
-import type { PaneId } from "@/types";
+import type { PaneId, Shell } from "@/types";
 import { nextPaneId } from "@/lib/paneIds";
 import { tauriPersistStorage } from "@/lib/persistStorage";
 import { autoSuffixSessionName, basename, samePath } from "@/lib/sessions/groupingHelpers";
@@ -53,6 +53,13 @@ export interface Session {
 export interface SessionsState {
   sessions: Record<SessionId, Session>;
   activeSessionId: SessionId | null;
+  // The session that was active when the app last had focus. Unlike
+  // activeSessionId (always null on cold start), this PERSISTS so boot can
+  // reopen it. Set on every activateSession; cleared if that session is purged.
+  lastActiveSessionId: SessionId | null;
+  // User preference (persisted): reopen lastActiveSessionId on launch. Default
+  // on. A Settings toggle can flip it later; for now it lives here.
+  reopenLastSession: boolean;
   groupLabels: Record<string, string>;
   collapsedGroups: string[];
 
@@ -72,12 +79,27 @@ export interface SessionsState {
   setLayoutRoot: (id: SessionId, root: LayoutNode | null) => void;
   setFocusedPane: (id: SessionId, paneId: PaneId | null) => void;
   toggleFileTree: (id: SessionId) => void;
+  // Per-pane launch memory (Session restore — feature B). Both write onto the
+  // matching leaf inside the session's layoutRoot, so they persist for free.
+  setPaneShell: (id: SessionId, paneId: PaneId, shell: Shell) => void;
+  setPaneStartupCommand: (id: SessionId, paneId: PaneId, command: string) => void;
+  setReopenLastSession: (on: boolean) => void;
   reset: () => void;
+}
+
+// Find the leaf for `paneId` within a layout tree (or null). Returns the live
+// node so callers operating on an Immer draft can mutate it in place.
+function findLeafNode(node: LayoutNode | null, paneId: PaneId): LeafNode | null {
+  if (!node) return null;
+  if (node.type === "leaf") return node.paneId === paneId ? node : null;
+  return findLeafNode(node.left, paneId) ?? findLeafNode(node.right, paneId);
 }
 
 const emptyState = () => ({
   sessions: {},
   activeSessionId: null,
+  lastActiveSessionId: null,
+  reopenLastSession: true,
   groupLabels: {},
   collapsedGroups: [],
 });
@@ -122,6 +144,8 @@ export const useSessionsStore = create<SessionsState>()(
             session.working = false;
             session.lastActiveAt = Date.now();
             s.activeSessionId = id;
+            // Remember it for next launch (feature A — reopen last session).
+            s.lastActiveSessionId = id;
           }),
 
         stopSession: (id) =>
@@ -137,6 +161,7 @@ export const useSessionsStore = create<SessionsState>()(
             if (!s.sessions[id]) return;
             delete s.sessions[id];
             if (s.activeSessionId === id) s.activeSessionId = null;
+            if (s.lastActiveSessionId === id) s.lastActiveSessionId = null;
           }),
 
         purgeGroup: (folderPath) =>
@@ -145,6 +170,7 @@ export const useSessionsStore = create<SessionsState>()(
               if (samePath(s.sessions[id].folderPath, folderPath)) {
                 delete s.sessions[id];
                 if (s.activeSessionId === id) s.activeSessionId = null;
+                if (s.lastActiveSessionId === id) s.lastActiveSessionId = null;
               }
             }
           }),
@@ -230,10 +256,33 @@ export const useSessionsStore = create<SessionsState>()(
             if (session) session.fileTreeOpen = !session.fileTreeOpen;
           }),
 
+        setPaneShell: (id, paneId, shell) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            const node = findLeafNode(session.layoutRoot, paneId);
+            if (node) node.shell = shell;
+          }),
+
+        setPaneStartupCommand: (id, paneId, command) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            const node = findLeafNode(session.layoutRoot, paneId);
+            if (node) node.startupCommand = command;
+          }),
+
+        setReopenLastSession: (on) =>
+          set((s) => {
+            s.reopenLastSession = on;
+          }),
+
         reset: () =>
           set((s) => {
             s.sessions = {};
             s.activeSessionId = null;
+            s.lastActiveSessionId = null;
+            s.reopenLastSession = true;
             s.groupLabels = {};
             s.collapsedGroups = [];
           }),
@@ -269,6 +318,11 @@ export const useSessionsStore = create<SessionsState>()(
           ),
           groupLabels: state.groupLabels,
           collapsedGroups: state.collapsedGroups,
+          // Feature A: persisted so boot can reopen the last session. Unlike
+          // activeSessionId (deliberately omitted → cold start is all-stopped),
+          // these survive across launches.
+          lastActiveSessionId: state.lastActiveSessionId,
+          reopenLastSession: state.reopenLastSession,
         }),
         onRehydrateStorage: () => (state) => {
           if (!state) return;
@@ -304,7 +358,22 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
     if (folderSet.has(path)) groupLabels[path] = label;
   }
   const collapsedGroups = (state.collapsedGroups ?? []).filter((p) => folderSet.has(p));
-  return { sessions, activeSessionId: null, groupLabels, collapsedGroups };
+  // activeSessionId stays null (cold start = all-stopped). lastActiveSessionId
+  // and the reopen preference survive so boot can decide whether to revive it;
+  // drop a dangling lastActiveSessionId whose session no longer exists.
+  const lastActiveSessionId =
+    state.lastActiveSessionId && sessions[state.lastActiveSessionId]
+      ? state.lastActiveSessionId
+      : null;
+  const reopenLastSession = state.reopenLastSession ?? true;
+  return {
+    sessions,
+    activeSessionId: null,
+    lastActiveSessionId,
+    reopenLastSession,
+    groupLabels,
+    collapsedGroups,
+  };
 }
 
 // Rebuild a layout tree with each paneId replaced via `mapper`.
@@ -427,4 +496,23 @@ export function getActivePaneIds(state: SessionsState): PaneId[] {
     out.push(...treeLeaves(s.layoutRoot));
   }
   return out;
+}
+
+export interface PaneLaunchSpec {
+  shell?: Shell;
+  startupCommand?: string;
+}
+
+/**
+ * The persisted launch memory for a pane: which shell it last ran and the
+ * first command typed into it. The orchestrator reads this on (re)spawn to
+ * revive the right shell and pre-fill the remembered command. Returns null if
+ * the pane isn't found in any session's layout.
+ */
+export function paneLaunchSpec(state: SessionsState, paneId: PaneId): PaneLaunchSpec | null {
+  for (const s of Object.values(state.sessions)) {
+    const node = findLeafNode(s.layoutRoot, paneId);
+    if (node) return { shell: node.shell, startupCommand: node.startupCommand };
+  }
+  return null;
 }

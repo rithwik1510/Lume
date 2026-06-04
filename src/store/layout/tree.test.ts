@@ -384,3 +384,38 @@ describe("moveFocus", () => {
     expect(moveFocus(tri, "b", "left")).toBe("a");
   });
 });
+
+// ============================================================================
+// Leaf launch data (session restore — features A + B)
+// ============================================================================
+
+describe("leaf launch data", () => {
+  const shell = { kind: "pwsh", path: "pwsh.exe" } as const;
+
+  it("stores optional shell + startupCommand", () => {
+    expect(leaf("p1", { shell, startupCommand: "claude" })).toEqual({
+      type: "leaf",
+      paneId: "p1",
+      shell,
+      startupCommand: "claude",
+    });
+  });
+
+  it("stays minimal when no launch data is given", () => {
+    expect(leaf("p1")).toEqual({ type: "leaf", paneId: "p1" });
+    expect(leaf("p1", {})).toEqual({ type: "leaf", paneId: "p1" });
+  });
+
+  it("splitPane preserves the existing pane's shell + command", () => {
+    const root = leaf("p1", { shell, startupCommand: "claude" });
+    const next = splitPane(root, "p1", "right", "p2");
+    expect(next).toEqual(
+      split(
+        "horizontal",
+        DEFAULT_RATIO,
+        { type: "leaf", paneId: "p1", shell, startupCommand: "claude" },
+        { type: "leaf", paneId: "p2" }
+      )
+    );
+  });
+});
