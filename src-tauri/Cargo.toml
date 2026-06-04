@@ -1,8 +1,9 @@
 [package]
 name = "lume"
-version = "0.1.0-alpha.0"
+version = "0.1.0-beta.1"
 description = "Lume — smooth tiled terminals + markdown editor on the desktop"
 edition = "2021"
+license = "MIT"
 rust-version = "1.77"
 
 [lib]

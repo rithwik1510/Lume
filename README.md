@@ -84,4 +84,4 @@ spike-archive/        Weekend 0 spike source (preserved for reference)
 
 ## License
 
-Not yet determined.
+MIT — see [`LICENSE`](./LICENSE).
