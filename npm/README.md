@@ -9,8 +9,7 @@ smooth tiled terminals + a markdown editor for running AI coding agents.
 npx lume-desktop
 ```
 
-This downloads the latest signed installer from GitHub Releases and launches
-it. The beta installer is unsigned, so Windows SmartScreen may warn — click
+This downloads the latest installer from GitHub Releases and launches it. The beta installer is unsigned, so Windows SmartScreen may warn — click
 **More info → Run anyway**.
 
 Prefer a direct download? Grab the `.exe` from the
