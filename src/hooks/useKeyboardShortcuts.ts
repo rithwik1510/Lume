@@ -32,6 +32,7 @@ import { closeBusyPaneConfirm, closeLastPaneInSessionConfirm } from "@/lib/confi
 import { pickAndCreateSession } from "@/lib/sessions/sessionEntryFlows";
 import { pickFolder, pickMdFile } from "@/lib/dialogClient";
 import { isPtyBusy } from "@/terminals/ptyClient";
+import { shouldSkipShortcut } from "@/hooks/shortcutTarget";
 
 // PaneId generation lives in @/lib/paneIds so the TopBar Split button and
 // the keyboard layer share a single counter (no Date.now() collisions).
@@ -437,6 +438,7 @@ const SHORTCUTS: Shortcut[] = [
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (shouldSkipShortcut(e.target)) return;
       for (const s of SHORTCUTS) {
         if (s.match(e)) {
           if (s.run()) {
