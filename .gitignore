@@ -9,6 +9,9 @@ pnpm-debug.log*
 
 # Rust / Tauri
 src-tauri/target/
+# Updater signing private key — NEVER commit
+src-tauri/lume-updater.key
+src-tauri/lume-updater.key.pub
 src-tauri/Cargo.lock
 src-tauri/gen/
 src-tauri/WixTools/

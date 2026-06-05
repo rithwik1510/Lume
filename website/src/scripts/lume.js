@@ -158,7 +158,7 @@
     var btn = document.getElementById("copyBtn");
     if (!btn) return;
     function doCopy() {
-      var text = "git clone https://github.com/lume/lume";
+      var text = "git clone https://github.com/rithwik1510/Workflow";
       var done = function () {
         btn.classList.add("done");
         btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
