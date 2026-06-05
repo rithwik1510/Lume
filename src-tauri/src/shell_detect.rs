@@ -33,6 +33,12 @@ fn detect_wsl_distros() -> Vec<String> {
         return Vec::new();
     }
     // wsl.exe -l -q outputs UTF-16LE on Windows. Decode it.
+    if output.stdout.len() % 2 != 0 {
+        log::warn!(
+            "wsl.exe output has odd byte length ({}); trailing byte ignored",
+            output.stdout.len()
+        );
+    }
     let utf16: Vec<u16> = output
         .stdout
         .chunks_exact(2)

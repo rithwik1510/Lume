@@ -356,7 +356,14 @@ fn json_to_toml(v: &serde_json::Value) -> AppResult<toml_edit::Value> {
     Ok(match v {
         J::Bool(b) => toml_value(*b).into_value().unwrap(),
         J::Number(n) if n.is_i64() => toml_value(n.as_i64().unwrap()).into_value().unwrap(),
-        J::Number(n) if n.is_u64() => toml_value(n.as_u64().unwrap() as i64).into_value().unwrap(),
+        J::Number(n) if n.is_u64() => {
+            let v = n
+                .as_u64()
+                .ok_or_else(|| AppError::internal("config value not an integer"))?;
+            let v =
+                i64::try_from(v).map_err(|_| AppError::internal("config integer out of range"))?;
+            toml_value(v).into_value().unwrap()
+        }
         J::Number(n) => toml_value(n.as_f64().unwrap()).into_value().unwrap(),
         J::String(s) => toml_value(s.clone()).into_value().unwrap(),
         J::Array(items) => {

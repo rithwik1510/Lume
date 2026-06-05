@@ -34,7 +34,7 @@ fn to_entry(entry: &fs::DirEntry) -> AppResult<DirEntry> {
         .modified()
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_millis() as i64);
+        .and_then(|d| i64::try_from(d.as_millis()).ok());
     Ok(DirEntry {
         name: entry.file_name().to_string_lossy().to_string(),
         path: entry.path().to_string_lossy().to_string(),
