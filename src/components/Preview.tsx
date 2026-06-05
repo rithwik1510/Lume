@@ -137,6 +137,8 @@ export function Preview() {
             className={styles.frame}
             src={url}
             title="Localhost preview"
+            sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+            referrerPolicy="no-referrer"
           />
         )}
       </div>

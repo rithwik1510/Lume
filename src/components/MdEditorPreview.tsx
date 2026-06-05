@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import styles from "@/components/MdEditorPreview.module.css";
 import { renderMarkdown } from "@/preview/renderMarkdown";
+import { openExternal } from "@/lib/openExternal";
 
 interface Props {
   source: string;
@@ -23,9 +24,26 @@ export function MdEditorPreview({ source }: Props) {
     return () => window.clearTimeout(t);
   }, [source]);
   const html = useMemo(() => renderMarkdown(renderedSrc), [renderedSrc]);
+
+  // Intercept anchor clicks so http(s) links open in the real browser rather
+  // than navigating the Tauri webview away. target=_blank alone is not enough
+  // inside a webview — the browser tab that would open IS the webview.
+  const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (e.target as HTMLElement | null)?.closest?.("a");
+    const href = anchor?.getAttribute("href");
+    if (href && /^https?:\/\//i.test(href)) {
+      e.preventDefault();
+      void openExternal(href).catch(() => undefined);
+    }
+  };
+
   return (
     <div className={styles.root}>
-      <div className={styles.inner} dangerouslySetInnerHTML={{ __html: html }} />
+      <div
+        className={styles.inner}
+        dangerouslySetInnerHTML={{ __html: html }}
+        onClick={onPreviewClick}
+      />
     </div>
   );
 }

@@ -33,4 +33,13 @@ describe("previewStore", () => {
     expect(usePreviewStore.getState().open).toBe(false);
     expect(usePreviewStore.getState().url).toBe("http://localhost:3000");
   });
+  it("setUrl ignores dangerous schemes and leaves url unchanged", () => {
+    const before = usePreviewStore.getState().url;
+    usePreviewStore.getState().setUrl("javascript:alert(1)");
+    expect(usePreviewStore.getState().url).toBe(before);
+  });
+  it("setUrl normalizes a bare port to http://localhost:port", () => {
+    usePreviewStore.getState().setUrl("3000");
+    expect(usePreviewStore.getState().url).toBe("http://localhost:3000");
+  });
 });

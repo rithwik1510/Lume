@@ -22,4 +22,10 @@ describe("normalizePreviewUrl", () => {
   it("trims surrounding whitespace", () => {
     expect(normalizePreviewUrl("  3000 ")).toBe("http://localhost:3000");
   });
+  it("rejects javascript: scheme", () => {
+    expect(normalizePreviewUrl("javascript:alert(1)")).toBeNull();
+  });
+  it("rejects file: scheme", () => {
+    expect(normalizePreviewUrl("file:///c:/x")).toBeNull();
+  });
 });

@@ -8,6 +8,7 @@
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
+import { normalizePreviewUrl } from "@/lib/normalizePreviewUrl";
 
 /** The port most local dev servers use — opened to by default so the user
  *  doesn't have to type a URL for the common case. */
@@ -33,10 +34,15 @@ export const usePreviewStore = create<PreviewStore>()(
   devtools(
     (set) => ({
       ...initial,
-      openPreview: (url) =>
-        set((s) => ({ open: true, url: url ?? s.url })),
+      openPreview: (url) => {
+        const n = url ? normalizePreviewUrl(url) : null;
+        set((s) => ({ open: true, url: n ?? s.url }));
+      },
       closePreview: () => set({ open: false }),
-      setUrl: (url) => set({ url }),
+      setUrl: (url) => {
+        const n = normalizePreviewUrl(url);
+        if (n) set({ url: n });
+      },
       reload: () => set((s) => ({ reloadNonce: s.reloadNonce + 1 })),
       reset: () => set({ ...initial }),
     }),

@@ -7,5 +7,6 @@
 import { open } from "@tauri-apps/plugin-shell";
 
 export async function openExternal(url: string): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) return;
   await open(url);
 }

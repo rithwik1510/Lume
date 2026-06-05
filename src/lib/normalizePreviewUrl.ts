@@ -10,6 +10,7 @@
 export function normalizePreviewUrl(input: string): string | null {
   const t = input.trim();
   if (t === "") return null;
+  if (/^(javascript|data|file|vbscript|blob):/i.test(t)) return null;
   if (/^https?:\/\//i.test(t)) return t;
   if (/^\d{2,5}$/.test(t)) return `http://localhost:${t}`;
   return `http://${t}`;
