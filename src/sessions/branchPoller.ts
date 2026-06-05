@@ -39,6 +39,9 @@ function tick() {
 }
 
 export function installBranchPoller(): () => void {
+  // Reset focus flag so a re-install (HMR) doesn't inherit a stale blurred state.
+  isFocused = true;
+
   // Window focus tracking — pause polling when the window blurs (no point
   // hammering git for a window the user isn't looking at), resume + refresh
   // immediately on focus regain.
@@ -76,6 +79,7 @@ export function installBranchPoller(): () => void {
     }
   });
 
+  if (timer !== null) window.clearInterval(timer);
   timer = window.setInterval(tick, POLL_INTERVAL_MS);
   // Kick off an initial scan for any already-active session.
   tick();

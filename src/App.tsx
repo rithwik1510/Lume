@@ -43,6 +43,7 @@ import { applyXtermFontFamilyToAll, applyXtermThemeToAll } from "@/terminals/reg
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useExternalFileDrop } from "@/hooks/useExternalFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { nextPaneId } from "@/lib/paneIds";
 import { coerceThemeName } from "@/lib/themes";
 import { coerceFontPair } from "@/lib/fontPairs";
 import { checkForUpdatesOnLaunch } from "@/lib/updater";
@@ -94,7 +95,7 @@ export default function App() {
       // sees the all-stopped sidebar until they click a session to revive.
       const layout = useLayoutStore.getState();
       if (layout.root === null && useSessionsStore.getState().activeSessionId !== null) {
-        layout.initWithFirstPane("pane-1");
+        layout.initWithFirstPane(nextPaneId());
       }
     };
 

@@ -326,16 +326,21 @@ export const useSessionsStore = create<SessionsState>()(
         }),
         onRehydrateStorage: () => (state) => {
           if (!state) return;
-          // Zustand's persist replaces state wholesale on rehydrate; apply the
-          // coercion (status→stopped, unread→false, activeSessionId→null, drop
-          // orphaned group entries) as a post-rehydrate cleanup.
-          const coerced = coerceRehydrated(state);
-          // Reassign all persisted paneIds to fresh globally-unique ones — the
-          // counter resets each launch, so two sessions from different runs can
-          // both hold "pane-101", which makes findSessionForPane resolve the
-          // wrong session (e.g. spawning a terminal in the wrong folder).
-          remapSessionPaneIds(coerced.sessions ?? {});
-          useSessionsStore.setState(coerced as SessionsState);
+          try {
+            // Zustand's persist replaces state wholesale on rehydrate; apply the
+            // coercion (status→stopped, unread→false, activeSessionId→null, drop
+            // orphaned group entries) as a post-rehydrate cleanup.
+            const coerced = coerceRehydrated(state);
+            // Reassign all persisted paneIds to fresh globally-unique ones — the
+            // counter resets each launch, so two sessions from different runs can
+            // both hold "pane-101", which makes findSessionForPane resolve the
+            // wrong session (e.g. spawning a terminal in the wrong folder).
+            remapSessionPaneIds(coerced.sessions ?? {});
+            useSessionsStore.setState(coerced as SessionsState);
+          } catch (err) {
+            console.error("sessionsStore rehydrate failed; starting clean", err);
+            useSessionsStore.setState(emptyState() as unknown as SessionsState);
+          }
         },
       }
     ),

@@ -127,11 +127,14 @@ export const useSettingsStore = create<SettingsStore>()(
           s.config = s.lastValidConfig;
         }),
 
-      reset: () =>
+      reset: () => {
+        for (const t of persistTimers.values()) clearTimeout(t);
+        persistTimers.clear();
         set((s) => {
           s.config = defaultSettings;
           s.lastValidConfig = defaultSettings;
-        }),
+        });
+      },
 
       setConfigValue: (path, value) => {
         markSelfWrite(); // suppress the watcher echo from the write we're about to make

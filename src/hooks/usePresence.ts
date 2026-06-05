@@ -102,6 +102,7 @@ export function usePresence(open: boolean, exitMs: number = DEFAULT_EXIT_MS): Pr
 
     return () => {
       clearRaf();
+      clearExit();
     };
   }, [open, exitMs]);
 
