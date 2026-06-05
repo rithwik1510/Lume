@@ -62,4 +62,36 @@ describe("commandCapture", () => {
     const c = makeCommandCapture();
     expect(c.feed("\r")).toBe("");
   });
+
+  it("does not leak OSC title text into the command", () => {
+    const c = makeCommandCapture();
+    // ESC ] 0 ; some-title BEL  then the real command
+    expect(c.feed("\x1b]0;my-title\x07npm run dev\r")).toBe("npm run dev");
+  });
+
+  it("skips a CSI sequence with a non-alpha final (Delete = ESC [ 3 ~)", () => {
+    const c = makeCommandCapture();
+    expect(c.feed("ab\x1b[3~cd\n")).toBe("abcd");
+  });
+
+  it("skips bracketed-paste markers", () => {
+    const c = makeCommandCapture();
+    expect(c.feed("\x1b[200~pasted\x1b[201~\r")).toBe("pasted");
+  });
+
+  it("skips an SS3 sequence (ESC O P = F1)", () => {
+    const c = makeCommandCapture();
+    expect(c.feed("x\x1bOPy\n")).toBe("xy");
+  });
+
+  it("backspaces a full astral codepoint", () => {
+    const c = makeCommandCapture();
+    // type an emoji then backspace then a letter
+    expect(c.feed("\u{1F600}\x7fz\r")).toBe("z");
+  });
+
+  it("returns empty string when Enter is pressed on an empty line", () => {
+    const c = makeCommandCapture();
+    expect(c.feed("\r")).toBe("");
+  });
 });

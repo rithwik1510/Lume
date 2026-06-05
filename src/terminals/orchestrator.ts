@@ -88,6 +88,15 @@ export async function spawnPane(
   shell: Shell,
   opts?: { prefill?: string }
 ): Promise<void> {
+  // Idempotency: if a runtime already exists for this pane (changeShell, or the
+  // boot sweep), dispose its input wire before creating a new one. Otherwise two
+  // onData handlers attach to the same Terminal and every keystroke double-sends.
+  const prevRuntime = runtimes.get(paneId);
+  if (prevRuntime) {
+    prevRuntime.inputDisposer.dispose();
+    runtimes.delete(paneId);
+  }
+
   // Resolve the owning session's folder so the shell starts there instead of
   // the app's cwd. By the time the orchestrator fires spawnPane, the paneId is
   // already a leaf in some active session's layoutRoot, so findSessionForPane

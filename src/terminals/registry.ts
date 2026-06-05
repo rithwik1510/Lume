@@ -48,7 +48,7 @@ export const MOUSE_MODE_RESET =
 export function applyOptionsToAll(opts: Partial<ITerminalOptions>): void {
   for (const [, entry] of entries) {
     Object.assign(entry.term.options, opts);
-    entry.fit.fit();
+    if (entry.term.element) entry.fit.fit();
   }
 }
 

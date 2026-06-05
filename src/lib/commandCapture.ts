@@ -8,10 +8,12 @@
 // imperfect capture is something the user simply edits or clears before
 // pressing Enter.
 //
-// Handled: printable ASCII, Backspace/Delete (erases the last char), Enter
-// (CR/LF → finalize), and CSI/escape sequences such as arrow keys (skipped, so
-// they don't pollute the captured text). It's single-shot: once it finalizes a
-// line it returns null forever after.
+// Handled: printable ASCII and astral codepoints, Backspace/Delete (erases the
+// last CODEPOINT, surrogate-pair safe), Enter (CR/LF → finalize), OSC title
+// sequences (ESC ] … BEL/ST), CSI sequences with any final byte 0x40-0x7E
+// (covers arrow keys, Delete ESC[3~, bracketed-paste ESC[200~/ESC[201~), SS3
+// function-key sequences (ESC O <byte>), and 2-byte ESC sequences (Alt+key).
+// It's single-shot: once it finalizes a line it returns null forever after.
 
 export interface CommandCapture {
   /**
@@ -25,42 +27,66 @@ export interface CommandCapture {
 export function makeCommandCapture(): CommandCapture {
   let buf = "";
   let done = false;
-  let inEsc = false; // inside an ESC/CSI sequence (e.g. arrow keys)
+  // ESC sequence state. "none" = normal; "esc" = just saw ESC (decide type from
+  // next byte); "csi" = ESC[ … final 0x40-0x7E; "osc" = ESC] … BEL or ST(ESC\);
+  // "ss3" = ESC O <one byte>.
+  let esc: "none" | "esc" | "csi" | "osc" | "ss3" = "none";
+  let oscSawEsc = false; // inside OSC, previous byte was ESC (possible ST: ESC \)
 
   return {
     feed(chunk: string): string | null {
       if (done) return null;
       for (const ch of chunk) {
-        const code = ch.charCodeAt(0);
+        const code = ch.codePointAt(0) ?? 0;
 
-        if (inEsc) {
-          // A CSI sequence (ESC [ … letter) ends on an alphabetic final byte.
-          // Skip everything up to and including that letter.
-          if ((code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)) {
-            inEsc = false;
+        if (esc === "esc") {
+          if (ch === "[") esc = "csi";
+          else if (ch === "]") {
+            esc = "osc";
+            oscSawEsc = false;
+          } else if (ch === "O") esc = "ss3";
+          else esc = "none"; // 2-byte ESC seq (e.g. Alt+key) — consume the byte
+          continue;
+        }
+        if (esc === "ss3") {
+          esc = "none"; // SS3 consumes exactly one final byte
+          continue;
+        }
+        if (esc === "csi") {
+          // CSI ends on a final byte in 0x40-0x7E (covers letters, ~, @, etc.)
+          if (code >= 0x40 && code <= 0x7e) esc = "none";
+          continue;
+        }
+        if (esc === "osc") {
+          if (code === 0x07) {
+            esc = "none"; // BEL terminator
+            oscSawEsc = false;
+          } else if (oscSawEsc) {
+            esc = "none"; // ESC \ (ST) or any ESC-led terminator — OSC ends
+            oscSawEsc = false;
+          } else if (code === 0x1b) {
+            oscSawEsc = true; // maybe ST next
           }
           continue;
         }
 
+        // esc === "none"
         if (code === 0x1b) {
-          // ESC — start of an escape/CSI sequence; ignore it and its payload.
-          inEsc = true;
+          esc = "esc";
           continue;
         }
         if (code === 13 || code === 10) {
-          // CR or LF — the user submitted the line.
           done = true;
           return buf.trim();
         }
         if (code === 127 || code === 8) {
-          // DEL / Backspace — erase the last character.
-          buf = buf.slice(0, -1);
+          // Backspace — drop the last CODEPOINT (Array.from is surrogate-aware).
+          const arr = Array.from(buf);
+          arr.pop();
+          buf = arr.join("");
           continue;
         }
-        if (code < 0x20) {
-          // Other control characters (Tab, Ctrl-*, etc.) — ignore.
-          continue;
-        }
+        if (code < 0x20) continue; // other control chars (Tab, Ctrl-*) ignored
         buf += ch;
       }
       return null;
