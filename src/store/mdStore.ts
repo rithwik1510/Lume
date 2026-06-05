@@ -56,6 +56,7 @@ export interface MdStoreState {
 
 let _tabSeq = 0;
 const nextTabId = () => `mdtab-${++_tabSeq}`;
+let _qvReq = 0;
 
 export const useMdStore = create<MdStoreState>()(
   devtools(
@@ -68,7 +69,9 @@ export const useMdStore = create<MdStoreState>()(
       focusedSurface: null,
 
       openMdInQuickViewer: async (path) => {
+        const req = ++_qvReq;
         const content = await readTextFile(path);
+        if (req !== _qvReq) return; // a newer open superseded this read
         set((s) => {
           s.quickViewer = { open: true, path, content };
         });
@@ -93,6 +96,16 @@ export const useMdStore = create<MdStoreState>()(
           return;
         }
         const content = await readTextFile(path);
+        // Re-check after the await — a concurrent open of the same path may
+        // have already created the tab while we were reading.
+        const already = get().tabs.find((t) => t.path === path);
+        if (already) {
+          set((s) => {
+            s.activeTabId = already.id;
+            s.mdEditorMode = "full";
+          });
+          return;
+        }
         const id = nextTabId();
         set((s) => {
           s.tabs.push({ id, path, content, dirty: false });
@@ -115,11 +128,15 @@ export const useMdStore = create<MdStoreState>()(
       saveMdTab: async (id) => {
         const t = get().tabs.find((t) => t.id === id);
         if (!t) return;
+        const written = t.content; // snapshot exactly what we write to disk
         try {
-          await writeTextFile(t.path, t.content);
+          await writeTextFile(t.path, written);
           set((s) => {
             const tt = s.tabs.find((t) => t.id === id);
-            if (tt) tt.dirty = false;
+            // Only clear dirty if the content hasn't changed since this write
+            // started; otherwise the user typed during the save and edits remain
+            // unsaved.
+            if (tt && tt.content === written) tt.dirty = false;
           });
           useToastStore.getState().push({
             severity: "success",
@@ -137,7 +154,8 @@ export const useMdStore = create<MdStoreState>()(
           });
         }
       },
-      closeMdTab: (id) =>
+      closeMdTab: (id) => {
+        const closing = get().tabs.find((t) => t.id === id);
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
           if (idx === -1) return;
@@ -147,7 +165,14 @@ export const useMdStore = create<MdStoreState>()(
               s.tabs.length === 0 ? null : s.tabs[Math.min(idx, s.tabs.length - 1)].id;
           }
           if (s.tabs.length === 0) s.mdEditorMode = "off";
-        }),
+        });
+        if (closing?.dirty) {
+          useToastStore.getState().push({
+            severity: "warn",
+            message: `Closed ${closing.path.split(/[/\\]/).pop() ?? closing.path} with unsaved changes`,
+          });
+        }
+      },
 
       setFocusedSurface: (focusedSurface) =>
         set((s) => {
