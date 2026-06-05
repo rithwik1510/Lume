@@ -36,6 +36,11 @@ export function quoteIfNeeded(p: string): string {
 /** The string to paste into a terminal for `filePath`, given the owning
  *  session's folder (or null when unknown). */
 export function formatAttachPath(filePath: string, sessionFolder: string | null): string {
-  const rel = sessionFolder ? relativeUnder(filePath, sessionFolder) : null;
-  return quoteIfNeeded(rel ?? filePath);
+  // Strip control characters (incl. CR/LF and terminal escape bytes). A crafted
+  // filename with \r would otherwise submit the line when pasted into a pane,
+  // and ANSI/OSC sequences would reach the terminal. Control chars are illegal
+  // in Windows filenames, so this never affects legitimate paths.
+  const safe = filePath.replace(/[\x00-\x1f\x7f]/g, "");
+  const rel = sessionFolder ? relativeUnder(safe, sessionFolder) : null;
+  return quoteIfNeeded(rel ?? safe);
 }

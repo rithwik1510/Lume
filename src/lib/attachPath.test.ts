@@ -47,6 +47,10 @@ describe("formatAttachPath", () => {
   it("quotes a relativized path that contains spaces", () => {
     expect(formatAttachPath("C:\\proj\\my dir\\a.ts", "C:\\proj")).toBe('"my dir/a.ts"');
   });
+  it("strips control characters so a crafted filename can't inject into the terminal", () => {
+    const out = formatAttachPath("C:/proj/evil\r\nrm -rf x\x1b]0;t.md", null);
+    expect(out).not.toMatch(/[\x00-\x1f\x7f]/);
+  });
 });
 
 describe("LUME_FILE_MIME", () => {

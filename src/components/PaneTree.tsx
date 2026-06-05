@@ -71,8 +71,7 @@ interface LeafFrameProps {
 }
 
 const LeafFrameImpl = ({ paneId }: LeafFrameProps) => {
-  const focusedPaneId = useLayoutStore((s) => s.focusedPaneId);
-  const focused = focusedPaneId === paneId;
+  const focused = useLayoutStore((s) => s.focusedPaneId === paneId);
   // Last-pane lock: hide the close X when there's only one leaf, because
   // closePane is a no-op for the last pane (DESIGN.md §1 invariant 1) and
   // showing a button that does nothing is worse UX than not showing one.
@@ -181,7 +180,7 @@ const LeafFrame = memo(LeafFrameImpl);
 
 // ---------- Split rendering ----------
 
-function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
+const SplitFrame = memo(function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
   if (node.type !== "split") return null;
 
   const resizeSplit = useLayoutStore((s) => s.resizeSplit);
@@ -264,4 +263,4 @@ function SplitFrame({ node, path }: { node: LayoutNode; path: string }) {
       </Panel>
     </PanelGroup>
   );
-}
+});
