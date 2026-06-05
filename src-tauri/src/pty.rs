@@ -119,6 +119,11 @@ struct PtySession {
     /// afterwards. Used by `is_pty_busy` to walk the process tree.
     /// `None` if the platform didn't provide a PID at spawn (rare).
     shell_pid: Option<u32>,
+    /// Kills the child process on pty_kill / reopen. Retained because `child`
+    /// itself is moved into the waiter thread. Without this, dropping the PTY
+    /// only asks ConPTY to close — a stubborn child survives and leaks its
+    /// reader/waiter threads.
+    killer: Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>,
 }
 
 /// App state — keyed by paneId. Inserted on pty_open, removed on pty_kill.
@@ -176,10 +181,11 @@ pub fn pty_open(
     channel: Channel<PtyEvent>,
     state: State<'_, PtyRegistry>,
 ) -> AppResult<()> {
-    // Idempotency: re-opening with the same paneId tears down the prior
-    // session first. Prevents leaks if the React side double-fires.
-    if state.sessions.contains_key(&pane_id) {
-        state.sessions.remove(&pane_id);
+    // Idempotency: re-opening with the same paneId tears down the prior session
+    // first (kills its child + drops its handles) so threads don't leak.
+    if let Some((_, prev)) = state.sessions.remove(&pane_id) {
+        *prev.closed.lock() = true;
+        let _ = prev.killer.lock().kill();
     }
 
     let pty_system = native_pty_system();
@@ -220,6 +226,11 @@ pub fn pty_open(
     // descendants — without it the heuristic has nothing to anchor on.
     let shell_pid = child.process_id();
 
+    // Capture a killer handle before `child` is moved into the waiter thread.
+    // `clone_killer` clones the underlying process handle so we can call
+    // TerminateProcess on Windows independently of the waiter.
+    let killer = child.clone_killer();
+
     drop(pair.slave);
 
     let mut reader = pair
@@ -242,6 +253,7 @@ pub fn pty_open(
             writer: Mutex::new(writer),
             closed: closed.clone(),
             shell_pid,
+            killer: Mutex::new(killer),
         },
     );
 
@@ -350,7 +362,11 @@ pub fn pty_resize(
 pub fn pty_kill(pane_id: String, state: State<'_, PtyRegistry>) -> AppResult<()> {
     if let Some((_, session)) = state.sessions.remove(&pane_id) {
         *session.closed.lock() = true;
-        // Dropping `session` drops master + writer; reader sees EOF and exits.
+        // Actually terminate the child (TerminateProcess on Windows). Dropping
+        // the master alone only signals ConPTY to close — a stubborn child would
+        // otherwise survive and leak its reader/waiter threads. Ignore the
+        // result: a child that already exited returns an error we don't care about.
+        let _ = session.killer.lock().kill();
     }
     Ok(())
 }
