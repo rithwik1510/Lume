@@ -5,6 +5,9 @@
   "bin": {
     "lume": "bin/lume.js"
   },
+  "scripts": {
+    "test": "node --test \"lib/*.test.js\""
+  },
   "files": [
     "bin/",
     "lib/",
