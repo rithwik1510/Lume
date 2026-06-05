@@ -8,7 +8,8 @@ const os = require("os");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
-const { pickWindowsSetupUrl } = require("../lib/resolveAsset.js");
+const { pickWindowsSetup, isTrustedHost } = require("../lib/resolveAsset.js");
+const { verifyMinisign } = require("../lib/verifyMinisign.js");
 
 const REPO = "rithwik1510/Workflow";
 const RELEASES_PAGE = `https://github.com/${REPO}/releases`;
@@ -31,23 +32,34 @@ async function main() {
     throw new Error(`GitHub API responded ${res.status}. Download manually: ${RELEASES_PAGE}`);
   }
   const release = await res.json();
-  const url = pickWindowsSetupUrl(release);
-  if (!url) {
-    throw new Error(`No Windows installer found in the latest release. See ${RELEASES_PAGE}`);
+
+  const setup = pickWindowsSetup(release);
+  if (!setup) throw new Error(`No Windows installer in the latest release. See ${RELEASES_PAGE}`);
+  if (!setup.sigUrl) throw new Error(`Release is missing the signature (.sig); refusing to install. ${RELEASES_PAGE}`);
+  if (!isTrustedHost(setup.exeUrl) || !isTrustedHost(setup.sigUrl)) {
+    throw new Error(`Download URL is not a trusted GitHub host; aborting. ${RELEASES_PAGE}`);
+  }
+
+  console.log("Downloading installer…");
+  const exeRes = await fetch(setup.exeUrl, { headers: { "User-Agent": "lume-installer" } });
+  if (!exeRes.ok) throw new Error(`Download failed: HTTP ${exeRes.status}`);
+  const exeBytes = Buffer.from(await exeRes.arrayBuffer());
+
+  const sigRes = await fetch(setup.sigUrl, { headers: { "User-Agent": "lume-installer" } });
+  if (!sigRes.ok) throw new Error(`Signature download failed: HTTP ${sigRes.status}`);
+  const sigText = await sigRes.text();
+
+  console.log("Verifying signature…");
+  if (!verifyMinisign(exeBytes, sigText)) {
+    throw new Error(`Signature verification FAILED — the installer is not authentic. Aborting. ${RELEASES_PAGE}`);
   }
 
   const dest = path.join(os.tmpdir(), `Lume-setup-${process.pid}.exe`);
-  console.log("Downloading installer…");
-  const dl = await fetch(url, { headers: { "User-Agent": "lume-installer" } });
-  if (!dl.ok) throw new Error(`Download failed: HTTP ${dl.status}`);
-  fs.writeFileSync(dest, Buffer.from(await dl.arrayBuffer()));
-
+  fs.writeFileSync(dest, exeBytes);
   console.log("Launching the installer…");
   const child = spawn(dest, [], { detached: true, stdio: "ignore" });
   child.unref();
-  console.log(
-    "Installer launched. If Windows SmartScreen appears, click 'More info' then 'Run anyway'."
-  );
+  console.log("Installer launched. If Windows SmartScreen appears, click 'More info' then 'Run anyway'.");
 }
 
 main().catch((err) => {
