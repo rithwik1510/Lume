@@ -2,13 +2,15 @@
 //
 // Architecture (per DESIGN.md §4 + §6 + §10 risk #2):
 //   - One PTY process per pane (paneId-keyed).
-//   - Each pane owns a Channel<PtyEvent> back to the JS side.
+//   - Each pane owns a Channel<InvokeResponseBody> back to the JS side.
 //   - Reader thread: pulls bytes off the PTY into a per-pane ring buffer
 //     (8 MB cap; drop-oldest on overflow).
-//   - Flusher thread: every 32 ms, drains the ring buffer and emits a
-//     PtyEvent::Data via the Channel. Coalesces high-frequency PTY output
-//     into one IPC call per 32 ms.
-//   - Waiter thread: blocks on child.wait(); emits PtyEvent::Exit when done.
+//   - Flusher thread: every 32 ms, drains the ring buffer and emits the bytes
+//     as InvokeResponseBody::Raw via the Channel (an ArrayBuffer on the JS
+//     side — DESIGN.md §4: PTY bytes are NEVER JSON-serialized). Coalesces
+//     high-frequency PTY output into one IPC call per 32 ms.
+//   - Waiter thread: blocks on child.wait(); emits PtyEvent::Exit (as JSON via
+//     InvokeResponseBody::Json) when done.
 //
 // PaneId-keyed lifecycle (DESIGN.md §4 rule #2): the React side calls
 // pty_open with a paneId. The Rust side stashes handles in a DashMap keyed
@@ -25,7 +27,7 @@ use dashmap::DashMap;
 use parking_lot::Mutex;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
-use tauri::ipc::Channel;
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::State;
 
 use crate::error::{AppError, AppResult};
@@ -47,11 +49,15 @@ pub enum Shell {
     Wsl { distro: String },
 }
 
-/// Outbound channel event — mirrors src/types/index.ts PtyEvent.
+/// Outbound *control* event — mirrors src/types/index.ts PtyEvent.
+///
+/// Terminal Data does NOT travel through this enum: per DESIGN.md §4, PTY
+/// bytes must never be JSON-serialized. They are sent over the same Channel
+/// as `InvokeResponseBody::Raw(Vec<u8>)` (an ArrayBuffer on the JS side).
+/// Only the rare Exit/Error control events are JSON (`InvokeResponseBody::Json`).
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PtyEvent {
-    Data { bytes: Vec<u8> },
     Exit { code: Option<i32> },
     Error { error: AppError },
 }
@@ -178,7 +184,7 @@ pub fn pty_open(
     cols: u16,
     rows: u16,
     cwd: Option<String>,
-    channel: Channel<PtyEvent>,
+    channel: Channel<InvokeResponseBody>,
     state: State<'_, PtyRegistry>,
 ) -> AppResult<()> {
     // Idempotency: re-opening with the same paneId tears down the prior session
@@ -293,7 +299,9 @@ pub fn pty_open(
                 }
                 r.drain_all()
             };
-            if ch.send(PtyEvent::Data { bytes: drained }).is_err() {
+            // Data flows as raw bytes (DESIGN.md §4): the JS side receives an
+            // ArrayBuffer, never a JSON integer array.
+            if ch.send(InvokeResponseBody::Raw(drained)).is_err() {
                 break;
             }
             if *closed.lock() {
@@ -301,7 +309,7 @@ pub fn pty_open(
                 // and the closed-flag check.
                 let tail = ring.lock().drain_all();
                 if !tail.is_empty() {
-                    let _ = ch.send(PtyEvent::Data { bytes: tail });
+                    let _ = ch.send(InvokeResponseBody::Raw(tail));
                 }
                 break;
             }
@@ -316,7 +324,11 @@ pub fn pty_open(
                 Ok(s) => Some(s.exit_code() as i32),
                 Err(_) => None,
             };
-            let _ = ch.send(PtyEvent::Exit { code });
+            // Control events stay JSON (`InvokeResponseBody::Json`) — they're
+            // rare and the JS side decodes them as parsed objects.
+            if let Ok(s) = serde_json::to_string(&PtyEvent::Exit { code }) {
+                let _ = ch.send(InvokeResponseBody::Json(s));
+            }
         });
     }
 

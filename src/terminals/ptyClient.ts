@@ -14,10 +14,12 @@ export interface OpenPtyArgs {
    *  Omitted/undefined → the Rust side inherits the app's cwd. A path that no
    *  longer exists on disk is ignored server-side (falls back to inherited). */
   cwd?: string;
-  channel: Channel<PtyEvent>;
+  /** Terminal data arrives as raw bytes (ArrayBuffer); Exit/Error as JSON
+   *  control objects (PtyEvent). See the orchestrator's onmessage handler. */
+  channel: Channel<ArrayBuffer | PtyEvent>;
 }
 
-/** Spawn a PTY. The Channel receives Data / Exit / Error events. */
+/** Spawn a PTY. The Channel receives raw byte data plus Exit / Error control events. */
 export async function openPty(args: OpenPtyArgs): Promise<void> {
   await invoke<void>("pty_open", {
     paneId: args.paneId,

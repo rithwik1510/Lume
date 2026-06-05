@@ -153,11 +153,23 @@ export async function spawnPane(
   let prefillPending = opts?.prefill?.trim() || null;
 
   // 5. Open the PTY. The Channel is created here and wires Rust → xterm.
-  const channel = new Channel<PtyEvent>();
-  channel.onmessage = (evt) => {
-    if (evt.kind === "data") {
+  //    Terminal data arrives as raw bytes (InvokeResponseBody::Raw → an
+  //    ArrayBuffer) — NEVER JSON (DESIGN.md §4). Exit/Error control events
+  //    still arrive as parsed JSON objects.
+  const channel = new Channel<ArrayBuffer | PtyEvent>();
+  channel.onmessage = (msg) => {
+    // Terminal data arrives as raw bytes (InvokeResponseBody::Raw) — no JSON.
+    if (msg instanceof ArrayBuffer || ArrayBuffer.isView(msg)) {
+      const bytes =
+        msg instanceof ArrayBuffer
+          ? new Uint8Array(msg)
+          : new Uint8Array(
+              (msg as ArrayBufferView).buffer,
+              (msg as ArrayBufferView).byteOffset,
+              (msg as ArrayBufferView).byteLength
+            );
       // PTY bytes NEVER touch Zustand. Direct to xterm.
-      writeToTerminal(paneId, new Uint8Array(evt.bytes));
+      writeToTerminal(paneId, bytes);
       // Cheap throttled metadata bump for the UI's "active pane" indicator.
       usePtyStore.getState().markActivity(paneId);
       // Feed the attention tracker: a background session that produces output
@@ -169,10 +181,14 @@ export async function spawnPane(
         prefillPending = null;
         void writePty(paneId, text).catch(() => undefined);
       }
-    } else if (evt.kind === "exit") {
+      return;
+    }
+    // Control events (Exit/Error) arrive as parsed JSON objects.
+    const evt = msg as PtyEvent;
+    if (evt.kind === "exit") {
       usePtyStore.getState().setStatus(paneId, "exited");
       term.write(`\r\n\x1b[33m[pty exited code=${evt.code ?? "?"}]\x1b[0m\r\n`);
-    } else {
+    } else if (evt.kind === "error") {
       usePtyStore
         .getState()
         .setStatus(paneId, "errored", formatAppError(evt.error));

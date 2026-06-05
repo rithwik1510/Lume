@@ -42,15 +42,14 @@ export interface PaneMetadata {
 // ---------- PTY channel events — mirror of Rust PtyEvent (src-tauri/src/pty.rs) ----------
 
 /**
- * Messages that flow over the per-pane `Channel<PtyEvent>` from Rust → JS.
- * Three flavours: bytes, lifecycle exit, or an error.
+ * CONTROL events that flow over the per-pane Channel from Rust → JS. These
+ * still arrive as parsed JSON objects (InvokeResponseBody::Json).
  *
- * NOTE: `bytes` arrives as `number[]` because serde_json encodes `Vec<u8>` as
- * an array of numbers. The xterm sink converts via `new Uint8Array(bytes)`.
- * Optimising to a binary IPC channel is a v0.2+ optimisation.
+ * Terminal *data* does NOT appear here: per DESIGN.md §4, PTY bytes are sent
+ * as raw bytes (InvokeResponseBody::Raw) and surface on the JS side as an
+ * ArrayBuffer — handled directly in the orchestrator, never JSON-serialized.
  */
 export type PtyEvent =
-  | { kind: "data"; bytes: number[] }
   | { kind: "exit"; code: number | null }
   | { kind: "error"; error: AppError };
 
