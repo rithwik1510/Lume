@@ -15,6 +15,12 @@ const m = vi.hoisted(() => ({
   capturedOnData: null as null | ((data: string) => void),
 }));
 
+vi.mock("@tauri-apps/plugin-log", () => ({
+  warn: vi.fn(),
+  info: vi.fn(),
+  error: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   // Minimal Channel stand-in: just a settable onmessage. The orchestrator
   // assigns the handler and hands the instance to openPty; we fire it manually.

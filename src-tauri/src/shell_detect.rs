@@ -12,6 +12,8 @@
 use serde::Serialize;
 #[cfg(target_os = "windows")]
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 use crate::error::{AppError, AppResult};
 
@@ -26,7 +28,11 @@ pub enum ShellDescriptor {
 
 #[cfg(target_os = "windows")]
 fn detect_wsl_distros() -> Vec<String> {
-    let Ok(output) = Command::new("wsl.exe").args(["-l", "-q"]).output() else {
+    let mut cmd = Command::new("wsl.exe");
+    cmd.args(["-l", "-q"]);
+    // CREATE_NO_WINDOW (0x0800_0000) — don't flash a console window at launch.
+    cmd.creation_flags(0x0800_0000);
+    let Ok(output) = cmd.output() else {
         return Vec::new();
     };
     if !output.status.success() {

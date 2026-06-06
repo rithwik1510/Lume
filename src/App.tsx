@@ -73,22 +73,14 @@ export default function App() {
         useSessionsStore.getState().activateSession(seededId);
       }
 
-      // Feature A — reopen the last active session on a routine restart.
-      // Migration only seeds on fresh install / v0.1 upgrade; on a normal
-      // relaunch it returns null, so revive the session the user last had open
-      // (when the preference is on and it still exists). Activating it makes the
-      // orchestrator's subscriber spawn its panes — each with its remembered
-      // shell, and its remembered command pre-filled at the prompt (feature B).
-      const ss = useSessionsStore.getState();
-      if (
-        !seededId &&
-        ss.activeSessionId === null &&
-        ss.reopenLastSession &&
-        ss.lastActiveSessionId &&
-        ss.sessions[ss.lastActiveSessionId]
-      ) {
-        ss.activateSession(ss.lastActiveSessionId);
-      }
+      // Feature A (reopen-last-session-on-launch) is DISABLED pending the
+      // session-restore freeze investigation. Auto-activating a restored
+      // session on launch is the path that hangs the window on some setups;
+      // the original spec (§3) is cold-start = all-stopped anyway, so we revert
+      // to that: the user clicks a session in the sidebar to revive it. This
+      // also isolates the bug — if a manual revive still hangs, it's the spawn/
+      // render path, not launch-time bootstrap ordering. See git history to
+      // re-enable once the root cause is fixed.
 
       // If the now-active session has no layout yet, seed its first pane. On a
       // routine restart nothing is active, so this is skipped and the user

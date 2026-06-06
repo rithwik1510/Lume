@@ -1,6 +1,6 @@
 {
   "name": "lume-desktop",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "Installer for Lume — smooth tiled terminals + markdown editor for running AI coding agents (Windows beta).",
   "bin": {
     "lume": "bin/lume.js"

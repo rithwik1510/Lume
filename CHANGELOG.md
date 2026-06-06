@@ -4,6 +4,28 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.2] — 2026-06-06
+
+Bug-fix release.
+
+### Fixed
+- **Windows console-window flicker / launch freeze.** Background `git` branch
+  lookups (and WSL shell detection) spawned subprocesses without
+  `CREATE_NO_WINDOW`, so Windows flashed a black console window on every call —
+  every ~5 s per active session and on each window focus. This presented as
+  whole-window flicker, and on launch with a restored session the rapid
+  focus-stealing froze the window. Both spawns now run with no console window.
+- **Session restore no longer auto-types the remembered command** into the
+  revived shell — replaying it raced PowerShell's line editor and could garble
+  or freeze the prompt. The command is still remembered on the pane.
+
+### Changed
+- Reopen-last-session-on-launch is temporarily disabled: launch starts with all
+  sessions stopped (click a session in the sidebar to revive it). Returns in a
+  later build once re-verified against the fixes above.
+
+[0.1.0-beta.2]: https://github.com/rithwik1510/Workflow/releases/tag/v0.1.0-beta.2
+
 ## [0.1.0-beta.1] — 2026-06-03
 
 First public beta. Windows only.
