@@ -85,8 +85,7 @@ function defaultShell(): Shell {
 
 export async function spawnPane(
   paneId: PaneId,
-  shell: Shell,
-  opts?: { prefill?: string }
+  shell: Shell
 ): Promise<void> {
   // Idempotency: if a runtime already exists for this pane (changeShell, or the
   // boot sweep), dispose its input wire before creating a new one. Otherwise two
@@ -147,10 +146,11 @@ export async function spawnPane(
   //    while the spawn races.
   usePtyStore.getState().addPane(paneId, shell);
 
-  // Pre-fill the remembered command (feature B revive). We wait for the shell's
-  // first output (its prompt) before typing it, and do NOT send a newline — the
-  // user presses Enter to resume, so we never silently start an agent turn.
-  let prefillPending = opts?.prefill?.trim() || null;
+  // NOTE: we deliberately do NOT auto-type the remembered command into the
+  // shell on revive. Replaying it raced PSReadLine's line-editor init and froze
+  // the prompt (desynced buffer → dead backspace, flickering prediction UI).
+  // The command is still captured/remembered on the leaf (feature B); it's just
+  // never injected. See git history for the prior prefill-on-first-byte path.
 
   // 5. Open the PTY. The Channel is created here and wires Rust → xterm.
   //    Terminal data arrives as raw bytes (InvokeResponseBody::Raw → an
@@ -175,12 +175,6 @@ export async function spawnPane(
       // Feed the attention tracker: a background session that produces output
       // then goes quiet glows its sidebar dot ("finished a turn / needs you").
       noteOutput(paneId);
-      // First prompt is up — drop the remembered command at the prompt (no CR).
-      if (prefillPending) {
-        const text = prefillPending;
-        prefillPending = null;
-        void writePty(paneId, text).catch(() => undefined);
-      }
       return;
     }
     // Control events (Exit/Error) arrive as parsed JSON objects.
@@ -230,13 +224,16 @@ async function killPane(paneId: PaneId): Promise<void> {
 
 /**
  * Spawn a pane from its persisted launch memory: the shell it last ran (or the
- * default if none recorded) and, on revive, the remembered first command
- * pre-filled at the prompt. Used both for the install-time sweep and for live
- * session activation (feature A/B — session restore).
+ * default if none recorded). The remembered first command is intentionally NOT
+ * replayed into the shell (it froze the prompt — see spawnPane note); it stays
+ * recorded on the leaf for display/future use. Used both for the install-time
+ * sweep and for live session activation (feature A — session restore).
  */
 function reviveSpawn(paneId: PaneId): void {
   const spec = paneLaunchSpec(useSessionsStore.getState(), paneId);
-  void spawnPane(paneId, spec?.shell ?? defaultShell(), { prefill: spec?.startupCommand });
+  // Revive with the remembered shell, but NOT the remembered command — auto-
+  // typing it into the fresh shell froze the prompt (see spawnPane note).
+  void spawnPane(paneId, spec?.shell ?? defaultShell());
 }
 
 /**
