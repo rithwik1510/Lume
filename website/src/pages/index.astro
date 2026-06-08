@@ -3,6 +3,7 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "../styles/lume.css";
 import { Image } from "astro:assets";
+import Analytics from "@vercel/analytics/astro";
 import appAgents from "../assets/app-agents.png";
 import appMarkdown from "../assets/app-markdown.png";
 
@@ -455,5 +456,6 @@ const ogImage = new URL("/og.png", Astro.site);
 <script>
   import "../scripts/lume.js";
 </script>
+<Analytics />
 </body>
 </html>
