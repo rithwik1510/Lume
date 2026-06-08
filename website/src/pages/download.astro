@@ -1,0 +1,68 @@
+---
+// /download — tracked interstitial. The home Download buttons point here so a
+// real human click registers as a Vercel page view (free on Hobby; custom
+// events need Pro). The page records the view, then auto-starts the installer.
+// This is the SINGLE source of the installer URL — bump the version here each
+// release (the home buttons just link to /download).
+import Analytics from "@vercel/analytics/astro";
+
+const exe =
+  "https://github.com/rithwik1510/Workflow/releases/download/v0.1.0-beta.3/Lume_0.1.0-beta.3_x64-setup.exe";
+---
+
+<!doctype html>
+<html lang="en" data-theme="cobalt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Downloading Lume…</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0a0a;
+        color: #e6e6e6;
+        font-family: "Inter Variable", Inter, system-ui, -apple-system, sans-serif;
+        text-align: center;
+      }
+      .box { max-width: 460px; padding: 2rem 1.5rem; }
+      h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 0.75rem; }
+      p { color: #a8a8a8; line-height: 1.6; margin: 0.5rem 0; }
+      a { color: #6ea8fe; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .spinner {
+        width: 28px; height: 28px; margin: 0 auto 1.25rem;
+        border: 3px solid #2a2a2a; border-top-color: #6ea8fe; border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <div class="spinner" aria-hidden="true"></div>
+      <h1>Your download is starting…</h1>
+      <p>
+        If it doesn't begin automatically,
+        <a id="dl" href={exe}>click here to download Lume for Windows</a>.
+      </p>
+      <p><a href="/">← Back to lume</a></p>
+    </div>
+
+    <script define:vars={{ exe }}>
+      // Let the page-view beacon fire first, then trigger the install download.
+      // A Content-Disposition attachment doesn't navigate away, so the page
+      // stays visible while the .exe downloads.
+      window.setTimeout(function () {
+        window.location.href = exe;
+      }, 1000);
+    </script>
+    <Analytics />
+  </body>
+</html>
