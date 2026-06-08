@@ -4,6 +4,26 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.3] — 2026-06-08
+
+Bug-fix release.
+
+### Fixed
+- **Markdown editor was blank and uneditable in the packaged app.** The viewer
+  worked, but switching to edit mode (pencil) showed an unstyled gutter and no
+  visible/editable content. Cause: CodeMirror styles itself by injecting
+  `<style>` elements at runtime (style-mod). In a production Tauri build, Tauri's
+  default CSP handling adds a `'nonce-…'` to `style-src`, and per the CSP3 spec a
+  nonce makes the browser ignore `'unsafe-inline'` — so CodeMirror's nonce-less
+  injected styles were blocked (`style-src-elem blocked=inline`), leaving the
+  editor with no theme or layout. Dev builds were unaffected (the nonce is only
+  injected in production). Fixed by setting
+  `dangerousDisableAssetCspModification: ["style-src"]` so our intended
+  `style-src 'self' 'unsafe-inline'` stays effective; `script-src` keeps its
+  nonce. This also unblocks any other runtime-injected styles (e.g. xterm).
+
+[0.1.0-beta.3]: https://github.com/rithwik1510/Workflow/releases/tag/v0.1.0-beta.3
+
 ## [0.1.0-beta.2] — 2026-06-06
 
 Bug-fix release.
