@@ -1,5 +1,7 @@
 /* Lume site — interactions.
    Bundled & minified by Astro; the Tweaks panel is a separate React island. */
+import { track } from "@vercel/analytics";
+
 (function () {
   "use strict";
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -193,6 +195,22 @@
     }, 150);
   }
 
+  // Count real human download clicks (Vercel Analytics custom event). GitHub's
+  // asset download_count can't separate humans from the auto-updater and bots;
+  // this fires only on an actual click of a Download button.
+  function initDownloadTracking() {
+    var links = [].slice.call(
+      document.querySelectorAll('a[href*="releases/download/"]')
+    );
+    links.forEach(function (a) {
+      a.addEventListener("click", function () {
+        var href = a.getAttribute("href") || "";
+        var m = href.match(/\/(v[0-9][^/]*)\//);
+        track("download", { version: m ? m[1] : "unknown", os: "windows" });
+      });
+    });
+  }
+
   function init() {
     initRise();
     initAgentStream();
@@ -200,6 +218,7 @@
     initSplit();
     initThemeCards();
     initCopy();
+    initDownloadTracking();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
