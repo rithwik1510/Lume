@@ -3,7 +3,7 @@
 > Smooth tiled terminals + markdown editor on the desktop. Built to host
 > multiple AI coding agents in parallel without breaking visually.
 
-**Status:** v0.1.0-beta.1 — public Windows beta.
+**Status:** v0.1.0-beta.4 — public Windows beta.
 
 ## Install (Windows)
 

@@ -4,6 +4,38 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.4] — 2026-06-10
+
+Attention system rebuilt, session restore returns, plus naming and terminal polish.
+
+### Added
+- **Shell integration (OSC 133) for accurate agent attention.** Lume now injects
+  a small FinalTerm script into PowerShell-family shells so the shell itself
+  reports when a command starts and finishes. The sidebar shows two honest
+  signals per background session: a **spinning ring** while an agent/command is
+  actively working, and an **accent dot** the moment its turn finishes or it
+  blocks for your input. This replaces the old output-silence guess that could
+  light up while an agent was still busy.
+- **Session restore on launch is back — and reopens the whole fleet.** Every
+  session that was running when you last closed Lume revives on startup with its
+  terminals, layout, shell, and folder; the session you were last in is focused.
+  (Processes themselves can't survive a restart — the workspace comes back, not
+  live agents.)
+- **Sequential session names.** New sessions are named `Session 1`, `Session 2`,
+  … per folder instead of all reading "New session".
+
+### Fixed
+- **No more phantom attention signals.** Switching away from a session, leaving an
+  idle agent, or resizing the window no longer fakes "working"/"done" cues. The
+  repaints a background terminal emits during a switch or resize are filtered, so
+  the signals reflect only real activity that happens after you leave.
+- **Terminal no longer flickers or clips its prompt on session switch.** Hidden
+  panes (a backgrounded session) reported a 0×0 size and were being resized to a
+  degenerate grid, which rewrapped the shell's lines and left the prompt clipped.
+  Hidden/zero-size and no-op resizes are now skipped.
+
+[0.1.0-beta.4]: https://github.com/rithwik1510/Workflow/releases/tag/v0.1.0-beta.4
+
 ## [0.1.0-beta.3] — 2026-06-08
 
 Bug-fix release.
