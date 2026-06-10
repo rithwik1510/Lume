@@ -87,7 +87,7 @@ export function SessionGroup({ group }: Props) {
           title="Add session to this project"
           aria-label="Add session to group"
         >
-          <IconPlus size={14} />
+          <IconPlus size={18} />
         </button>
       </div>
       {!group.collapsed && (

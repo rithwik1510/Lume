@@ -445,6 +445,43 @@ describe("sessionsStore — rehydration coercion", () => {
     expect(findSessionForPane(state, projPane)?.id).toBe("proj");
   });
 
+  it("migrates legacy 'New session' names to sequential 'Session N' per folder", () => {
+    const mk = (id: string, name: string, folderPath: string, createdAt: number): Session => ({
+      id,
+      name,
+      folderPath,
+      layoutRoot: null,
+      focusedPaneId: null,
+      status: "stopped",
+      unread: false,
+      working: false,
+      gitBranch: null,
+      fileTreeOpen: false,
+      createdAt,
+      lastActiveAt: createdAt,
+    });
+    const raw = {
+      sessions: {
+        // /proj already has a numbered sibling — migration continues from it.
+        a: mk("a", "Session 1", "/proj", 1),
+        b: mk("b", "New session", "/proj", 2),
+        c: mk("c", "New session", "/proj", 3),
+        // Other folder numbers independently; custom names are untouched.
+        d: mk("d", "New session", "/other", 4),
+        e: mk("e", "my agent", "/other", 5),
+      },
+      activeSessionId: null,
+      groupLabels: {},
+      collapsedGroups: [],
+    };
+    const out = coerceRehydrated(raw);
+    expect(out.sessions!.a.name).toBe("Session 1");
+    expect(out.sessions!.b.name).toBe("Session 2"); // older legacy first
+    expect(out.sessions!.c.name).toBe("Session 3");
+    expect(out.sessions!.d.name).toBe("Session 1");
+    expect(out.sessions!.e.name).toBe("my agent");
+  });
+
   it("drops groupLabels/collapsedGroups entries whose folderPath has no session", () => {
     const raw = {
       sessions: {

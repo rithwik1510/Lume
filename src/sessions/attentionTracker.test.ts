@@ -31,6 +31,16 @@ function sessionWithPane(folder: string, paneId: string): string {
 const unread = (id: string) => useSessionsStore.getState().sessions[id].unread;
 const working = (id: string) => useSessionsStore.getState().sessions[id].working;
 
+/** A REAL stream: two throttled chunks inside SUSTAIN_MS. The sustained-
+ *  stream gate ignores a single isolated chunk (idle TUI repaint), so any
+ *  test meaning "the agent is genuinely producing output" goes through this.
+ *  Advances the fake clock 250ms (past the 200ms throttle). */
+function streamOutput(paneId: string): void {
+  noteOutput(paneId);
+  vi.advanceTimersByTime(250);
+  noteOutput(paneId);
+}
+
 beforeEach(() => {
   useSessionsStore.setState(useSessionsStore.getInitialState(), true);
   disposeAttentionTracker();
@@ -49,7 +59,7 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     const fg = sessionWithPane("/fg", "pane-fg");
     useSessionsStore.getState().activateSession(fg); // fg is the visible one
 
-    noteOutput("pane-bg");
+    streamOutput("pane-bg");
     expect(working(bg)).toBe(true); // streaming → spinner
     expect(unread(bg)).toBe(false); // no dot while streaming
     vi.advanceTimersByTime(QUIET_MS);
@@ -62,9 +72,9 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     const fg = sessionWithPane("/fg", "pane-fg");
     useSessionsStore.getState().activateSession(fg);
 
-    noteOutput("pane-bg");
+    streamOutput("pane-bg");
     vi.advanceTimersByTime(QUIET_MS - 500);
-    noteOutput("pane-bg"); // a mid-task heartbeat re-arms the window
+    noteOutput("pane-bg"); // a mid-task heartbeat re-arms the window (already streaming)
     vi.advanceTimersByTime(QUIET_MS - 500);
     expect(unread(bg)).toBe(false); // not quiet for the full window yet
     vi.advanceTimersByTime(500);
@@ -75,7 +85,7 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     const fg = sessionWithPane("/fg", "pane-fg");
     useSessionsStore.getState().activateSession(fg);
 
-    noteOutput("pane-fg");
+    streamOutput("pane-fg");
     expect(working(fg)).toBe(true); // the spinner is a fact, not a beg
     vi.advanceTimersByTime(QUIET_MS);
     expect(unread(fg)).toBe(false);
@@ -86,11 +96,11 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     const fg = sessionWithPane("/fg", "pane-fg");
     useSessionsStore.getState().activateSession(fg);
 
-    noteOutput("pane-bg");
+    streamOutput("pane-bg");
     vi.advanceTimersByTime(QUIET_MS);
     expect(unread(bg)).toBe(true);
 
-    noteOutput("pane-bg"); // working again
+    streamOutput("pane-bg"); // working again — sustained, not a lone repaint
     expect(unread(bg)).toBe(false);
     expect(working(bg)).toBe(true);
   });
@@ -102,7 +112,7 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     const fg = sessionWithPane("/fg", "pane-fg");
     useSessionsStore.getState().activateSession(fg);
 
-    noteOutput("pane-b"); // output in the second pane only
+    streamOutput("pane-b"); // output in the second pane only
     expect(working(id)).toBe(true);
     vi.advanceTimersByTime(QUIET_MS);
     expect(unread(id)).toBe(true);
@@ -125,7 +135,7 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     const fg = sessionWithPane("/fg", "pane-fg");
     useSessionsStore.getState().activateSession(fg);
 
-    noteOutput("pane-bg");
+    streamOutput("pane-bg");
     expect(working(bg)).toBe(true);
     forgetPane("pane-bg");
     expect(working(bg)).toBe(false);
@@ -171,7 +181,7 @@ describe("attentionTracker — OSC 133 ground truth (integrated panes)", () => {
     expect(unread(bg)).toBe(true); // turn dot
     expect(working(bg)).toBe(false); // spinner yields to the dot
 
-    noteOutput("pane-bg"); // user answered elsewhere / agent resumed
+    streamOutput("pane-bg"); // user answered elsewhere / agent resumed
     expect(unread(bg)).toBe(false); // self-correcting
     expect(working(bg)).toBe(true); // spinner back
   });
@@ -299,6 +309,30 @@ describe("attentionTracker — OSC 133 ground truth (integrated panes)", () => {
     expect(unread(a)).toBe(false); // no phantom dot — nothing happened there
   });
 
+  it("an idle TUI's sporadic repaints neither spin the ring nor clear the turn dot", () => {
+    // The autorun-restore bug: `claude` relaunched in background sessions,
+    // settled at its input box, then kept rotating tips / repainting its
+    // status line every few seconds. Each isolated repaint flipped the
+    // spinner back on and wiped the dot — sessions where NOTHING was
+    // happening looked permanently busy.
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    handleOsc133("pane-bg", "C"); // autorun launched claude
+    streamOutput("pane-bg"); // welcome screen renders
+    vi.advanceTimersByTime(QUIET_MS); // settles at the input box
+    expect(unread(bg)).toBe(true); // waiting for you → dot
+    expect(working(bg)).toBe(false);
+
+    for (let i = 0; i < 5; i++) {
+      vi.advanceTimersByTime(3000);
+      noteOutput("pane-bg"); // isolated idle repaint
+    }
+    expect(working(bg)).toBe(false); // never spins
+    expect(unread(bg)).toBe(true); // the dot survives
+  });
+
   it("a REAL background turn still signals after a switch — grace filters only echoes", () => {
     const a = sessionWithPane("/a", "pane-a");
     const b = sessionWithPane("/b", "pane-b");
@@ -307,7 +341,7 @@ describe("attentionTracker — OSC 133 ground truth (integrated panes)", () => {
     useSessionsStore.getState().activateSession(b); // switch away mid-work
 
     vi.advanceTimersByTime(2000); // past the grace window
-    noteOutput("pane-a"); // agent genuinely streaming
+    streamOutput("pane-a"); // agent genuinely streaming
     expect(working(a)).toBe(true); // spinner
     vi.advanceTimersByTime(QUIET_MS); // turn ends
     expect(unread(a)).toBe(true); // real dot
@@ -323,7 +357,7 @@ describe("attentionTracker — OSC 133 ground truth (integrated panes)", () => {
     noteOutput("pane-bg"); // repaint right after a fit/resize
     expect(working(bg)).toBe(false);
     vi.advanceTimersByTime(1000); // mute expired
-    noteOutput("pane-bg"); // real output
+    streamOutput("pane-bg"); // real output
     expect(working(bg)).toBe(true);
   });
 
@@ -333,7 +367,7 @@ describe("attentionTracker — OSC 133 ground truth (integrated panes)", () => {
     useSessionsStore.getState().activateSession(fg);
 
     // Shell banner output before the first integrated prompt rendered:
-    noteOutput("pane-bg");
+    streamOutput("pane-bg");
     expect(working(bg)).toBe(true);
     // …then the integration proves itself:
     handleOsc133("pane-bg", "D;0");

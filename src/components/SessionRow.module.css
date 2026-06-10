@@ -19,11 +19,22 @@
   font-weight: 600;
 }
 
+/* Fixed slot sized to the largest indicator (the 13px working box) so the
+ * session label never shifts when a state toggles and every indicator shares
+ * the same optical centre. */
+.indicator {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  flex-shrink: 0;
 }
 /* One attention signal, so a glance is unambiguous: a single accent dot =
  * "needs you" (the agent rang the bell — finished a turn or is asking for
@@ -43,19 +54,58 @@
 }
 
 /* "Working" — an agent/command is actively running (OSC 133 command-running,
- * or output streaming on non-integrated shells). A spinning arc: hollow ring
- * with an accent head. transform-only animation = compositor-friendly (no
- * per-frame paint). With reduced motion the animation freezes into a ring
- * with an accent notch — still readable as "in progress". */
-.dotWorking {
-  border: 1.5px solid var(--fg-3, #4a4a4a);
-  border-top-color: var(--accent, #5fa8ff);
-  background: transparent;
-  animation: dot-spin 0.9s linear infinite;
+ * or output streaming on non-integrated shells). The Lume mark, animated: an
+ * SVG of the logo's rounded square box with the accent pane inside tipping
+ * over clockwise corner to corner — fall, land, rest, fall — like a box
+ * toppling onto its right side. The shape change (square vs the circles of
+ * every other state) also distinguishes "working" without relying on colour.
+ * SVG geometry (viewBox 13): box stroke spans 0..1.5 each side, so the
+ * interior is 1.5..11.5; the 4px pane rests at 2.25 with a 0.75 gap from the
+ * wall — enough clearance that the corner sweep of the mid-fall rotation
+ * (rounded corners, max overhang ~0.3px) never crosses the line.
+ * transform-only animation = compositor-friendly (no per-frame paint). The
+ * app-wide reduced-motion rule (theme.css) collapses it to the resting frame:
+ * accent square in the top-left corner — the logo itself. */
+.workingMark {
+  display: block;
+  width: 13px;
+  height: 13px;
 }
-@keyframes dot-spin {
-  to {
-    transform: rotate(360deg);
+.workingBox {
+  stroke: var(--fg-3, #4a4a4a);
+}
+.workingPane {
+  fill: var(--accent, #5fa8ff);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: dot-tumble 1.4s infinite;
+}
+/* Each quarter = rest in a corner (15%), then tip over to the next (10%).
+ * Ease-in fall + hard stop reads as gravity and a landing. Travel 4.5px =
+ * 10px interior − 2 × 0.75 gap − 4px pane. */
+@keyframes dot-tumble {
+  0%,
+  15% {
+    transform: translate(0, 0) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  }
+  25%,
+  40% {
+    transform: translate(4.5px, 0) rotate(90deg);
+    animation-timing-function: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  }
+  50%,
+  65% {
+    transform: translate(4.5px, 4.5px) rotate(180deg);
+    animation-timing-function: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  }
+  75%,
+  90% {
+    transform: translate(0, 4.5px) rotate(270deg);
+    animation-timing-function: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg);
   }
 }
 
@@ -94,11 +144,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Plays on mount; the span is keyed by the session name (SessionRow.tsx),
+   * so a rename — including the launch migration of legacy "New session"
+   * names to "Session N" — replays it and the new name slides in. */
+  animation: name-in 0.25s var(--ease-out, ease-out) both;
+}
+@keyframes name-in {
+  from {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .trash {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

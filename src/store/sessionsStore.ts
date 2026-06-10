@@ -407,6 +407,19 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
   for (const [id, s] of Object.entries(state.sessions ?? {})) {
     sessions[id] = { ...s, status: "stopped", unread: false, working: false } as Session;
   }
+  // Migrate the pre-sequential-naming default: sessions persisted before
+  // beta.4 were all created as "New session" and kept that name forever.
+  // Christen them "Session N" per folder, oldest first, continuing from any
+  // siblings already numbered (nextSessionName never reuses a number).
+  const legacyNamed = Object.values(sessions)
+    .filter((s) => s.name.trim().toLowerCase() === "new session")
+    .sort((a, b) => a.createdAt - b.createdAt);
+  for (const s of legacyNamed) {
+    const siblings = Object.values(sessions)
+      .filter((x) => x.id !== s.id && samePath(x.folderPath, s.folderPath))
+      .map((x) => x.name);
+    s.name = autoSuffixSessionName(nextSessionName(siblings), siblings);
+  }
   const folderSet = new Set(Object.values(sessions).map((s) => s.folderPath));
   const groupLabels: Record<string, string> = {};
   for (const [path, label] of Object.entries(state.groupLabels ?? {})) {

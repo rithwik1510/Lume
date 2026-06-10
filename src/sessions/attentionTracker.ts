@@ -65,6 +65,16 @@ const BACKGROUND_GRACE_MS = 1500;
  *  full-screen apps redraw, which is repaint noise, not activity. */
 const RESIZE_MUTE_MS = 800;
 
+/** ONE chunk of output is not work. Idle TUIs emit isolated repaints every
+ *  few seconds (Claude Code rotates tips / refreshes its status line while
+ *  sitting at its input box) — without this gate each repaint flipped the
+ *  spinner back on and wiped the needs-you dot, so an agent that was merely
+ *  OPEN oscillated spinner→dot forever. A pane only counts as streaming when
+ *  a second (throttled) note lands within this window of the first; a
+ *  genuinely working agent emits many chunks per second, so the spinner cost
+ *  is ~one throttle tick of extra latency. Exported for tests. */
+export const SUSTAIN_MS = 1000;
+
 // ---------------------------------------------------------------------------
 // Per-pane state (module-level — none of this belongs in Zustand)
 // ---------------------------------------------------------------------------
@@ -85,6 +95,8 @@ const lastNoteAt = new Map<PaneId, number>();
 const backgroundedAt = new Map<SessionId, number>();
 /** Per-pane "ignore output until" stamps (resize repaint noise). */
 const mutedUntil = new Map<PaneId, number>();
+/** First-note-of-a-possible-stream stamps (see SUSTAIN_MS). */
+const streamCandidateAt = new Map<PaneId, number>();
 
 // pane → owning session cache. Any sessions-slice change invalidates it
 // (layout edits are rare next to PTY chunks, so this trades a cheap clear
@@ -106,6 +118,7 @@ useSessionsStore.subscribe((state, prev) => {
           clearQuietTimer(paneId);
           streamingPanes.delete(paneId);
           quietWhileRunning.delete(paneId);
+          streamCandidateAt.delete(paneId);
         }
       }
       recomputeWorking(went);
@@ -284,6 +297,18 @@ export function noteOutput(paneId: PaneId): void {
   const cmdState = paneCommandState(paneId);
   if (cmdState === "prompt") return;
 
+  // Sustained-stream gate: a pane that isn't already streaming needs TWO
+  // notes within SUSTAIN_MS to count as working. An isolated chunk (idle TUI
+  // repaint) does nothing — no spinner, and it does NOT clear a turn-dot.
+  if (!streamingPanes.has(paneId)) {
+    const candidate = streamCandidateAt.get(paneId);
+    if (candidate === undefined || now - candidate > SUSTAIN_MS) {
+      streamCandidateAt.set(paneId, now);
+      return;
+    }
+    streamCandidateAt.delete(paneId);
+  }
+
   if (cmdState === "running") {
     // Output (re)started mid-command: the agent is working. A stale
     // turn-dot no longer applies.
@@ -315,6 +340,7 @@ export function forgetPane(paneId: PaneId): void {
   streamingPanes.delete(paneId);
   lastNoteAt.delete(paneId);
   mutedUntil.delete(paneId);
+  streamCandidateAt.delete(paneId);
   paneSessionCache.delete(paneId);
   forgetPaneCommandState(paneId);
   if (sid) recomputeWorking(sid);
@@ -328,6 +354,7 @@ export function disposeAttentionTracker(): void {
   streamingPanes.clear();
   lastNoteAt.clear();
   mutedUntil.clear();
+  streamCandidateAt.clear();
   backgroundedAt.clear();
   paneSessionCache.clear();
 }

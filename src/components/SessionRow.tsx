@@ -27,15 +27,14 @@ export function SessionRow({ session }: Props) {
   // noise. (The store still tracks `working` for the active session — that's
   // a fact; hiding it here is a presentation choice.)
   //   unread  → accent dot ("finished / needs you")
-  //   working → spinner ring ("agent/command actively running")
+  //   working → tumbling logo square ("agent/command actively running")
   // Otherwise: neutral filled dot for the session you're viewing, hollow for
   // idle ones.
+  const working = !isActive && !session.unread && session.working;
   const dotClass = isActive
     ? styles.dotActive
     : session.unread
     ? styles.dotUnread
-    : session.working
-    ? styles.dotWorking
     : styles.dotStopped;
 
   const onClick = () => {
@@ -88,7 +87,31 @@ export function SessionRow({ session }: Props) {
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      <span className={`${styles.dot} ${dotClass}`} aria-hidden="true" />
+      {/* Fixed-size slot so every state (circle dots, working box) occupies
+        * identical space — the label never shifts when the state changes and
+        * the indicator stays optically centred against the session name. */}
+      <span className={styles.indicator} aria-hidden="true">
+        {working ? (
+          /* The Lume mark, animated: logo box outline + the accent pane
+           * tumbling clockwise inside it (see SessionRow.module.css). SVG so
+           * the geometry is exact and crisp at any DPI scale. */
+          <svg className={styles.workingMark} viewBox="0 0 13 13">
+            <rect
+              className={styles.workingBox}
+              x="0.75"
+              y="0.75"
+              width="11.5"
+              height="11.5"
+              rx="3"
+              fill="none"
+              strokeWidth="1.5"
+            />
+            <rect className={styles.workingPane} x="2.25" y="2.25" width="4" height="4" rx="1.25" />
+          </svg>
+        ) : (
+          <span className={`${styles.dot} ${dotClass}`} />
+        )}
+      </span>
       {renaming ? (
         <InlineRename
           initial={session.name}
@@ -99,7 +122,10 @@ export function SessionRow({ session }: Props) {
           onCancel={() => setRenaming(false)}
         />
       ) : (
-        <span className={styles.name} onDoubleClick={onDoubleClick}>
+        /* Keyed by name: a rename (manual or the legacy "New session" →
+         * "Session N" migration) remounts the span, replaying the short
+         * fade/slide-in so the new name visibly "arrives". */
+        <span key={session.name} className={styles.name} onDoubleClick={onDoubleClick}>
           {session.name}
         </span>
       )}
@@ -109,7 +135,7 @@ export function SessionRow({ session }: Props) {
         title="Delete session"
         aria-label="Delete session"
       >
-        <IconTrash size={14} />
+        <IconTrash size={18} />
       </button>
     </div>
   );

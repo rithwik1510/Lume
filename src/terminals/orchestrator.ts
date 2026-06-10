@@ -37,6 +37,7 @@ import {
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
 import { detectShells, configIdMatchesShell } from "@/lib/shellsClient";
 import { noteOutput, forgetPane, disposeAttentionTracker } from "@/sessions/attentionTracker";
+import { onCommandEvent, paneCommandState } from "@/sessions/commandTracker";
 import { useSettingsStore } from "@/store/settingsStore";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
 
@@ -61,7 +62,9 @@ export async function changeShell(paneId: PaneId, shell: Shell): Promise<void> {
   await killPty(paneId).catch(() => undefined);
   // The new shell may not speak OSC 133 even if the old one did (and vice
   // versa) — reset the pane's attention/command-tracker state so detection
-  // starts fresh.
+  // starts fresh. Also drop any pending autorun: the remembered command was
+  // meant for the OLD shell, not whatever the user just switched to.
+  cancelStartupAutorun(paneId);
   forgetPane(paneId);
   await spawnPane(paneId, shell);
 }
@@ -121,22 +124,35 @@ export async function spawnPane(
   // 2. Defensive: clear any leftover mouse modes from a prior session.
   resetMouseModes(paneId);
 
-  // First-command capture (feature B): on a FRESH pane (no command remembered
-  // yet) we reconstruct the first line the user submits and store it on the
-  // leaf, so a later reopen can pre-fill it. Skipped on revive (the pane
-  // already carries a command — we don't want to overwrite it).
-  const capture = paneLaunchSpec(useSessionsStore.getState(), paneId)?.startupCommand
-    ? null
-    : makeCommandCapture();
+  // Command memory (feature B): remember the command to re-run on restore.
+  // LATEST-at-prompt wins, replacing whatever was remembered before — the
+  // memory tracks what the user most recently launched here, not the first
+  // thing they ever typed. Scoping rules:
+  //   - 133-integrated pane at its PROMPT → capture the line; on Enter it
+  //     replaces the remembered command and the capture re-arms for the next
+  //     prompt. Keystrokes while a command runs (answers typed INTO claude)
+  //     are never fed — they're input to the agent, not a launch command.
+  //   - Non-integrated pane ("none", cmd/WSL) → no prompt signal, so we keep
+  //     the old conservative single-shot: capture the first command only if
+  //     nothing is remembered yet (re-arming here would let TUI keystrokes
+  //     overwrite the memory).
+  // Autorun itself writes via writePty, not this wire — replaying a command
+  // never re-captures it.
+  let capture = makeCommandCapture();
 
   // 3. Register the input wire BEFORE opening the PTY. If the user is fast
   //    enough to type before pty_open resolves we just enqueue invokes.
   const inputDisposer = onTerminalData(paneId, (data) => {
-    if (capture) {
-      const cmd = capture.feed(data);
-      if (cmd) {
-        const sid = findSessionForPane(useSessionsStore.getState(), paneId)?.id;
-        if (sid) useSessionsStore.getState().setPaneStartupCommand(sid, paneId, cmd);
+    const cmdState = paneCommandState(paneId);
+    const remembered = paneLaunchSpec(useSessionsStore.getState(), paneId)?.startupCommand;
+    if (cmdState === "prompt" || (cmdState === "none" && !remembered)) {
+      const line = capture.feed(data);
+      if (line !== null) {
+        if (line !== "") {
+          const sid = findSessionForPane(useSessionsStore.getState(), paneId)?.id;
+          if (sid) useSessionsStore.getState().setPaneStartupCommand(sid, paneId, line);
+        }
+        capture = makeCommandCapture(); // re-arm for the next prompt line
       }
     }
     void writePty(paneId, data).catch((e) => {
@@ -150,11 +166,10 @@ export async function spawnPane(
   //    while the spawn races.
   usePtyStore.getState().addPane(paneId, shell);
 
-  // NOTE: we deliberately do NOT auto-type the remembered command into the
-  // shell on revive. Replaying it raced PSReadLine's line-editor init and froze
-  // the prompt (desynced buffer → dead backspace, flickering prediction UI).
-  // The command is still captured/remembered on the leaf (feature B); it's just
-  // never injected. See git history for the prior prefill-on-first-byte path.
+  // NOTE: spawnPane itself never types the remembered command — blind replay
+  // raced PSReadLine's init and froze the prompt (desynced buffer, dead
+  // backspace). Replay on revive is handled by armStartupAutorun, which waits
+  // for the shell's own OSC 133;B prompt-ready mark before writing.
 
   // 5. Open the PTY. The Channel is created here and wires Rust → xterm.
   //    Terminal data arrives as raw bytes (InvokeResponseBody::Raw → an
@@ -212,6 +227,8 @@ export async function spawnPane(
 }
 
 async function killPane(paneId: PaneId): Promise<void> {
+  // 0. A pane being torn down must not autorun a command later.
+  cancelStartupAutorun(paneId);
   // 1. Tell Rust to teardown.
   try {
     await killPty(paneId);
@@ -227,17 +244,56 @@ async function killPane(paneId: PaneId): Promise<void> {
   forgetPane(paneId);
 }
 
+// ---------------------------------------------------------------------------
+// Startup-command autorun (session restore — "your agent comes back").
+//
+// History: beta.1 typed the remembered command into the shell as soon as it
+// spawned, which raced PSReadLine's init and could garble or freeze the
+// prompt — beta.2 disabled it outright. OSC 133 gives us the missing signal:
+// 133;B means "prompt rendered, input starts NOW". We arm a one-shot listener
+// at revive time and type the command only when the shell itself says it's
+// ready. Shells that never emit 133 (cmd, WSL) simply never fire — the
+// timeout reaps the listener and the pane revives to a plain prompt.
+// ---------------------------------------------------------------------------
+
+/** Pending revive autoruns: paneId → cancel. */
+const pendingAutoruns = new Map<PaneId, () => void>();
+
+/** Generous window for slow PowerShell profiles; after this we assume the
+ *  shell is not 133-integrated and give up rather than type blind. */
+const AUTORUN_PROMPT_TIMEOUT_MS = 20_000;
+
+/** Exported for tests. Production callers: reviveSpawn only. */
+export function armStartupAutorun(paneId: PaneId, command: string): void {
+  cancelStartupAutorun(paneId);
+  const cancel = () => {
+    pendingAutoruns.delete(paneId);
+    off();
+    window.clearTimeout(timer);
+  };
+  const off = onCommandEvent((evt) => {
+    if (evt.paneId !== paneId || evt.type !== "prompt-ready") return;
+    cancel();
+    void writePty(paneId, `${command}\r`).catch(() => undefined);
+  });
+  const timer = window.setTimeout(cancel, AUTORUN_PROMPT_TIMEOUT_MS);
+  pendingAutoruns.set(paneId, cancel);
+}
+
+function cancelStartupAutorun(paneId: PaneId): void {
+  pendingAutoruns.get(paneId)?.();
+}
+
 /**
  * Spawn a pane from its persisted launch memory: the shell it last ran (or the
- * default if none recorded). The remembered first command is intentionally NOT
- * replayed into the shell (it froze the prompt — see spawnPane note); it stays
- * recorded on the leaf for display/future use. Used both for the install-time
- * sweep and for live session activation (feature A — session restore).
+ * default if none recorded), plus its remembered first command, re-run once
+ * the shell reports prompt-ready (see autorun block above). Used both for the
+ * install-time sweep and for live session activation (feature A — restore).
  */
 function reviveSpawn(paneId: PaneId): void {
   const spec = paneLaunchSpec(useSessionsStore.getState(), paneId);
-  // Revive with the remembered shell, but NOT the remembered command — auto-
-  // typing it into the fresh shell froze the prompt (see spawnPane note).
+  const command = spec?.startupCommand?.trim();
+  if (command) armStartupAutorun(paneId, command);
   void spawnPane(paneId, spec?.shell ?? defaultShell());
 }
 

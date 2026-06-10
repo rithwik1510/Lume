@@ -30,6 +30,18 @@ describe("commandTracker — OSC 133 state machine", () => {
     expect(events).toEqual([{ type: "integrated", paneId: "p1", exitCode: null }]);
   });
 
+  it("B emits prompt-ready on every prompt (after integrated on the first)", () => {
+    handleOsc133("p1", "B");
+    expect(events).toEqual([
+      { type: "integrated", paneId: "p1", exitCode: null },
+      { type: "prompt-ready", paneId: "p1", exitCode: null },
+    ]);
+    expect(paneCommandState("p1")).toBe("prompt");
+    events = [];
+    handleOsc133("p1", "B");
+    expect(events).toEqual([{ type: "prompt-ready", paneId: "p1", exitCode: null }]);
+  });
+
   it("C marks the pane running and emits command-start", () => {
     handleOsc133("p1", "A");
     handleOsc133("p1", "B");

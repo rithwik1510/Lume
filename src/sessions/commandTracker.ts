@@ -22,7 +22,10 @@ import type { PaneId } from "@/types";
 export type CommandState = "none" | "prompt" | "running";
 
 export interface CommandEvent {
-  type: "integrated" | "command-start" | "command-finished";
+  /** "prompt-ready" fires on every 133;B — the shell finished rendering its
+   *  prompt and is about to read input. The one provably-safe moment to
+   *  programmatically type into the pane (autorun of remembered commands). */
+  type: "integrated" | "prompt-ready" | "command-start" | "command-finished";
   paneId: PaneId;
   /** Exit code for command-finished, when the shell reported one. */
   exitCode: number | null;
@@ -59,12 +62,19 @@ export function handleOsc133(paneId: PaneId, data: string): void {
   const wasIntegrated = states.has(paneId);
   const mark = data.split(";", 1)[0];
   switch (mark) {
-    case "A":
-    case "B": {
+    case "A": {
       // Prompt (re)rendered. A without a preceding D would mean a command
       // ended without the D mark — treat it as back-at-prompt either way.
       states.set(paneId, "prompt");
       break;
+    }
+    case "B": {
+      // Prompt end — input starts. Same state as A, plus the prompt-ready
+      // event consumers use as the safe-to-type signal.
+      states.set(paneId, "prompt");
+      if (!wasIntegrated) emit({ type: "integrated", paneId, exitCode: null });
+      emit({ type: "prompt-ready", paneId, exitCode: null });
+      return;
     }
     case "C": {
       states.set(paneId, "running");
