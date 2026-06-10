@@ -4,6 +4,43 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.5] — 2026-06-10
+
+Your agents come back when you reopen Lume, plus attention-signal polish.
+
+### Added
+- **Restored sessions relaunch their agent.** When Lume reopens a session (on
+  launch or when you click a stopped one), the command you last ran in each
+  pane is re-run automatically — so closing Lume mid-`claude` and reopening
+  brings the agent back, not just an empty prompt. The command is typed only
+  once the shell reports it's ready for input (via OSC 133), which is what made
+  this safe to turn back on after the earlier prompt-freeze. Shells without
+  shell integration (cmd, WSL) revive to a plain prompt.
+- **Command memory tracks your latest launch.** Each pane remembers the most
+  recent command you ran at its prompt (replacing the old "first command ever"
+  behavior). Answers you type *into* a running agent are never mistaken for a
+  launch command, so restore re-runs the right thing.
+- **Animated logo loader.** The "working" indicator is now the Lume mark — the
+  accent square tumbling clockwise inside the logo box — replacing the generic
+  spinning ring. Its square shape also distinguishes "working" from the dot
+  states at a glance.
+
+### Changed
+- **Legacy "New session" rows are renamed on launch.** Sessions saved before
+  sequential naming shipped now become `Session 1`, `Session 2`, … per folder
+  the moment the app loads, with a subtle slide-in as the new name appears.
+- **Larger +/delete buttons** on session rows and folder headers — easier to
+  see and to hit.
+
+### Fixed
+- **An idle agent no longer shows a phantom "working" loader.** An open-but-idle
+  TUI (e.g. `claude` waiting at its input box) periodically repaints its status
+  line; each repaint used to flip the spinner back on and wipe the needs-you
+  dot, so quiet agents looked permanently busy. Working now requires a sustained
+  output stream, so an idle agent settles into a steady dot and stays there.
+
+[0.1.0-beta.5]: https://github.com/rithwik1510/Workflow/releases/tag/v0.1.0-beta.5
+
 ## [0.1.0-beta.4] — 2026-06-10
 
 Attention system rebuilt, session restore returns, plus naming and terminal polish.

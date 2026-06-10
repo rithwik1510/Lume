@@ -40,3 +40,6 @@ spike-archive/src-tauri/target/
 # Brainstorming companion mockups (local visual session state)
 .superpowers/
 .gstack/
+
+.vercel
+.env*.local
