@@ -6,16 +6,13 @@
 // Lifecycle invariants:
 //   - status is NEVER persisted; rehydration coerces every session to "stopped"
 //   - activeSessionId is NEVER persisted; cold start = null (all-stopped)
-//   - unread / working are transient; cleared on activate and on rehydrate
+//   - unread is transient; cleared on activate and on rehydrate
 //   - PTY processes don't survive restart (DESIGN.md §1 invariant 5)
 //
-// `working` and `unread` together form a tri-state attention dot for the
-// sidebar (see attentionTracker): a background session that's actively
-// streaming output is "working" (green pulse); after IDLE_MS of silence it
-// flips to "unread" (amber pulse, "finished a turn / needs you"). They are
-// mutually exclusive — setWorking(id, true) clears unread; bumpUnread clears
-// working — but both fields exist on the row so render precedence is explicit
-// rather than implicit in a single enum.
+// `unread` is the single sidebar attention signal (see attentionTracker): a
+// background session whose agent rang the terminal bell — i.e. it finished a
+// turn or is asking for input — shows a dot. The dot is cleared the moment you
+// open that session.
 //
 // Grouping is derived: every distinct folderPath across `sessions` forms a
 // group. No separate Group entity — just label overrides and collapsed-state,
@@ -30,7 +27,12 @@ import { leaves as treeLeaves } from "@/store/layout/tree";
 import type { PaneId, Shell } from "@/types";
 import { nextPaneId } from "@/lib/paneIds";
 import { tauriPersistStorage } from "@/lib/persistStorage";
-import { autoSuffixSessionName, basename, samePath } from "@/lib/sessions/groupingHelpers";
+import {
+  autoSuffixSessionName,
+  basename,
+  nextSessionName,
+  samePath,
+} from "@/lib/sessions/groupingHelpers";
 
 export type SessionId = string;
 export type SessionStatus = "active" | "stopped";
@@ -43,6 +45,10 @@ export interface Session {
   focusedPaneId: PaneId | null;
   status: SessionStatus;
   unread: boolean;
+  /** Transient "an agent/command is actively running here" signal (animated
+   *  ring in the sidebar). Driven by the attentionTracker: OSC 133
+   *  command-running for integrated shells, output cadence for the rest.
+   *  Never persisted — coerced false on rehydrate, like unread. */
   working: boolean;
   gitBranch: string | null;
   fileTreeOpen: boolean;
@@ -57,6 +63,12 @@ export interface SessionsState {
   // activeSessionId (always null on cold start), this PERSISTS so boot can
   // reopen it. Set on every activateSession; cleared if that session is purged.
   lastActiveSessionId: SessionId | null;
+  // Every session that was RUNNING when the app last persisted (derived from
+  // status at partialize time). Boot revives this whole fleet — the terminals
+  // come back in their folders with their layouts; the processes themselves
+  // can't survive a restart (DESIGN.md §1 invariant 5), so agents must be
+  // relaunched inside them.
+  lastRunningSessionIds: SessionId[];
   // User preference (persisted): reopen lastActiveSessionId on launch. Default
   // on. A Settings toggle can flip it later; for now it lives here.
   reopenLastSession: boolean;
@@ -74,7 +86,7 @@ export interface SessionsState {
   toggleGroupCollapsed: (folderPath: string) => void;
   bumpUnread: (id: SessionId) => void;
   clearUnread: (id: SessionId) => void;
-  setWorking: (id: SessionId, on: boolean) => void;
+  setWorking: (id: SessionId, working: boolean) => void;
   updateBranch: (id: SessionId, branch: string | null) => void;
   setLayoutRoot: (id: SessionId, root: LayoutNode | null) => void;
   setFocusedPane: (id: SessionId, paneId: PaneId | null) => void;
@@ -84,6 +96,10 @@ export interface SessionsState {
   setPaneShell: (id: SessionId, paneId: PaneId, shell: Shell) => void;
   setPaneStartupCommand: (id: SessionId, paneId: PaneId, command: string) => void;
   setReopenLastSession: (on: boolean) => void;
+  /** Boot-time fleet revival: mark every id running again and focus
+   *  `activeId` (falling back to the first revivable id). One store write →
+   *  one orchestrator diff → all panes spawn. */
+  resumeSessions: (ids: SessionId[], activeId: SessionId | null) => void;
   reset: () => void;
 }
 
@@ -95,10 +111,24 @@ function findLeafNode(node: LayoutNode | null, paneId: PaneId): LeafNode | null 
   return findLeafNode(node.left, paneId) ?? findLeafNode(node.right, paneId);
 }
 
+// Strictly-increasing creation stamp. Date.now() can return the same millisecond
+// for two sessions created back-to-back, which would make createdAt an ambiguous
+// sort key. Bumping by 1ms on a tie keeps it a TOTAL ordering — what the sidebar
+// relies on for "newest session first within a folder" and "folders in fixed
+// creation order". Module-scoped; resets each launch but new stamps always start
+// at Date.now(), which is later than anything persisted from a prior run.
+let lastCreatedAt = 0;
+function nextCreatedAt(): number {
+  const t = Date.now();
+  lastCreatedAt = t > lastCreatedAt ? t : lastCreatedAt + 1;
+  return lastCreatedAt;
+}
+
 const emptyState = () => ({
   sessions: {},
   activeSessionId: null,
   lastActiveSessionId: null,
+  lastRunningSessionIds: [],
   reopenLastSession: true,
   groupLabels: {},
   collapsedGroups: [],
@@ -111,11 +141,14 @@ export const useSessionsStore = create<SessionsState>()(
         ...emptyState(),
         createSession: (folderPath, name) => {
           const id = crypto.randomUUID();
-          const now = Date.now();
+          const now = nextCreatedAt();
           const siblingNames = Object.values(get().sessions)
             .filter((s) => samePath(s.folderPath, folderPath))
             .map((s) => s.name);
-          const desired = name ?? "New session";
+          // Default names are sequential per folder: "Session 1", "Session 2",
+          // … (autoSuffix stays as a belt-and-suspenders collision guard for
+          // explicitly-passed names).
+          const desired = name ?? nextSessionName(siblingNames);
           const finalName = autoSuffixSessionName(desired, siblingNames);
           set((s) => {
             s.sessions[id] = {
@@ -141,7 +174,6 @@ export const useSessionsStore = create<SessionsState>()(
             if (!session) return;
             session.status = "active";
             session.unread = false;
-            session.working = false;
             session.lastActiveAt = Date.now();
             s.activeSessionId = id;
             // Remember it for next launch (feature A — reopen last session).
@@ -180,11 +212,11 @@ export const useSessionsStore = create<SessionsState>()(
             const session = s.sessions[id];
             if (!session) return;
             if (name === "") {
-              // Revert to default, sibling-suffixed
+              // Revert to the sequential default
               const siblings = Object.values(s.sessions)
                 .filter((x) => x.id !== id && samePath(x.folderPath, session.folderPath))
                 .map((x) => x.name);
-              session.name = autoSuffixSessionName("New session", siblings);
+              session.name = autoSuffixSessionName(nextSessionName(siblings), siblings);
             } else {
               session.name = name;
             }
@@ -207,11 +239,9 @@ export const useSessionsStore = create<SessionsState>()(
           set((s) => {
             const session = s.sessions[id];
             if (!session) return;
+            // Never light up the visible session — you're already looking at it.
             if (s.activeSessionId === id) return;
             session.unread = true;
-            // unread (idle-after-output) and working (streaming now) are
-            // mutually exclusive — flipping to unread ends the working window.
-            session.working = false;
           }),
 
         clearUnread: (id) =>
@@ -220,16 +250,12 @@ export const useSessionsStore = create<SessionsState>()(
             if (session) session.unread = false;
           }),
 
-        setWorking: (id, on) =>
+        setWorking: (id, working) =>
           set((s) => {
             const session = s.sessions[id];
-            if (!session) return;
-            // Never light up the visible session — you're already looking at it.
-            if (on && s.activeSessionId === id) return;
-            session.working = on;
-            // Fresh output supersedes a prior "finished a turn" amber dot —
-            // the agent is doing something again.
-            if (on) session.unread = false;
+            // Guard: the tracker calls this on transitions, but a same-value
+            // write would still churn immer/persist for nothing.
+            if (session && session.working !== working) session.working = working;
           }),
 
         updateBranch: (id, branch) =>
@@ -275,6 +301,24 @@ export const useSessionsStore = create<SessionsState>()(
         setReopenLastSession: (on) =>
           set((s) => {
             s.reopenLastSession = on;
+          }),
+
+        resumeSessions: (ids, activeId) =>
+          set((s) => {
+            for (const id of ids) {
+              const sess = s.sessions[id];
+              if (sess) sess.status = "active";
+            }
+            const focus =
+              activeId && s.sessions[activeId] ? activeId : ids.find((id) => s.sessions[id]) ?? null;
+            if (focus) {
+              const sess = s.sessions[focus];
+              sess.status = "active";
+              sess.unread = false;
+              sess.lastActiveAt = Date.now();
+              s.activeSessionId = focus;
+              s.lastActiveSessionId = focus;
+            }
           }),
 
         reset: () =>
@@ -323,6 +367,12 @@ export const useSessionsStore = create<SessionsState>()(
           // these survive across launches.
           lastActiveSessionId: state.lastActiveSessionId,
           reopenLastSession: state.reopenLastSession,
+          // Derived at persist time: the fleet that was running. Persist
+          // writes happen on every mutation, so this is current as of the
+          // last state change before exit.
+          lastRunningSessionIds: Object.values(state.sessions)
+            .filter((s) => s.status === "active")
+            .map((s) => s.id),
         }),
         onRehydrateStorage: () => (state) => {
           if (!state) return;
@@ -371,10 +421,15 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
       ? state.lastActiveSessionId
       : null;
   const reopenLastSession = state.reopenLastSession ?? true;
+  // Drop revival ids whose session no longer exists (purged since persist).
+  const lastRunningSessionIds = (state.lastRunningSessionIds ?? []).filter(
+    (id) => sessions[id] !== undefined
+  );
   return {
     sessions,
     activeSessionId: null,
     lastActiveSessionId,
+    lastRunningSessionIds,
     reopenLastSession,
     groupLabels,
     collapsedGroups,
@@ -441,7 +496,7 @@ export interface SessionGroupView {
   folderPath: string;
   label: string; // groupLabels[folderPath] ?? basename(folderPath)
   collapsed: boolean;
-  sessions: Session[]; // sorted by lastActiveAt desc
+  sessions: Session[]; // sorted by createdAt desc (newest first)
 }
 
 // Accepts the minimal slice it reads (not the whole SessionsState) so callers
@@ -460,29 +515,35 @@ export function groupedSessions(
   // what's already stored). Same-folder dedup is handled by samePath where
   // it matters; this is the render-input grouping.
   //
-  // Cache max lastActiveAt during the bucket loop so the group-sort step
-  // doesn't have to spread session arrays inside the comparator. This is
-  // both safer (Math.max(...[]) === -Infinity silently misorders empty
-  // groups) and faster (O(n) instead of O(n^2·k) when sorting).
+  // Ordering is intentionally driven by createdAt, never lastActiveAt, so the
+  // sidebar NEVER reshuffles when you click around:
+  //   - sessions within a folder: newest first (createdAt desc)
+  //   - folders: fixed creation order (newest first), keyed by the folder's
+  //     earliest session — so a newly added project lands at the top, but the
+  //     folder you used most recently never jumps around on click.
+  // Cache each folder's earliest createdAt during the bucket loop so the
+  // group-sort comparator stays O(n) and never spreads arrays.
   const byFolder: Record<string, Session[]> = {};
-  const maxByFolder: Record<string, number> = {};
+  const firstCreatedByFolder: Record<string, number> = {};
   for (const s of Object.values(state.sessions)) {
     (byFolder[s.folderPath] ??= []).push(s);
-    const prev = maxByFolder[s.folderPath];
-    if (prev === undefined || s.lastActiveAt > prev) {
-      maxByFolder[s.folderPath] = s.lastActiveAt;
+    const prev = firstCreatedByFolder[s.folderPath];
+    if (prev === undefined || s.createdAt < prev) {
+      firstCreatedByFolder[s.folderPath] = s.createdAt;
     }
   }
   const groups: SessionGroupView[] = Object.entries(byFolder).map(([folderPath, sessions]) => ({
     folderPath,
     label: state.groupLabels[folderPath] ?? basename(folderPath),
     collapsed: state.collapsedGroups.includes(folderPath),
-    sessions: sessions.sort((a, b) => b.lastActiveAt - a.lastActiveAt),
+    sessions: sessions.sort((a, b) => b.createdAt - a.createdAt),
   }));
-  // Sort groups by cached max-child lastActiveAt desc. Empty-sessions groups
-  // never exist by construction (we only create a bucket when we push), so
-  // maxByFolder is always populated for any folderPath in groups.
-  groups.sort((a, b) => (maxByFolder[b.folderPath] ?? 0) - (maxByFolder[a.folderPath] ?? 0));
+  // Folders in fixed creation order, newest first (earliest-child createdAt
+  // desc). Empty groups never exist by construction (a bucket is only created
+  // on push), so firstCreatedByFolder is always populated for any folderPath.
+  groups.sort(
+    (a, b) => (firstCreatedByFolder[b.folderPath] ?? 0) - (firstCreatedByFolder[a.folderPath] ?? 0)
+  );
   return groups;
 }
 

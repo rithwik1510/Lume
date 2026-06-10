@@ -8,12 +8,12 @@
 //! A network/UNC path with a hung `git` would otherwise block the async
 //! command worker indefinitely (spec §15 risk #3).
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 const TIMEOUT: Duration = Duration::from_secs(2);
 

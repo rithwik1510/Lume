@@ -73,14 +73,21 @@ export default function App() {
         useSessionsStore.getState().activateSession(seededId);
       }
 
-      // Feature A (reopen-last-session-on-launch) is DISABLED pending the
-      // session-restore freeze investigation. Auto-activating a restored
-      // session on launch is the path that hangs the window on some setups;
-      // the original spec (§3) is cold-start = all-stopped anyway, so we revert
-      // to that: the user clicks a session in the sidebar to revive it. This
-      // also isolates the bug — if a manual revive still hangs, it's the spawn/
-      // render path, not launch-time bootstrap ordering. See git history to
-      // re-enable once the root cause is fixed.
+      // Feature A — reopen the fleet on launch. Revives every session that
+      // was running at last exit (persisted as lastRunningSessionIds) and
+      // focuses the one that was active. Same code path as clicking each
+      // session in the sidebar: status flips → orchestrator diff → panes
+      // spawn. (This was disabled for a while after a launch-hang scare; the
+      // actual culprit was the auto-typed startup command racing PSReadLine,
+      // which is long gone — commands are never auto-run — and pane-id
+      // remapping killed the cross-session pane collisions. Manual revive,
+      // the identical path, has been stable since.)
+      if (!seededId) {
+        const st = useSessionsStore.getState();
+        if (st.reopenLastSession && st.lastRunningSessionIds.length > 0) {
+          st.resumeSessions(st.lastRunningSessionIds, st.lastActiveSessionId);
+        }
+      }
 
       // If the now-active session has no layout yet, seed its first pane. On a
       // routine restart nothing is active, so this is skipped and the user

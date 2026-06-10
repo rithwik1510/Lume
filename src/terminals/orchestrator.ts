@@ -36,7 +36,7 @@ import {
 } from "@/terminals/registry";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
 import { detectShells, configIdMatchesShell } from "@/lib/shellsClient";
-import { noteOutput, disposeAttentionTracker } from "@/sessions/attentionTracker";
+import { noteOutput, forgetPane, disposeAttentionTracker } from "@/sessions/attentionTracker";
 import { useSettingsStore } from "@/store/settingsStore";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
 
@@ -59,6 +59,10 @@ export async function changeShell(paneId: PaneId, shell: Shell): Promise<void> {
   // content). Caller is responsible for not interleaving shell swaps
   // for the same paneId.
   await killPty(paneId).catch(() => undefined);
+  // The new shell may not speak OSC 133 even if the old one did (and vice
+  // versa) — reset the pane's attention/command-tracker state so detection
+  // starts fresh.
+  forgetPane(paneId);
   await spawnPane(paneId, shell);
 }
 
@@ -172,8 +176,8 @@ export async function spawnPane(
       writeToTerminal(paneId, bytes);
       // Cheap throttled metadata bump for the UI's "active pane" indicator.
       usePtyStore.getState().markActivity(paneId);
-      // Feed the attention tracker: a background session that produces output
-      // then goes quiet glows its sidebar dot ("finished a turn / needs you").
+      // Feed the attention tracker: a background session that streams output then
+      // goes quiet lights its sidebar dot ("finished a turn / needs you").
       noteOutput(paneId);
       return;
     }
@@ -217,9 +221,10 @@ async function killPane(paneId: PaneId): Promise<void> {
   // 2. Pull the input wire.
   runtimes.get(paneId)?.inputDisposer.dispose();
   runtimes.delete(paneId);
-  // 3. Drop the Terminal + metadata.
+  // 3. Drop the Terminal + metadata + attention/command-tracker state.
   disposeTerminal(paneId);
   usePtyStore.getState().removePane(paneId);
+  forgetPane(paneId);
 }
 
 /**

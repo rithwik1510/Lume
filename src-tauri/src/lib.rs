@@ -7,6 +7,7 @@ pub mod fs;
 pub mod git;
 pub mod pty;
 pub mod shell_detect;
+pub mod shell_integration;
 
 pub use error::{AppError, AppResult};
 

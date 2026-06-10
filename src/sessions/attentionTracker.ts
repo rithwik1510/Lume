@@ -1,93 +1,336 @@
-// Attention tracker — drives the tri-state attention dot in the session
-// sidebar, so when you're running agents (Claude Code, Codex, …) across many
-// projects you can see at a glance which one is *working* vs *waiting on you*.
+// Attention tracker — drives the sidebar's two session signals:
 //
-// Tri-state per background session:
-//   working (green pulse)  — output is currently streaming.
-//   unread  (amber pulse)  — output happened, then went quiet for IDLE_MS,
-//                            i.e. "finished a turn / needs input".
-//   off                    — nothing happening (idle shell, or stopped).
+//   working  → animated ring   ("an agent/command is actively running here")
+//   unread   → accent dot      ("finished / needs you — look at this session")
 //
-// Two signals:
+// Signal hierarchy (most exact wins, per pane):
 //
-//   noteBell(paneId)   — the program rang the terminal bell (BEL). Agents and
-//                        shells commonly ring it on completion or when they
-//                        block for input. Treated as an explicit "needs you"
-//                        cue → flips straight to unread.
+//   1. OSC 133 command lifecycle (commandTracker) — GROUND TRUTH. Lume injects
+//      a shell-integration script into PowerShell-family shells, so the shell
+//      itself reports prompt / command-start / command-finished(+exit code).
+//      For an integrated pane the cadence signals are SCOPED to running
+//      commands — that's the whole trick:
+//        at prompt → output is noise (repaints, resize echo): ignored. No
+//                    spinner, no dot. An idle shell can never false-positive.
+//        running   → spinner. Output = the agent is working; quiet ≥
+//                    QUIET_MS = it finished a turn / blocked on input → dot
+//                    (turn-level detection for agents living inside one
+//                    long-running command, e.g. `claude`). Output resuming
+//                    clears the dot and brings the spinner back.
+//        133;D     → command finished → dot, spinner off, exact.
+//   2. BEL / OSC 9/99/777 — explicit agent cues (Claude Code & co. ring these
+//      when they finish a turn or block on a permission prompt). Instant dot,
+//      even mid-command.
+//   3. Output cadence — FALLBACK for panes with no integration (cmd, WSL).
+//      Unscoped: streaming = spinner; quiet after activity = dot. Imperfect,
+//      but only used where the shell can't tell us more.
 //
-//   noteOutput(paneId) — the pane emitted output. While output is arriving the
-//                        session is "working"; if it then goes quiet for
-//                        IDLE_MS the agent has likely finished its turn → flip
-//                        to unread. Continuous output keeps resetting the
-//                        timer, so a still-streaming session doesn't glow
-//                        prematurely.
+// Multi-pane sessions OR their panes: working if ANY pane works; one dot per
+// session. bumpUnread no-ops for the active session and activateSession
+// clears the dot, so the session you're looking at never begs for attention.
 //
-// Why this works cleanly: setWorking and bumpUnread both no-op for the active
-// (visible) session, and activateSession clears both flags — so the session
-// you're looking at never glows, and switching to a glowing session dismisses
-// it.
+// Hot-path discipline: noteOutput is called from the PTY byte sink, so it is
+// throttled per pane (OUTPUT_THROTTLE_MS) and resolves pane→session through a
+// cache instead of walking every session's layout tree per chunk.
 
-import { useSessionsStore, findSessionForPane } from "@/store/sessionsStore";
+import { useSessionsStore, findSessionForPane, type SessionId } from "@/store/sessionsStore";
+import { leaves as treeLeaves } from "@/store/layout/tree";
+import {
+  onCommandEvent,
+  paneCommandState,
+  forgetPaneCommandState,
+} from "@/sessions/commandTracker";
 import type { PaneId } from "@/types";
 
-/** Quiet-after-output window that counts as "finished a turn". */
-const IDLE_MS = 2000;
+/** Quiet-after-activity window that counts as "finished a turn / waiting".
+ *  TUI agents (Claude Code & co.) redraw their status line roughly once a
+ *  second while genuinely working, so 5s of true silence reliably means the
+ *  turn ended or the agent is blocked on a question — while staying well
+ *  clear of mid-work think-pauses. This is also the worst-case latency
+ *  between "agent asked you something" and the dot appearing, so keep it as
+ *  tight as the heartbeat allows. Exported for tests. */
+export const QUIET_MS = 5000;
 
-const idleTimers = new Map<string, number>();
-const sawOutput = new Set<string>();
+/** Per-pane throttle for noteOutput (PTY byte-sink hot path). */
+const OUTPUT_THROTTLE_MS = 200;
 
-/** Resolve the owning session id, but only if it's a BACKGROUND session
- *  (exists and isn't the currently-visible one). null otherwise. */
-function backgroundSessionId(paneId: PaneId): string | null {
-  const state = useSessionsStore.getState();
-  const session = findSessionForPane(state, paneId);
-  if (!session) return null;
-  if (session.id === state.activeSessionId) return null; // visible — no cue needed
-  return session.id;
+/** Ignore a backgrounded session's output for this long after switching away.
+ *  Leaving a session makes its terminals repaint (focus-out redraws, display
+ *  toggles, fits) — bytes that LOOK like activity but are echoes of the
+ *  switch itself. Without this, leaving an idle agent showed a phantom
+ *  spinner→dot sequence for a terminal where nothing happened. */
+const BACKGROUND_GRACE_MS = 1500;
+
+/** Ignore a pane's output briefly after a fit/resize — the PTY resize makes
+ *  full-screen apps redraw, which is repaint noise, not activity. */
+const RESIZE_MUTE_MS = 800;
+
+// ---------------------------------------------------------------------------
+// Per-pane state (module-level — none of this belongs in Zustand)
+// ---------------------------------------------------------------------------
+
+/** Panes with live output (or a just-started command) — the ONLY driver of
+ *  the working spinner. A command that started long ago but sits silent
+ *  (an agent waiting at its input box) is not "working". */
+const streamingPanes = new Set<PaneId>();
+/** Running panes whose output went quiet ≥ QUIET_MS — the agent inside the
+ *  command finished a turn / is waiting; the dot has taken over. Cleared
+ *  when output resumes (self-correcting) or the command ends. */
+const quietWhileRunning = new Set<PaneId>();
+/** Quiet timers, keyed by pane. */
+const quietTimers = new Map<PaneId, number>();
+/** noteOutput throttle stamps. */
+const lastNoteAt = new Map<PaneId, number>();
+/** When each session last went background (activeSessionId moved away). */
+const backgroundedAt = new Map<SessionId, number>();
+/** Per-pane "ignore output until" stamps (resize repaint noise). */
+const mutedUntil = new Map<PaneId, number>();
+
+// pane → owning session cache. Any sessions-slice change invalidates it
+// (layout edits are rare next to PTY chunks, so this trades a cheap clear
+// for not tree-walking every session on every output chunk).
+const paneSessionCache = new Map<PaneId, SessionId | null>();
+useSessionsStore.subscribe((state, prev) => {
+  if (state.sessions !== prev.sessions) paneSessionCache.clear();
+  if (state.activeSessionId !== prev.activeSessionId) {
+    // Session transition. The one that LOST focus gets a clean slate: every
+    // signal you could have seen while inside it is acknowledged by having
+    // been there — only what happens AFTER you leave should light it up.
+    // The grace stamp then swallows the repaint noise the switch generates.
+    const went = prev.activeSessionId;
+    if (went) {
+      backgroundedAt.set(went, Date.now());
+      const sess = state.sessions[went];
+      if (sess?.layoutRoot) {
+        for (const paneId of treeLeaves(sess.layoutRoot)) {
+          clearQuietTimer(paneId);
+          streamingPanes.delete(paneId);
+          quietWhileRunning.delete(paneId);
+        }
+      }
+      recomputeWorking(went);
+    }
+    if (state.activeSessionId) backgroundedAt.delete(state.activeSessionId);
+  }
+});
+
+function sessionIdFor(paneId: PaneId): SessionId | null {
+  if (paneSessionCache.has(paneId)) return paneSessionCache.get(paneId)!;
+  const session = findSessionForPane(useSessionsStore.getState(), paneId);
+  const sid = session?.id ?? null;
+  paneSessionCache.set(paneId, sid);
+  return sid;
 }
 
-export function noteOutput(paneId: PaneId): void {
-  const sid = backgroundSessionId(paneId);
-  if (sid === null) return;
-  sawOutput.add(sid);
-  // Flip to working (green) immediately on the leading edge — bumpUnread on
-  // the previous turn already cleared working, so a new burst of output
-  // re-arms the green pulse. setWorking itself is a no-op if the session
-  // became active in the meantime.
-  useSessionsStore.getState().setWorking(sid, true);
-  const prev = idleTimers.get(sid);
-  if (prev !== undefined) window.clearTimeout(prev);
-  idleTimers.set(
-    sid,
+// ---------------------------------------------------------------------------
+// Session-level derivation
+// ---------------------------------------------------------------------------
+
+/** working(session) = OR over its panes of (running ∨ streaming). Called on
+ *  transitions only — never per output chunk for an already-working pane. */
+function recomputeWorking(sid: SessionId): void {
+  const state = useSessionsStore.getState();
+  const session = state.sessions[sid];
+  if (!session) return;
+  let working = false;
+  if (session.layoutRoot) {
+    for (const paneId of treeLeaves(session.layoutRoot)) {
+      if (streamingPanes.has(paneId)) {
+        working = true;
+        break;
+      }
+    }
+  }
+  if (session.working !== working) state.setWorking(sid, working);
+}
+
+function clearQuietTimer(paneId: PaneId): void {
+  const t = quietTimers.get(paneId);
+  if (t !== undefined) {
+    window.clearTimeout(t);
+    quietTimers.delete(paneId);
+  }
+}
+
+/** (Re)arm the pane's quiet timer. On expiry, what quiet MEANS depends on the
+ *  pane's command state at that moment (it may have changed since arming). */
+function armQuietTimer(paneId: PaneId, sid: SessionId): void {
+  clearQuietTimer(paneId);
+  quietTimers.set(
+    paneId,
     window.setTimeout(() => {
-      idleTimers.delete(sid);
-      // Only glow if we actually saw output for this turn (set above) and the
-      // session is still backgrounded (bumpUnread itself re-checks active).
-      // bumpUnread also clears working, so green → amber in one step.
-      if (sawOutput.delete(sid)) {
+      quietTimers.delete(paneId);
+      const stateNow = paneCommandState(paneId);
+      streamingPanes.delete(paneId); // quiet = not streaming, in every state
+      recomputeWorking(sid);
+      if (stateNow === "running") {
+        // Turn finished / waiting for input inside a running command.
+        quietWhileRunning.add(paneId);
+        useSessionsStore.getState().bumpUnread(sid);
+      } else if (stateNow === "none") {
+        // Fallback: quiet after activity = best "finished a turn" guess.
         useSessionsStore.getState().bumpUnread(sid);
       }
-    }, IDLE_MS)
+      // "prompt": D already handled the dot — just stop the spinner.
+    }, QUIET_MS)
   );
 }
 
-export function noteBell(paneId: PaneId): void {
-  const sid = backgroundSessionId(paneId);
-  if (sid === null) return;
-  // Bell is an explicit "done / needs you" cue — cancel any pending idle timer
-  // so it doesn't re-glow later, and bumpUnread (clears working internally).
-  const prev = idleTimers.get(sid);
-  if (prev !== undefined) {
-    window.clearTimeout(prev);
-    idleTimers.delete(sid);
+// ---------------------------------------------------------------------------
+// Signal #1 — OSC 133 ground truth (subscribed once at module load)
+// ---------------------------------------------------------------------------
+
+onCommandEvent((evt) => {
+  const sid = sessionIdFor(evt.paneId);
+  if (!sid) return;
+  const store = useSessionsStore.getState();
+  switch (evt.type) {
+    case "integrated": {
+      // The shell just proved it speaks 133 — retire the cadence fallback
+      // for this pane so a pending quiet-timer can't fire a guessed dot.
+      clearQuietTimer(evt.paneId);
+      streamingPanes.delete(evt.paneId);
+      recomputeWorking(sid);
+      break;
+    }
+    case "command-start": {
+      quietWhileRunning.delete(evt.paneId);
+      // Fresh activity — a stale dot no longer reflects reality.
+      if (store.sessions[sid]?.unread) store.clearUnread(sid);
+      // A starting command IS activity: spinner on now, and if it then sits
+      // silent (rare) the timer decays it like any other quiet.
+      streamingPanes.add(evt.paneId);
+      recomputeWorking(sid);
+      armQuietTimer(evt.paneId, sid);
+      break;
+    }
+    case "command-finished": {
+      quietWhileRunning.delete(evt.paneId);
+      // The spinner should stop at the exact D mark, not a decay later.
+      clearQuietTimer(evt.paneId);
+      streamingPanes.delete(evt.paneId);
+      recomputeWorking(sid);
+      // Exact "finished" → dot if this session is in the background.
+      // (bumpUnread no-ops for the active session.)
+      store.bumpUnread(sid);
+      break;
+    }
   }
-  sawOutput.delete(sid);
+});
+
+// ---------------------------------------------------------------------------
+// Signal #2 — explicit agent cues
+// ---------------------------------------------------------------------------
+
+/** BEL from xterm. Agents ring it when they finish a turn or block on input —
+ *  instant dot, even while a command is still running. */
+export function noteBell(paneId: PaneId): void {
+  const sid = sessionIdFor(paneId);
+  if (!sid) return;
+  clearQuietTimer(paneId);
   useSessionsStore.getState().bumpUnread(sid);
 }
 
-/** Clear all pending idle timers (HMR / teardown). */
-export function disposeAttentionTracker(): void {
-  for (const t of idleTimers.values()) window.clearTimeout(t);
-  idleTimers.clear();
-  sawOutput.clear();
+/** OSC 9 / 99 / 777 desktop-notification conventions — same meaning as BEL. */
+export function noteAgentNotification(paneId: PaneId): void {
+  noteBell(paneId);
 }
+
+// ---------------------------------------------------------------------------
+// Signal #3 — output-cadence fallback (non-integrated panes only)
+// ---------------------------------------------------------------------------
+
+/** Ignore a pane's output for a moment — called around fit/resize, whose PTY
+ *  resize makes full-screen apps repaint. Repaints aren't activity. */
+export function muteOutput(paneId: PaneId, ms: number = RESIZE_MUTE_MS): void {
+  mutedUntil.set(paneId, Date.now() + ms);
+}
+
+export function noteOutput(paneId: PaneId): void {
+  const now = Date.now();
+
+  // Noise filters first (before the throttle stamp, so the first REAL chunk
+  // after a mute isn't accidentally throttled away):
+  //   1. Pane muted around a resize — repaint bytes, not activity.
+  //   2. Session just went background — leaving a session makes its
+  //      terminals repaint (focus-out redraws); echoes of the switch itself
+  //      must not light up the session you just deliberately left.
+  const muted = mutedUntil.get(paneId);
+  if (muted !== undefined) {
+    if (now < muted) return;
+    mutedUntil.delete(paneId);
+  }
+  const sid = sessionIdFor(paneId);
+  if (!sid) return;
+  const bgAt = backgroundedAt.get(sid);
+  if (bgAt !== undefined && now - bgAt < BACKGROUND_GRACE_MS) return;
+
+  const prev = lastNoteAt.get(paneId);
+  if (prev !== undefined && now - prev < OUTPUT_THROTTLE_MS) return;
+  lastNoteAt.set(paneId, now);
+
+  const store = useSessionsStore.getState();
+
+  // What output MEANS depends on the pane's command state:
+  //
+  //   "prompt"  → integrated pane idle at its prompt. Output here is noise —
+  //               prompt repaints, typing echo. Ignore: no spinner, no dot.
+  //   "running" → an agent/command is executing (e.g. `claude`). Output =
+  //               actively working (spinner); quiet ≥ QUIET_MS = it finished
+  //               a turn or blocked on input → dot. Turn-level detection,
+  //               scoped so an idle shell can never false-positive.
+  //   "none"    → no integration (cmd/WSL). Plain cadence: streaming =
+  //               spinner, quiet = dot. Best signal available.
+  const cmdState = paneCommandState(paneId);
+  if (cmdState === "prompt") return;
+
+  if (cmdState === "running") {
+    // Output (re)started mid-command: the agent is working. A stale
+    // turn-dot no longer applies.
+    if (quietWhileRunning.has(paneId)) {
+      quietWhileRunning.delete(paneId);
+      if (store.sessions[sid]?.unread) store.clearUnread(sid);
+    }
+  } else {
+    // Fallback pane: fresh output self-corrects a stale dot.
+    if (store.sessions[sid]?.unread) store.clearUnread(sid);
+  }
+
+  if (!streamingPanes.has(paneId)) {
+    streamingPanes.add(paneId);
+    recomputeWorking(sid);
+  }
+  armQuietTimer(paneId, sid);
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle
+// ---------------------------------------------------------------------------
+
+/** Pane killed — drop every per-pane trace and refresh the session signal. */
+export function forgetPane(paneId: PaneId): void {
+  const sid = sessionIdFor(paneId);
+  clearQuietTimer(paneId);
+  quietWhileRunning.delete(paneId);
+  streamingPanes.delete(paneId);
+  lastNoteAt.delete(paneId);
+  mutedUntil.delete(paneId);
+  paneSessionCache.delete(paneId);
+  forgetPaneCommandState(paneId);
+  if (sid) recomputeWorking(sid);
+}
+
+/** Clear all pending timers + state (HMR / tests). */
+export function disposeAttentionTracker(): void {
+  for (const t of quietTimers.values()) window.clearTimeout(t);
+  quietTimers.clear();
+  quietWhileRunning.clear();
+  streamingPanes.clear();
+  lastNoteAt.clear();
+  mutedUntil.clear();
+  backgroundedAt.clear();
+  paneSessionCache.clear();
+}
+
+/** Re-export for tests that drive the 133 path through the public surface. */
+export { paneCommandState };

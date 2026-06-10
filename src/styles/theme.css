@@ -23,6 +23,7 @@
   --fg-0: #e6e6e6;
   --fg-1: #9a9a9a;
   --fg-2: #6a6a6a;
+  --fg-3: #4a4a4a;
   --fg-heading: #ffffff;
 
   /* Accent — iOS electric blue */
@@ -49,6 +50,7 @@
   --fg-0: #e6e6e6;
   --fg-1: #9a9a9a;
   --fg-2: #6a6a6a;
+  --fg-3: #4a4a4a;
   --fg-heading: #ffffff;
 
   /* Accent — warm coral */
@@ -73,6 +75,7 @@
   --fg-0: #c0caf5;
   --fg-1: #9aa5ce;
   --fg-2: #565f89;
+  --fg-3: #3b4261;
   --fg-heading: #ffffff;
 
   /* Accent — neon cyan, dim is the signature Tokyo blue */
@@ -98,6 +101,7 @@
   --fg-0: #ebdbb2;
   --fg-1: #d5c4a1;
   --fg-2: #a89984;
+  --fg-3: #7c6f64;
   --fg-heading: #fbf1c7;
 
   /* Accent — bright orange */

@@ -5,7 +5,7 @@
   padding: 5px 10px 5px 24px;
   cursor: pointer;
   color: var(--fg-2);
-  font-size: 13px;
+  font-size: 12.5px;
   user-select: none;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
@@ -25,49 +25,67 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* One attention signal, so a glance is unambiguous: a single accent dot =
+ * "needs you" (the agent rang the bell — finished a turn or is asking for
+ * input). Idle/stopped is a hollow grey dot; the session you're viewing is a
+ * filled neutral dot (no beacon — you're already here). */
+/* NOTE: every dot style carries a literal fallback in var() — an undefined
+ * custom property invalidates the whole declaration (no border, no
+ * background), which once made ALL dots silently invisible. Never use a
+ * bare var() here. */
 .dotStopped {
-  border: 1.5px solid var(--fg-3);
+  border: 1.5px solid var(--fg-3, #4a4a4a);
   background: transparent;
 }
 .dotActive {
-  background: var(--accent);
-  border: 1.5px solid var(--accent);
+  background: var(--fg-3, #4a4a4a);
+  border: 1.5px solid var(--fg-3, #4a4a4a);
 }
-/* "Working" — a background session that's currently streaming output. Green
- * dot with a pulsing halo so it reads as live activity, distinct from the
- * amber "needs you" state. Faster pulse than unread (1s vs 1.6s) so the eye
- * registers it as ongoing motion rather than a "done" beacon. */
+
+/* "Working" — an agent/command is actively running (OSC 133 command-running,
+ * or output streaming on non-integrated shells). A spinning arc: hollow ring
+ * with an accent head. transform-only animation = compositor-friendly (no
+ * per-frame paint). With reduced motion the animation freezes into a ring
+ * with an accent notch — still readable as "in progress". */
 .dotWorking {
-  background: var(--success);
-  border: 1.5px solid var(--success);
-  box-shadow: 0 0 5px 1px var(--success-alpha);
-  animation: dot-glow-working 1s ease-in-out infinite;
+  border: 1.5px solid var(--fg-3, #4a4a4a);
+  border-top-color: var(--accent, #5fa8ff);
+  background: transparent;
+  animation: dot-spin 0.9s linear infinite;
 }
-@keyframes dot-glow-working {
-  0%, 100% {
-    box-shadow: 0 0 3px 0 var(--success-alpha);
-  }
-  50% {
-    box-shadow: 0 0 8px 2px var(--success);
+@keyframes dot-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-/* "Needs attention" — a background session whose agent finished a turn or
- * wants input. An amber dot with a pulsing glow halo so it reads as a beacon.
- * The base box-shadow stays even when the animation is frozen (reduced motion),
- * so the unread dot is still distinguishable from the plain active dot. */
+/* "Needs you" — the ONLY saturated colour in the list, so it pops. A solid
+ * accent dot with a soft steady glow; the pulse is an ::after halo animating
+ * OPACITY only (compositor-friendly — animating box-shadow itself forced a
+ * repaint every frame for as long as any dot was lit). The static glow stays
+ * even when the animation is frozen (reduced motion), so it's still
+ * distinguishable from the neutral active/idle dots. */
 .dotUnread {
-  background: var(--accent);
-  border: 1.5px solid var(--accent);
-  box-shadow: 0 0 5px 1px var(--accent-alpha);
-  animation: dot-glow 1.6s ease-in-out infinite;
+  position: relative;
+  background: var(--accent, #5fa8ff);
+  border: 1.5px solid var(--accent, #5fa8ff);
+  box-shadow: 0 0 4px 1px var(--accent-alpha, rgba(95, 168, 255, 0.3));
+}
+.dotUnread::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  box-shadow: 0 0 9px 2px var(--accent);
+  opacity: 0;
+  animation: dot-glow 1.8s ease-in-out infinite;
 }
 @keyframes dot-glow {
   0%, 100% {
-    box-shadow: 0 0 3px 0 var(--accent-alpha);
+    opacity: 0;
   }
   50% {
-    box-shadow: 0 0 9px 2px var(--accent);
+    opacity: 1;
   }
 }
 

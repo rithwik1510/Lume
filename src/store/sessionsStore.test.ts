@@ -65,10 +65,9 @@ describe("sessionsStore — createSession", () => {
     const id = useSessionsStore.getState().createSession("/home/me/project");
     const s = useSessionsStore.getState().sessions[id];
     expect(s.folderPath).toBe("/home/me/project");
-    expect(s.name).toBe("New session");
+    expect(s.name).toBe("Session 1");
     expect(s.status).toBe("stopped");
     expect(s.unread).toBe(false);
-    expect(s.working).toBe(false);
     expect(s.layoutRoot).toBeNull();
     expect(s.focusedPaneId).toBeNull();
     expect(s.gitBranch).toBeNull();
@@ -182,9 +181,23 @@ describe("sessionsStore — metadata mutations", () => {
     useSessionsStore.getState().renameSession(id, "Renamed");
     expect(useSessionsStore.getState().sessions[id].name).toBe("Renamed");
     useSessionsStore.getState().renameSession(id, "");
-    // Empty name falls back to "New session", sibling-suffixed against
-    // existing siblings — there is only this session, so just "New session".
-    expect(useSessionsStore.getState().sessions[id].name).toBe("New session");
+    // Empty name falls back to the sequential default — only session in the
+    // folder, so "Session 1".
+    expect(useSessionsStore.getState().sessions[id].name).toBe("Session 1");
+  });
+
+  it("default names are sequential per folder: Session 1, 2, 3…", () => {
+    const s = useSessionsStore.getState();
+    const a = s.createSession("/p");
+    const b = s.createSession("/p");
+    const other = s.createSession("/q"); // different folder → its own sequence
+    expect(useSessionsStore.getState().sessions[a].name).toBe("Session 1");
+    expect(useSessionsStore.getState().sessions[b].name).toBe("Session 2");
+    expect(useSessionsStore.getState().sessions[other].name).toBe("Session 1");
+    // Deleting Session 1 doesn't recycle its number.
+    useSessionsStore.getState().purgeSession(a);
+    const c = useSessionsStore.getState().createSession("/p");
+    expect(useSessionsStore.getState().sessions[c].name).toBe("Session 3");
   });
 
   it("setGroupLabel adds and removes entries", () => {
@@ -210,50 +223,6 @@ describe("sessionsStore — metadata mutations", () => {
     useSessionsStore.getState().activateSession(id);
     useSessionsStore.getState().bumpUnread(id);
     expect(useSessionsStore.getState().sessions[id].unread).toBe(false);
-  });
-
-  it("setWorking flips working; no-op turning on when session is active", () => {
-    const a = useSessionsStore.getState().createSession("/p");
-    const b = useSessionsStore.getState().createSession("/p");
-    useSessionsStore.getState().activateSession(b); // a is background, b is visible
-
-    useSessionsStore.getState().setWorking(a, true);
-    expect(useSessionsStore.getState().sessions[a].working).toBe(true);
-    useSessionsStore.getState().setWorking(a, false);
-    expect(useSessionsStore.getState().sessions[a].working).toBe(false);
-
-    // Refuses to light up the visible session.
-    useSessionsStore.getState().setWorking(b, true);
-    expect(useSessionsStore.getState().sessions[b].working).toBe(false);
-  });
-
-  it("setWorking(true) clears unread (mutually exclusive); bumpUnread clears working", () => {
-    const a = useSessionsStore.getState().createSession("/p");
-    const b = useSessionsStore.getState().createSession("/p");
-    useSessionsStore.getState().activateSession(b);
-
-    // unread first, then a new burst of output → working wins, unread cleared.
-    useSessionsStore.getState().bumpUnread(a);
-    expect(useSessionsStore.getState().sessions[a].unread).toBe(true);
-    useSessionsStore.getState().setWorking(a, true);
-    expect(useSessionsStore.getState().sessions[a].working).toBe(true);
-    expect(useSessionsStore.getState().sessions[a].unread).toBe(false);
-
-    // working then idle (bumpUnread) → unread wins, working cleared.
-    useSessionsStore.getState().bumpUnread(a);
-    expect(useSessionsStore.getState().sessions[a].unread).toBe(true);
-    expect(useSessionsStore.getState().sessions[a].working).toBe(false);
-  });
-
-  it("activateSession clears working in addition to unread", () => {
-    const a = useSessionsStore.getState().createSession("/p");
-    const b = useSessionsStore.getState().createSession("/p");
-    useSessionsStore.getState().activateSession(b);
-    useSessionsStore.getState().setWorking(a, true);
-    expect(useSessionsStore.getState().sessions[a].working).toBe(true);
-    useSessionsStore.getState().activateSession(a);
-    expect(useSessionsStore.getState().sessions[a].working).toBe(false);
-    expect(useSessionsStore.getState().sessions[a].unread).toBe(false);
   });
 
   it("updateBranch sets gitBranch", () => {
@@ -320,15 +289,23 @@ describe("sessionsStore — selectors", () => {
     expect(g2.collapsed).toBe(true);
   });
 
-  it("groupedSessions sorts groups by max child lastActiveAt desc", () => {
+  it("groupedSessions orders folders newest-first and never reshuffles on activation", () => {
     const a = useSessionsStore.getState().createSession("/older", "A");
-    const b = useSessionsStore.getState().createSession("/newer", "B");
-    useSessionsStore.setState((s) => {
-      s.sessions[b].lastActiveAt = s.sessions[a].lastActiveAt + 1000;
-    });
+    useSessionsStore.getState().createSession("/newer", "B");
+    // Newest folder on top; activating the OLDER folder's session bumps its
+    // lastActiveAt — folders must NOT reorder by recent use (point of the fix).
+    useSessionsStore.getState().activateSession(a);
     const groups = groupedSessions(useSessionsStore.getState());
-    expect(groups[0].folderPath).toBe("/newer");
-    expect(groups[1].folderPath).toBe("/older");
+    expect(groups.map((g) => g.folderPath)).toEqual(["/newer", "/older"]);
+  });
+
+  it("groupedSessions orders sessions newest-first within a folder, stable under activation", () => {
+    const first = useSessionsStore.getState().createSession("/p", "A");
+    const second = useSessionsStore.getState().createSession("/p", "B");
+    // Activating the OLDER session bumps its lastActiveAt; order must hold.
+    useSessionsStore.getState().activateSession(first);
+    const g = groupedSessions(useSessionsStore.getState()).find((x) => x.folderPath === "/p")!;
+    expect(g.sessions.map((s) => s.id)).toEqual([second, first]);
   });
 
   it("findSessionForPane walks every layoutRoot", () => {
@@ -517,6 +494,55 @@ describe("sessionsStore — session restore (features A + B)", () => {
     expect(useSessionsStore.getState().reopenLastSession).toBe(true);
     useSessionsStore.getState().setReopenLastSession(false);
     expect(useSessionsStore.getState().reopenLastSession).toBe(false);
+  });
+
+  it("resumeSessions revives the whole fleet and focuses the last-active one", () => {
+    const s = useSessionsStore.getState();
+    const a = s.createSession("/a");
+    const b = s.createSession("/b");
+    const c = s.createSession("/c"); // was NOT running at exit
+
+    useSessionsStore.getState().resumeSessions([a, b], b);
+    const st = useSessionsStore.getState();
+    expect(st.sessions[a].status).toBe("active");
+    expect(st.sessions[b].status).toBe("active");
+    expect(st.sessions[c].status).toBe("stopped");
+    expect(st.activeSessionId).toBe(b);
+    expect(st.lastActiveSessionId).toBe(b);
+  });
+
+  it("resumeSessions falls back to the first revivable id when activeId is stale", () => {
+    const s = useSessionsStore.getState();
+    const a = s.createSession("/a");
+    useSessionsStore.getState().resumeSessions([a], "gone-id");
+    expect(useSessionsStore.getState().activeSessionId).toBe(a);
+  });
+
+  it("coerceRehydrated keeps lastRunningSessionIds, dropping ids whose session is gone", () => {
+    const raw = {
+      sessions: {
+        a: {
+          id: "a",
+          name: "Session 1",
+          folderPath: "/p",
+          layoutRoot: null,
+          focusedPaneId: null,
+          status: "stopped" as const,
+          unread: false,
+          working: false,
+          gitBranch: null,
+          fileTreeOpen: false,
+          createdAt: 1,
+          lastActiveAt: 2,
+        },
+      },
+      activeSessionId: null,
+      lastRunningSessionIds: ["a", "purged-id"],
+      groupLabels: {},
+      collapsedGroups: [],
+    };
+    const out = coerceRehydrated(raw);
+    expect(out.lastRunningSessionIds).toEqual(["a"]);
   });
 
   it("setPaneShell writes the shell onto the matching (nested) leaf only", () => {

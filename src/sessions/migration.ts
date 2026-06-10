@@ -43,7 +43,7 @@ export async function runMigrationIfNeeded(hints: LegacyHints): Promise<string |
     return null; // routine restart — sessions rehydrated, stay all-stopped
   }
   const folder = hints.oldWorkspaceFolder ?? (await homeDir());
-  const id = sessions.createSession(folder, "New session");
+  const id = sessions.createSession(folder); // default sequential name ("Session 1")
   if (hints.oldLayoutRoot) {
     sessions.setLayoutRoot(id, hints.oldLayoutRoot);
   }

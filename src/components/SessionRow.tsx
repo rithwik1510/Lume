@@ -21,17 +21,21 @@ export function SessionRow({ session }: Props) {
   const isActive = session.id === activeId;
   const [renaming, setRenaming] = useState(false);
 
-  // Tri-state attention dot — see attentionTracker.ts:
-  //   active   → solid amber  (this is the visible session)
-  //   working  → green pulse  (background session streaming output now)
-  //   unread   → amber pulse  (background session finished a turn / bell)
-  //   else     → hollow grey  (idle / stopped)
+  // Two signals (see attentionTracker.ts), needs-you trumping in-progress —
+  // and BOTH only for background sessions. The session you're viewing never
+  // signals: you can see the terminal itself, so a spinner/dot there is
+  // noise. (The store still tracks `working` for the active session — that's
+  // a fact; hiding it here is a presentation choice.)
+  //   unread  → accent dot ("finished / needs you")
+  //   working → spinner ring ("agent/command actively running")
+  // Otherwise: neutral filled dot for the session you're viewing, hollow for
+  // idle ones.
   const dotClass = isActive
     ? styles.dotActive
-    : session.working
-    ? styles.dotWorking
     : session.unread
     ? styles.dotUnread
+    : session.working
+    ? styles.dotWorking
     : styles.dotStopped;
 
   const onClick = () => {

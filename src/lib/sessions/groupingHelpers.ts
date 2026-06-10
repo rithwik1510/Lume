@@ -31,3 +31,19 @@ export function autoSuffixSessionName(desired: string, taken: string[]): string 
   while (taken.includes(`${desired}-${i}`)) i++;
   return `${desired}-${i}`;
 }
+
+/**
+ * Default name for a new session in a folder: "Session 1", "Session 2", …
+ * sequential per folder. Scans the existing sibling names for the highest
+ * "Session N" and returns N+1 — so deleting "Session 1" doesn't make the
+ * next one reuse the number of a session that may still be referenced in
+ * the user's head/notes. Renamed sessions don't participate.
+ */
+export function nextSessionName(taken: string[]): string {
+  let max = 0;
+  for (const name of taken) {
+    const m = /^session (\d+)$/i.exec(name.trim());
+    if (m) max = Math.max(max, parseInt(m[1]!, 10));
+  }
+  return `Session ${max + 1}`;
+}

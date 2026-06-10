@@ -58,6 +58,8 @@ vi.mock("@/store/ptyStore", () => {
 
 vi.mock("@/sessions/attentionTracker", () => ({
   noteOutput: vi.fn(),
+  noteBell: vi.fn(),
+  forgetPane: vi.fn(),
   disposeAttentionTracker: vi.fn(),
 }));
 

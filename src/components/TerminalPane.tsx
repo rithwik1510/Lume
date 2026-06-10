@@ -25,6 +25,8 @@ import {
   resetMouseModes,
 } from "@/terminals/registry";
 import { registerOscHandlers } from "@/sessions/oscNotifications";
+import { registerCommandTracking } from "@/sessions/commandTracker";
+import { muteOutput } from "@/sessions/attentionTracker";
 import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
 import { resizePty } from "@/terminals/ptyClient";
 import { changeShell, getDetectedShells } from "@/terminals/orchestrator";
@@ -58,6 +60,11 @@ function TerminalPaneImpl({ paneId }: Props) {
     // pane doesn't leave dangling handlers on a reused Terminal. See §10.2.
     const unregisterOsc = registerOscHandlers(paneId, getOrCreateTerminal(paneId));
 
+    // OSC 133 (FinalTerm) command-lifecycle marks — emitted by the shell
+    // integration Lume injects into PowerShell-family shells. Ground truth
+    // for the sidebar's working/needs-you signals (see attentionTracker.ts).
+    const unregisterCmd = registerCommandTracking(paneId, getOrCreateTerminal(paneId));
+
     // Mouse-mode panic key (focused pane). DESIGN.md §7.
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === "R" || e.key === "r")) {
@@ -89,9 +96,27 @@ function TerminalPaneImpl({ paneId }: Props) {
     //      fit + resizePty immediately so content snaps into place the
     //      moment the user releases the mouse.
     let debounceTimer: number | null = null;
+    let lastSentDims: { cols: number; rows: number } | null = null;
     const runFitAndResize = () => {
+      // A backgrounded session's panes are display:none (MainArea) — the
+      // ResizeObserver reports 0×0 for them. Fitting then would shrink the
+      // PTY to a degenerate ~2-column grid, the shell would rewrap all its
+      // lines vertically, and switching back would rewrap again — the
+      // visible "flicker + clipped prompt" on session switch. Skip; the
+      // observer fires again with real dimensions when the pane reappears.
+      const el = hostRef.current;
+      if (!el || el.clientWidth < 8 || el.clientHeight < 8) return;
       const dims = fitTerminal(paneId);
-      if (!dims) return;
+      if (!dims || dims.cols < 4 || dims.rows < 2) return;
+      // Same grid as last time → nothing to tell the PTY (a redundant
+      // resize still makes full-screen apps repaint).
+      if (lastSentDims && lastSentDims.cols === dims.cols && lastSentDims.rows === dims.rows) {
+        return;
+      }
+      lastSentDims = dims;
+      // The PTY resize makes full-screen apps (agents) repaint — mute the
+      // attention tracker briefly so repaint bytes don't read as activity.
+      muteOutput(paneId);
       void resizePty(paneId, dims.cols, dims.rows).catch(() => undefined);
     };
     const onResize = () => {
@@ -112,6 +137,7 @@ function TerminalPaneImpl({ paneId }: Props) {
       unsubResizeEnd();
       if (debounceTimer !== null) window.clearTimeout(debounceTimer);
       unregisterOsc();
+      unregisterCmd();
       detach(paneId);
     };
   }, [paneId]);

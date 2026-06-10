@@ -155,9 +155,30 @@ pub struct CommandSpec {
     pub args: Vec<String>,
 }
 
-pub fn shell_spec(shell: &Shell) -> CommandSpec {
+/// `integration_script`: path to the OSC 133 shell-integration script
+/// (shell_integration.rs). When present, PowerShell-family shells dot-source
+/// it via `-NoExit -Command` AFTER the user's profile runs — so we wrap the
+/// user's prompt instead of replacing it. cmd.exe has no injection mechanism
+/// and WSL would force a specific shell on the user, so both spawn plain and
+/// rely on the JS-side cadence fallback.
+pub fn shell_spec(shell: &Shell, integration_script: Option<&str>) -> CommandSpec {
     match shell {
-        Shell::Pwsh { path } | Shell::Powershell { path } | Shell::Cmd { path } => CommandSpec {
+        Shell::Pwsh { path } | Shell::Powershell { path } => {
+            let args = match integration_script {
+                // Single-quote for PowerShell; embedded quotes doubled.
+                Some(script) => vec![
+                    "-NoExit".to_string(),
+                    "-Command".to_string(),
+                    format!(". '{}'", script.replace('\'', "''")),
+                ],
+                None => vec![],
+            };
+            CommandSpec {
+                program: path.clone(),
+                args,
+            }
+        }
+        Shell::Cmd { path } => CommandSpec {
             program: path.clone(),
             args: vec![],
         },
@@ -169,7 +190,8 @@ pub fn shell_spec(shell: &Shell) -> CommandSpec {
 }
 
 fn build_command(shell: &Shell) -> CommandBuilder {
-    let spec = shell_spec(shell);
+    let integration = crate::shell_integration::powershell_script_path();
+    let spec = shell_spec(shell, integration.as_deref().and_then(|p| p.to_str()));
     let mut cmd = CommandBuilder::new(spec.program);
     if !spec.args.is_empty() {
         cmd.args(spec.args);
@@ -487,34 +509,47 @@ mod tests {
     }
 
     #[test]
-    fn shell_spec_wsl_uses_explicit_distro() {
+    fn shell_spec_wsl_uses_explicit_distro_and_never_injects() {
         let s = Shell::Wsl {
             distro: "Ubuntu".to_string(),
         };
-        let spec = shell_spec(&s);
+        let spec = shell_spec(&s, Some("C:\\x\\integration.ps1"));
         assert_eq!(spec.program, "wsl.exe");
         assert_eq!(spec.args, vec!["-d".to_string(), "Ubuntu".to_string()]);
     }
 
     #[test]
-    fn shell_spec_pwsh_uses_provided_path() {
+    fn shell_spec_pwsh_plain_without_integration() {
         let s = Shell::Pwsh {
             path: "C:\\Program Files\\PowerShell\\7\\pwsh.exe".to_string(),
         };
-        let spec = shell_spec(&s);
+        let spec = shell_spec(&s, None);
         assert!(spec.program.ends_with("pwsh.exe"));
         assert!(spec.args.is_empty());
     }
 
     #[test]
-    fn shell_spec_powershell_and_cmd_have_no_args() {
+    fn shell_spec_powershell_family_dot_sources_integration() {
         let p = Shell::Powershell {
             path: "powershell.exe".into(),
         };
-        assert!(shell_spec(&p).args.is_empty());
+        let spec = shell_spec(&p, Some("C:\\Users\\o'brien\\lume\\shell-integration.ps1"));
+        assert_eq!(spec.args[0], "-NoExit");
+        assert_eq!(spec.args[1], "-Command");
+        // Single-quoted with embedded quotes doubled (PowerShell escaping).
+        assert_eq!(
+            spec.args[2],
+            ". 'C:\\Users\\o''brien\\lume\\shell-integration.ps1'"
+        );
+    }
+
+    #[test]
+    fn shell_spec_cmd_never_injects() {
         let c = Shell::Cmd {
             path: "cmd.exe".into(),
         };
-        assert!(shell_spec(&c).args.is_empty());
+        assert!(shell_spec(&c, Some("C:\\x\\integration.ps1"))
+            .args
+            .is_empty());
     }
 }

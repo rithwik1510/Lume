@@ -12,7 +12,7 @@
 // one (you don't get an unread badge for the session you're looking at).
 
 import type { Terminal } from "@xterm/xterm";
-import { findSessionForPane, useSessionsStore } from "@/store/sessionsStore";
+import { noteAgentNotification } from "@/sessions/attentionTracker";
 import type { PaneId } from "@/types";
 
 const OSC_CODES = [9, 99, 777] as const;
@@ -21,10 +21,10 @@ const OSC_CODES = [9, 99, 777] as const;
 export function registerOscHandlers(paneId: PaneId, term: Terminal): () => void {
   const disposers = OSC_CODES.map((code) =>
     term.parser.registerOscHandler(code, (_data: string) => {
-      const session = findSessionForPane(useSessionsStore.getState(), paneId);
-      if (session) {
-        useSessionsStore.getState().bumpUnread(session.id);
-      }
+      // Routed through the attention tracker (same meaning as BEL) so the
+      // dot logic — clear pending fallback timers, bump the owning session —
+      // lives in exactly one place.
+      noteAgentNotification(paneId);
       // Absorb the sequence — don't propagate to any default handler.
       return true;
     })

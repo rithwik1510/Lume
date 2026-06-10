@@ -2,20 +2,24 @@
   margin-bottom: 4px;
 }
 
+/* The folder is the primary entity in the sidebar — it reads as the heading,
+ * sitting brighter and heavier than the session rows nested under it. */
 .header {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 6px 10px 4px;
   cursor: pointer;
-  color: var(--fg-2);
-  font-size: 11px;
+  color: var(--fg-1);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   text-transform: none;
   user-select: none;
 }
 .header:hover {
   background: var(--bg-2);
-  color: var(--fg-1);
+  color: var(--fg-0);
 }
 
 .caret {
