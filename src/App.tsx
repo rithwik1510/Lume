@@ -32,11 +32,13 @@ import { Toaster } from "@/components/Toaster";
 import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { installBranchPoller } from "@/sessions/branchPoller";
+import { onCommandEvent } from "@/sessions/commandTracker";
 import { runMigrationIfNeeded } from "@/sessions/migration";
+import { leaves } from "@/store/layout/tree";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useMdStore } from "@/store/mdStore";
 import { usePreviewStore } from "@/store/previewStore";
-import { useSessionsStore } from "@/store/sessionsStore";
+import { paneLaunchSpec, useSessionsStore } from "@/store/sessionsStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { applyXtermFontFamilyToAll, applyXtermThemeToAll } from "@/terminals/registry";
@@ -44,6 +46,7 @@ import { installPtyOrchestrator } from "@/terminals/orchestrator";
 import { useExternalFileDrop } from "@/hooks/useExternalFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { nextPaneId } from "@/lib/paneIds";
+import { sequentialResume } from "@/lib/sessions/sequentialResume";
 import { coerceThemeName } from "@/lib/themes";
 import { coerceFontPair } from "@/lib/fontPairs";
 import { checkForUpdatesOnLaunch } from "@/lib/updater";
@@ -56,6 +59,7 @@ export default function App() {
   useEffect(() => {
     const dispose = installPtyOrchestrator();
     const disposePoller = installBranchPoller();
+    let cancelResume: (() => void) | undefined;
 
     const bootstrap = async () => {
       // By the time this runs, sessionsStore has rehydrated and
@@ -73,19 +77,38 @@ export default function App() {
         useSessionsStore.getState().activateSession(seededId);
       }
 
-      // Feature A — reopen the fleet on launch. Revives every session that
-      // was running at last exit (persisted as lastRunningSessionIds) and
-      // focuses the one that was active. Same code path as clicking each
-      // session in the sidebar: status flips → orchestrator diff → panes
-      // spawn. (This was disabled for a while after a launch-hang scare; the
-      // actual culprit was the auto-typed startup command racing PSReadLine,
-      // which is long gone — commands are never auto-run — and pane-id
-      // remapping killed the cross-session pane collisions. Manual revive,
-      // the identical path, has been stable since.)
+      // Feature A — reopen the fleet on launch. Revives the sessions that
+      // were running at last exit (persisted as lastRunningSessionIds) ONE AT
+      // A TIME: the last-active session immediately, each further session
+      // only once the previous one's autorun panes reported OSC 133
+      // prompt-ready (or a timeout). Reviving the whole fleet in one store
+      // write made the orchestrator spawn every pane — and auto-run every
+      // remembered `claude` — in the same second, which froze the machine
+      // into a force-close → re-stampede loop (2026-06-12 incident). Each
+      // single-session revive is the same code path as clicking that session
+      // in the sidebar: status flips → orchestrator diff → panes spawn.
       if (!seededId) {
         const st = useSessionsStore.getState();
         if (st.reopenLastSession && st.lastRunningSessionIds.length > 0) {
-          st.resumeSessions(st.lastRunningSessionIds, st.lastActiveSessionId);
+          cancelResume = sequentialResume(
+            st.lastRunningSessionIds,
+            st.lastActiveSessionId,
+            {
+              resumeOne: st.resumeSessions,
+              onPaneReady: (cb) =>
+                onCommandEvent((evt) => {
+                  if (evt.type === "prompt-ready") cb(evt.paneId);
+                }),
+              autorunPaneIds: (sid) => {
+                const state = useSessionsStore.getState();
+                const sess = state.sessions[sid];
+                if (!sess?.layoutRoot) return [];
+                return leaves(sess.layoutRoot).filter(
+                  (paneId) => !!paneLaunchSpec(state, paneId)?.startupCommand?.trim()
+                );
+              },
+            }
+          );
         }
       }
 
@@ -114,6 +137,7 @@ export default function App() {
 
     return () => {
       if (unsubFinishHydration) unsubFinishHydration();
+      cancelResume?.();
       disposePoller();
       dispose();
     };

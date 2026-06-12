@@ -15,6 +15,10 @@ const POLL_INTERVAL_MS = 5000;
 
 let timer: number | null = null;
 let isFocused = true;
+// Single-flight guard: one polling cycle at a time. Without it, a cycle
+// slower than POLL_INTERVAL_MS (6 sessions × slow git) stacks unboundedly
+// on top of itself — the 2026-06-12 freeze incident's second half.
+let cycleInFlight = false;
 
 async function pollOne(sessionId: string): Promise<void> {
   const sess = useSessionsStore.getState().sessions[sessionId];
@@ -30,17 +34,29 @@ async function pollOne(sessionId: string): Promise<void> {
   }
 }
 
-function tick() {
-  if (!isFocused) return;
-  const state = useSessionsStore.getState();
-  for (const s of Object.values(state.sessions)) {
-    if (s.status === "active") void pollOne(s.id);
+async function runCycle(): Promise<void> {
+  if (cycleInFlight || !isFocused) return; // skip, never stack
+  cycleInFlight = true;
+  try {
+    const state = useSessionsStore.getState();
+    for (const s of Object.values(state.sessions)) {
+      if (s.status === "active") await pollOne(s.id); // serial, one git at a time
+    }
+  } finally {
+    cycleInFlight = false;
   }
+}
+
+function tick() {
+  void runCycle();
 }
 
 export function installBranchPoller(): () => void {
   // Reset focus flag so a re-install (HMR) doesn't inherit a stale blurred state.
   isFocused = true;
+  // Same HMR safety for the single-flight guard — a re-install must never
+  // inherit a stuck "cycle in flight" from a torn-down module instance.
+  cycleInFlight = false;
 
   // Window focus tracking — pause polling when the window blurs (no point
   // hammering git for a window the user isn't looking at), resume + refresh
