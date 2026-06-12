@@ -5,7 +5,6 @@ import "../styles/lume.css";
 import { Image } from "astro:assets";
 import Analytics from "@vercel/analytics/astro";
 import appAgents from "../assets/app-agents.png";
-import appMarkdown from "../assets/app-markdown.png";
 
 const title = "Lume — a command center for your coding agents";
 const description =
@@ -40,21 +39,25 @@ const ogImage = new URL("/og.png", Astro.site);
 </head>
 <body>
 
-<!-- ============================ NAV ============================ -->
+<!-- ============================ NAV (titlebar) ============================ -->
 <header class="nav">
   <div class="nav-in">
     <a class="brand" href="#top" aria-label="Lume home">
       <span class="mark"></span>
       <span class="name">Lume</span>
-      <span class="ver mono">v0.1-alpha</span>
+      <span class="ver mono">v0.1.0-beta.5</span>
     </a>
     <nav class="nav-links">
       <a href="#smoothness">Smoothness</a>
       <a href="#split">Tiling</a>
       <a href="#markdown">Markdown</a>
+      <a href="#keyboard">Keyboard</a>
       <a href="#themes">Themes</a>
     </nav>
     <div class="nav-cta">
+      <button class="pal-chip mono" id="palHint" title="Command palette" aria-label="Open command palette">
+        <span class="kbd">Ctrl</span><span class="kbd">K</span>
+      </button>
       <a class="nav-gh" href="https://github.com/rithwik1510/Workflow" target="_blank" rel="noopener">
         <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.73-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.86c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.82 0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
         GitHub
@@ -66,9 +69,10 @@ const ogImage = new URL("/og.png", Astro.site);
 <!-- ============================ HERO ============================ -->
 <main id="top">
 <section class="hero">
+  <canvas id="constellation" aria-hidden="true"></canvas>
   <div class="hero-in">
-    <span class="eyebrow rise" data-rise>Tiled terminals · markdown · one window</span>
-    <h1 class="rise" data-rise>A command center for a<br/>fleet of <span class="accent">coding agents</span>.</h1>
+    <span class="eyebrow rise" data-rise><span data-scramble="Tiled terminals · markdown · one window">Tiled terminals · markdown · one window</span></span>
+    <h1 data-words>A command center for a<br/>fleet of <span class="accent">coding agents</span>.</h1>
     <p class="sub rise" data-rise>
       Claude Code, Codex, Gemini — tiled in one window, smooth enough to forget they're running.
     </p>
@@ -88,7 +92,7 @@ const ogImage = new URL("/og.png", Astro.site);
     </div>
   </div>
 
-  <!-- product window mock -->
+  <!-- product window — static mock that hydrates into REAL xterm.js terminals -->
   <div class="stage rise" data-rise>
     <div class="win">
       <div class="titlebar">
@@ -129,13 +133,13 @@ const ogImage = new URL("/og.png", Astro.site);
           </div>
         </aside>
 
-        <!-- panes -->
+        <!-- panes (the .term mounts become live xterm.js on first view) -->
         <div class="panes">
           <div class="pane tall focused">
             <div class="pane-hd"><span class="dot run cl"></span><span class="agn cl">✻ Claude Code</span><span class="cw">wsl · ~/projects/auth</span></div>
-            <div class="term" data-stream="agent">
-<div class="ln"><span class="cl">✻</span> <span class="c">Claude Code</span> <span class="dim">· sonnet 4.5</span></div>
-<div class="ln"><span class="cl">&gt;</span> refactor session onto the token store</div>
+            <div class="term" data-term="cl">
+<div class="ln"><span class="cl">✻</span> <span class="c">Claude Code</span> <span class="dim">· opus 4.8</span></div>
+<div class="ln"><span class="cl">&gt;</span> wire the session refresh flow</div>
 <div class="ln">&nbsp;</div>
 <div class="ln"><span class="cl">⏺</span> <span class="c">Update</span><span class="dim">(src/auth/session.ts)</span></div>
 <div class="ln"><span class="dim">  ⎿</span> <span class="ok">+ import &#123; tokenStore &#125; from "./tokenStore"</span></div>
@@ -144,20 +148,19 @@ const ogImage = new URL("/og.png", Astro.site);
           </div>
           <div class="pane">
             <div class="pane-hd"><span class="dot run cx"></span><span class="agn cx">▌ Codex</span><span class="cw">pwsh</span></div>
-            <div class="term">
+            <div class="term" data-term="cx">
 <div class="ln"><span class="cx">›</span> add the migration script</div>
 <div class="ln"><span class="cx">•</span> Editing <span class="c">migrate.ts</span></div>
 <div class="ln"><span class="cx">•</span> npm run build</div>
 <div class="ln"><span class="ok">  ✓ built in 3.2s</span></div>
-<div class="ln"><span class="cx">›</span> <span class="caret"></span></div>
             </div>
           </div>
           <div class="pane">
             <div class="pane-hd"><span class="dot run gm"></span><span class="agn gm">✦ Gemini</span><span class="cw">wsl</span></div>
-            <div class="term">
-<div class="ln"><span class="gm">✦</span> summarize the diff</div>
+            <div class="term" data-term="gm">
+<div class="ln"><span class="gm">✦</span> review the diff</div>
 <div class="ln"><span class="dim">  3 files · </span><span class="ok">+84</span> <span class="er">−12</span></div>
-<div class="ln"><span class="gm">✦</span> <span class="gm spin" data-spin="gm">✦</span> thinking…</div>
+<div class="ln"><span class="gm">✦</span> thinking…</div>
             </div>
           </div>
         </div>
@@ -165,7 +168,7 @@ const ogImage = new URL("/og.png", Astro.site);
 
       <div class="statusbar">
         <span class="seg"><span>pwsh</span><span class="dim">·</span><span>~/projects/auth</span></span>
-        <span class="seg"><span>3 panes</span><span class="dim">·</span><span class="run-dot"></span><span>3 agents</span></span>
+        <span class="seg"><span>3 panes</span><span class="dim">·</span><span class="run-dot"></span><span>3 agents live</span></span>
       </div>
     </div>
   </div>
@@ -173,20 +176,21 @@ const ogImage = new URL("/og.png", Astro.site);
 
 <hr class="divider" />
 
-<!-- ====================== SMOOTHNESS (feature) ====================== -->
+<!-- ====================== 01 · SMOOTHNESS ====================== -->
 <section class="sec" id="smoothness">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow"><span class="idx">01</span> Smoothness</span>
-      <h2>It doesn't tear under load.</h2>
+      <span class="eyebrow"><span class="idx">01</span> <span data-scramble="Smoothness">Smoothness</span></span>
+      <h2 data-words>It doesn't tear under load.</h2>
       <p class="lead">
         Bytes stream Rust → renderer, never through the UI state. Flood every pane — typing still lands first.
       </p>
     </div>
     <figure class="shotfig rise" data-rise style="margin-bottom:44px">
       <div class="shot"><Image src={appAgents} alt="Lume running four tiled Claude Code and OpenAI Codex agent sessions at once" loading="lazy" /></div>
-      <figcaption class="shotcap"><span class="pulse"></span>Four agents live at once — Claude Code &amp; Codex, <b>auto mode on</b>, not a dropped frame.</figcaption>
+      <figcaption class="shotcap"><span class="pulse"></span>The real app, untouched — four agents live at once, <b>auto mode on</b>, not a dropped frame.</figcaption>
     </figure>
+
     <div class="feat-grid">
       <div class="feat wide">
         <div class="ftop">
@@ -197,10 +201,10 @@ const ogImage = new URL("/og.png", Astro.site);
         <p>Three agents streaming, a release build, you typing through all of it — at once. No tearing.</p>
         <div class="feat-body">
           <div class="stats">
-            <div class="stat"><div class="n">&lt;30<span class="u">ms</span></div><div class="l">typing latency</div></div>
-            <div class="stat"><div class="n">32<span class="u">ms</span></div><div class="l">ipc batch window</div></div>
-            <div class="stat"><div class="n">&lt;500<span class="u">MB</span></div><div class="l">memory, 4 panes</div></div>
-            <div class="stat"><div class="n">&lt;2<span class="u">s</span></div><div class="l">cold start</div></div>
+            <div class="stat"><div class="n">&lt;30<span class="u">ms</span></div><div class="l">typing latency</div><div class="spark" data-spark="8,7,7,8,7,8,8,7"></div></div>
+            <div class="stat"><div class="n">32<span class="u">ms</span></div><div class="l">ipc batch window</div><div class="spark" data-spark="3,5,3,6,4,5,3,4"></div></div>
+            <div class="stat"><div class="n">&lt;500<span class="u">MB</span></div><div class="l">memory, 4 panes</div><div class="spark" data-spark="2,3,4,4,5,5,5,5"></div></div>
+            <div class="stat"><div class="n">&lt;2<span class="u">s</span></div><div class="l">cold start</div><div class="spark" data-spark="8,5,3,2,2,2,2,2"></div></div>
           </div>
         </div>
       </div>
@@ -210,7 +214,7 @@ const ogImage = new URL("/og.png", Astro.site);
           <span class="ftag">Motion</span>
         </div>
         <h3>One curve, everywhere.</h3>
-        <p>Every motion on the same ease-out. <span class="mono">cubic-bezier(.16, 1, .3, 1)</span> — fast in, long settle.</p>
+        <p>Every motion on the same ease-out. <span class="mono">cubic-bezier(.16, 1, .3, 1)</span> — fast in, long settle. This page runs on it too.</p>
       </div>
       <div class="feat">
         <div class="ftop">
@@ -226,15 +230,15 @@ const ogImage = new URL("/og.png", Astro.site);
 
 <hr class="divider" />
 
-<!-- ====================== SPLIT — scroll centerpiece ====================== -->
+<!-- ====================== 02 · SPLIT — scroll centerpiece ====================== -->
 <section class="split-sec" id="split">
   <div class="split-track" id="splitTrack">
     <div class="split-pin">
       <div class="split-stage">
         <div class="split-text">
-          <span class="eyebrow"><span class="idx">02</span> Tiling</span>
-          <h2>Split without the seams.</h2>
-          <p class="lead">One pane becomes many. Every pane keeps streaming; nothing reflows with a jolt.</p>
+          <span class="eyebrow"><span class="idx">02</span> <span data-scramble="Tiling">Tiling</span></span>
+          <h2 data-words>Split without the seams.</h2>
+          <p class="lead">One pane becomes many. Every pane keeps streaming; nothing reflows with a jolt. Scroll — you're driving.</p>
           <div class="split-steps">
             <div class="split-step" data-step="0"><span class="k">Ctrl+Alt+→</span><span>split right</span></div>
             <div class="split-step" data-step="1"><span class="k">Ctrl+Alt+↓</span><span>split down</span></div>
@@ -284,109 +288,182 @@ const ogImage = new URL("/og.png", Astro.site);
 
 <hr class="divider" />
 
-<!-- ====================== MARKDOWN ====================== -->
+<!-- ====================== 03 · MARKDOWN — live render ====================== -->
 <section class="sec" id="markdown">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow"><span class="idx">03</span> Markdown</span>
-      <h2>Read what they write.</h2>
-      <p class="lead">A rendered viewer beside your panes — see the plan while the agents work it.</p>
+      <span class="eyebrow"><span class="idx">03</span> <span data-scramble="Markdown">Markdown</span></span>
+      <h2 data-words>Read what they write.</h2>
+      <p class="lead">Agents think in markdown. Lume renders it beside your panes — watch a plan take shape as it's written, then watch it get done.</p>
     </div>
-    <figure class="shotfig rise" data-rise>
-      <div class="shot"><Image src={appMarkdown} alt="Lume showing CONTEXT.md rendered in the Quick Viewer drawer beside running Claude Code agent panes" loading="lazy" /></div>
-      <figcaption class="shotcap"><span class="pulse"></span><b>Quick Viewer</b> open on the right while agents stream on the left · Ctrl+Click a path to open, Ctrl+E to edit.</figcaption>
-    </figure>
+
+    <div class="mdl rise" data-rise id="mdLive">
+      <div class="mdl-hd">
+        <span class="mdh-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="14" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>PLAN.md</span>
+        <span class="mdl-status mono" id="mdStatus">agent writing…</span>
+        <span class="mdh-sp"></span>
+        <button class="pen" id="mdReplay" title="Replay">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+      </div>
+      <div class="mdl-body">
+        <div class="mdl-col">
+          <div class="mdl-lab mono">edit · raw</div>
+          <div class="md-src" id="mdSrc"></div>
+        </div>
+        <div class="mdl-col mdl-view">
+          <div class="mdl-lab mono">view · rendered</div>
+          <div class="md-view" id="mdView"></div>
+        </div>
+      </div>
+    </div>
+    <div class="themes-note" style="margin-top:20px"><span class="pulse"></span>In the app: Ctrl+Click any file path to open it · Ctrl+E to edit · Ctrl+Shift+M for the Quick Viewer.</div>
   </div>
 </section>
 
 <hr class="divider" />
 
-<!-- ====================== KEYBOARD ====================== -->
+<!-- ====================== 04 · KEYBOARD — live shortcuts ====================== -->
 <section class="sec" id="keyboard">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow"><span class="idx">04</span> Keyboard-first</span>
-      <h2>Your hands never leave home row.</h2>
-      <p class="lead">Every action has a key. Rebind any of them in <span class="mono">config.toml</span>.</p>
+      <span class="eyebrow"><span class="idx">04</span> <span data-scramble="Keyboard-first">Keyboard-first</span></span>
+      <h2 data-words>Your hands never leave home row.</h2>
+      <p class="lead">Every action has a key. Rebind any of them in <span class="mono">config.toml</span>. The window on the right obeys them — try it.</p>
     </div>
-    <div class="keys" style="margin-top:34px">
-      <div class="keyrow"><span class="act">Split right / up / down</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">Alt</span><span class="kbd">→</span></span></div>
-      <div class="keyrow"><span class="act">Move focus between panes</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">→</span></span></div>
-      <div class="keyrow"><span class="act">Toggle markdown editor</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">E</span></span></div>
-      <div class="keyrow"><span class="act">Toggle Quick Viewer</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">Shift</span><span class="kbd">M</span></span></div>
-      <div class="keyrow"><span class="act">Toggle sidebar</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">B</span></span></div>
-      <div class="keyrow"><span class="act">Close focused pane</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">W</span></span></div>
-      <div class="keyrow"><span class="act">Copy / paste in a terminal</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">Shift</span><span class="kbd">C</span></span></div>
-      <div class="keyrow"><span class="act">Keyboard shortcuts viewer</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">?</span></span></div>
+
+    <div class="kb-grid">
+      <div class="keys kb-keys">
+        <div class="keyrow"><span class="act">Split right / up / down</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">Alt</span><span class="kbd">→</span></span></div>
+        <div class="keyrow"><span class="act">Move focus between panes</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">→</span></span></div>
+        <div class="keyrow"><span class="act">Toggle markdown editor</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">E</span></span></div>
+        <div class="keyrow"><span class="act">Toggle Quick Viewer</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">Shift</span><span class="kbd">M</span></span></div>
+        <div class="keyrow"><span class="act">Toggle sidebar</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">B</span></span></div>
+        <div class="keyrow"><span class="act">Close focused pane</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">W</span></span></div>
+        <div class="keyrow"><span class="act">Copy / paste in a terminal</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">Shift</span><span class="kbd">C</span></span></div>
+        <div class="keyrow"><span class="act">Keyboard shortcuts viewer</span><span class="combo"><span class="kbd">Ctrl</span><span class="kbd">?</span></span></div>
+      </div>
+
+      <div class="kb-demo">
+        <div class="kb-win" id="kbWin" tabindex="0" aria-label="Interactive Lume window — keyboard shortcuts work here">
+          <div class="titlebar">
+            <div class="tb-left"><span class="tb-mark"></span><span class="tb-name">Lume</span><span class="tb-path">demo</span></div>
+            <div class="tb-spacer"></div>
+            <div class="tb-win">
+              <span class="tb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+              <span class="tb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></span>
+            </div>
+          </div>
+          <div class="kb-body">
+            <aside class="kb-side">
+              <div class="kb-row">auth</div>
+              <div class="kb-row in">src</div>
+              <div class="kb-row in2">session.ts</div>
+              <div class="kb-row in2 on">PLAN.md</div>
+            </aside>
+            <div class="kb-panes">
+              <div class="kb-sp focused">
+                <div class="pane-hd"><span class="dot run cl"></span><span class="agn cl">✻ Claude</span><span class="kb-x" title="Close pane">✕</span></div>
+                <div class="kb-term"><span class="cl">✻</span> working…</div>
+              </div>
+              <div class="kb-sp">
+                <div class="pane-hd"><span class="dot run cx"></span><span class="agn cx">▌ Codex</span><span class="kb-x" title="Close pane">✕</span></div>
+                <div class="kb-term"><span class="cx">›</span> npm run dev</div>
+              </div>
+              <div class="kb-sp">
+                <div class="pane-hd"><span class="dot run gm"></span><span class="agn gm">✦ Gemini</span><span class="kb-x" title="Close pane">✕</span></div>
+                <div class="kb-term"><span class="gm">✦</span> reviewing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="kb-note mono"><span class="pulse"></span>Hover the window — <b>Ctrl+Alt+→</b>, <b>Ctrl+Alt+↓</b>, <b>Ctrl+→</b>, <b>Ctrl+B</b> are live. (Ctrl+W stays your tab's.)</div>
+      </div>
     </div>
   </div>
 </section>
 
 <hr class="divider" />
 
-<!-- ====================== THEMES ====================== -->
+<!-- ====================== 05 · THEMES ====================== -->
 <section class="sec" id="themes">
   <div class="wrap">
     <div class="sec-head">
-      <span class="eyebrow"><span class="idx">05</span> Themes</span>
-      <h2>Four palettes. One aesthetic.</h2>
-      <p class="lead">Dark, always. Same geometry and motion — only the colour shifts.</p>
+      <span class="eyebrow"><span class="idx">05</span> <span data-scramble="Themes">Themes</span></span>
+      <h2 data-words>Four palettes. One aesthetic.</h2>
+      <p class="lead">Dark, always. Same geometry and motion — only the colour shifts. Click one: the whole page re-themes, live terminals included.</p>
     </div>
     <div class="themes-grid">
-      <div class="theme-card" data-theme-pick="cobalt" style="background:#0a0a0a">
-        <div class="tc-vis">
-          <div class="tc-bar" style="background:#5fa8ff;width:46%"></div>
-          <div class="tc-line" style="background:#e6e6e6;width:78%"></div>
-          <div class="tc-line" style="background:#9a9a9a;width:64%"></div>
-          <div class="tc-line" style="background:#5fa8ff;width:38%"></div>
-          <div class="tc-line" style="background:#6a6a6a;width:70%"></div>
+      <div class="theme-card" data-theme-pick="cobalt" style="--c0:#0a0a0a;--c1:#111111;--cb:#222222;--cf:#ffffff;--cd:#6a6a6a;--ca:#5fa8ff">
+        <div class="tcw">
+          <div class="tcw-tb"><span class="tcw-mark"></span><span class="tcw-ttl">Lume</span></div>
+          <div class="tcw-panes">
+            <div class="tcw-pane foc">
+              <div class="tl"><span class="g" style="color:#e08a63">✻</span><i style="width:62%"></i></div>
+              <div class="tl"><i style="width:80%;opacity:.45"></i></div>
+              <div class="tl"><i class="acc" style="width:44%"></i></div>
+            </div>
+            <div class="tcw-pane">
+              <div class="tl"><span class="g" style="color:#1fbd80">▌</span><i style="width:54%"></i></div>
+              <div class="tl"><i style="width:70%;opacity:.45"></i></div>
+            </div>
+          </div>
         </div>
-        <div class="tc-foot" style="border-color:#222">
-          <span class="nm" style="color:#fff">Cobalt</span>
-          <span class="df">default</span>
-        </div>
+        <div class="tc-foot"><span class="nm">Cobalt</span><span class="df mono">default</span></div>
       </div>
-      <div class="theme-card" data-theme-pick="coral" style="background:#1a1a1a">
-        <div class="tc-vis">
-          <div class="tc-bar" style="background:#ff8a65;width:46%"></div>
-          <div class="tc-line" style="background:#e6e6e6;width:78%"></div>
-          <div class="tc-line" style="background:#9a9a9a;width:64%"></div>
-          <div class="tc-line" style="background:#ff8a65;width:38%"></div>
-          <div class="tc-line" style="background:#6a6a6a;width:70%"></div>
+      <div class="theme-card" data-theme-pick="coral" style="--c0:#1a1a1a;--c1:#1f1f1f;--cb:#2c2c2c;--cf:#ffffff;--cd:#6a6a6a;--ca:#ff8a65">
+        <div class="tcw">
+          <div class="tcw-tb"><span class="tcw-mark"></span><span class="tcw-ttl">Lume</span></div>
+          <div class="tcw-panes">
+            <div class="tcw-pane foc">
+              <div class="tl"><span class="g" style="color:#e08a63">✻</span><i style="width:62%"></i></div>
+              <div class="tl"><i style="width:80%;opacity:.45"></i></div>
+              <div class="tl"><i class="acc" style="width:44%"></i></div>
+            </div>
+            <div class="tcw-pane">
+              <div class="tl"><span class="g" style="color:#1fbd80">▌</span><i style="width:54%"></i></div>
+              <div class="tl"><i style="width:70%;opacity:.45"></i></div>
+            </div>
+          </div>
         </div>
-        <div class="tc-foot" style="border-color:#2c2c2c">
-          <span class="nm" style="color:#fff">Coral</span>
-          <span class="sw" style="background:#ff8a65"></span>
-        </div>
+        <div class="tc-foot"><span class="nm">Coral</span><span class="sw"></span></div>
       </div>
-      <div class="theme-card" data-theme-pick="tokyo" style="background:#1a1b26">
-        <div class="tc-vis">
-          <div class="tc-bar" style="background:#7dcfff;width:46%"></div>
-          <div class="tc-line" style="background:#c0caf5;width:78%"></div>
-          <div class="tc-line" style="background:#9aa5ce;width:64%"></div>
-          <div class="tc-line" style="background:#7aa2f7;width:38%"></div>
-          <div class="tc-line" style="background:#565f89;width:70%"></div>
+      <div class="theme-card" data-theme-pick="tokyo" style="--c0:#1a1b26;--c1:#1f2335;--cb:#292e42;--cf:#c0caf5;--cd:#565f89;--ca:#7dcfff">
+        <div class="tcw">
+          <div class="tcw-tb"><span class="tcw-mark"></span><span class="tcw-ttl">Lume</span></div>
+          <div class="tcw-panes">
+            <div class="tcw-pane foc">
+              <div class="tl"><span class="g" style="color:#e08a63">✻</span><i style="width:62%"></i></div>
+              <div class="tl"><i style="width:80%;opacity:.45"></i></div>
+              <div class="tl"><i class="acc" style="width:44%"></i></div>
+            </div>
+            <div class="tcw-pane">
+              <div class="tl"><span class="g" style="color:#1fbd80">▌</span><i style="width:54%"></i></div>
+              <div class="tl"><i style="width:70%;opacity:.45"></i></div>
+            </div>
+          </div>
         </div>
-        <div class="tc-foot" style="border-color:#292e42">
-          <span class="nm" style="color:#fff">Tokyo Night</span>
-          <span class="sw" style="background:#7dcfff"></span>
-        </div>
+        <div class="tc-foot"><span class="nm">Tokyo Night</span><span class="sw"></span></div>
       </div>
-      <div class="theme-card" data-theme-pick="gruvbox" style="background:#282828">
-        <div class="tc-vis">
-          <div class="tc-bar" style="background:#fe8019;width:46%"></div>
-          <div class="tc-line" style="background:#ebdbb2;width:78%"></div>
-          <div class="tc-line" style="background:#d5c4a1;width:64%"></div>
-          <div class="tc-line" style="background:#fe8019;width:38%"></div>
-          <div class="tc-line" style="background:#a89984;width:70%"></div>
+      <div class="theme-card" data-theme-pick="gruvbox" style="--c0:#282828;--c1:#32302f;--cb:#504945;--cf:#fbf1c7;--cd:#a89984;--ca:#fe8019">
+        <div class="tcw">
+          <div class="tcw-tb"><span class="tcw-mark"></span><span class="tcw-ttl">Lume</span></div>
+          <div class="tcw-panes">
+            <div class="tcw-pane foc">
+              <div class="tl"><span class="g" style="color:#e08a63">✻</span><i style="width:62%"></i></div>
+              <div class="tl"><i style="width:80%;opacity:.45"></i></div>
+              <div class="tl"><i class="acc" style="width:44%"></i></div>
+            </div>
+            <div class="tcw-pane">
+              <div class="tl"><span class="g" style="color:#1fbd80">▌</span><i style="width:54%"></i></div>
+              <div class="tl"><i style="width:70%;opacity:.45"></i></div>
+            </div>
+          </div>
         </div>
-        <div class="tc-foot" style="border-color:#504945">
-          <span class="nm" style="color:#fbf1c7">Gruvbox</span>
-          <span class="sw" style="background:#fe8019"></span>
-        </div>
+        <div class="tc-foot"><span class="nm">Gruvbox</span><span class="sw"></span></div>
       </div>
     </div>
-    <div class="themes-note"><span class="pulse"></span>Click a palette to re-theme the whole page live.</div>
+    <div class="themes-note"><span class="pulse"></span>Click a palette to re-theme the whole page live — the hero terminals follow.</div>
   </div>
 </section>
 
@@ -403,8 +480,8 @@ const ogImage = new URL("/og.png", Astro.site);
 <!-- ====================== FINAL CTA ====================== -->
 <section class="cta">
   <div class="wrap">
-    <span class="eyebrow" style="justify-content:center">Free · MIT · build from source</span>
-    <h2 style="margin-top:18px">Open the command center.</h2>
+    <div class="cta-prompt mono" id="ctaPrompt"><span class="pr">$</span>&nbsp;<span class="t"></span><span class="caret"></span></div>
+    <h2 data-words>Open the command center.</h2>
     <p class="lead">Clone it, build it, make it yours. Built by a builder, for builders.</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="/download">
@@ -436,6 +513,7 @@ const ogImage = new URL("/og.png", Astro.site);
         <a href="#smoothness">Smoothness</a>
         <a href="#split">Tiling</a>
         <a href="#markdown">Markdown</a>
+        <a href="#keyboard">Keyboard</a>
         <a href="#themes">Themes</a>
       </div>
       <div class="foot-col">
@@ -449,9 +527,29 @@ const ogImage = new URL("/og.png", Astro.site);
   </div>
   <div class="foot-bottom">
     <span>© 2026 Lume · MIT</span>
-    <span>v0.1-alpha · Windows first</span>
+    <span>v0.1.0-beta.5 · Windows first</span>
   </div>
 </footer>
+
+<!-- ====================== SITE STATUSBAR ====================== -->
+<div class="sitebar mono" id="sitebar" aria-hidden="true">
+  <span class="seg"><span class="sb-mark"></span><span>lume</span><span class="dim">v0.1.0-beta.5 · MIT</span></span>
+  <span class="seg sb-mid" id="sbSection">~/hero</span>
+  <span class="seg"><span id="sbTheme">cobalt</span><span class="dim">·</span><span><span id="sbFps">60</span> fps</span><span class="dim">·</span><span class="sb-k">Ctrl K</span></span>
+</div>
+
+<!-- ====================== COMMAND PALETTE ====================== -->
+<div class="pal-overlay" id="palOverlay" hidden>
+  <div class="pal" role="dialog" aria-label="Command palette">
+    <div class="pal-in">
+      <span class="pal-pr mono">›</span>
+      <input id="palInput" placeholder="type a command — “theme”, “download”, “tiling”…" autocomplete="off" spellcheck="false" />
+      <span class="pal-esc mono">esc</span>
+    </div>
+    <ul class="pal-list" id="palList"></ul>
+    <div class="pal-ft mono"><span>↑↓ navigate</span><span>↵ run</span><span>this palette ships in the app too</span></div>
+  </div>
+</div>
 
 <script>
   import "../scripts/lume.js";

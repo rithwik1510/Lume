@@ -1,14 +1,16 @@
-/* Lume site — interactions.
-   Bundled & minified by Astro; the Tweaks panel is a separate React island. */
+/* Lume site — orchestrator.
+   Static HTML paints first; everything below hydrates progressively and
+   collapses gracefully under prefers-reduced-motion. */
+import { initHeroTerms } from "./terms.js";
+import { initConstellation, initScramble, initWordRise, initSparks, initStatusbar, initCtaPrompt } from "./effects.js";
+import { initPalette } from "./palette.js";
+import { initKeysDemo } from "./keys.js";
+import { initMdLive } from "./mdlive.js";
+
 (function () {
   "use strict";
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var root = document.documentElement;
-  function motionMult() {
-    var v = getComputedStyle(root).getPropertyValue("--motion-mult").trim();
-    var n = parseFloat(v);
-    return isNaN(n) ? 1 : n;
-  }
 
   /* ---- rise-in on enter (staggered per group) ------------------------- */
   function initRise() {
@@ -37,59 +39,10 @@
     setTimeout(function () { items.forEach(reveal); }, 2200);
   }
 
-  /* ---- hero agent pane: append a few lines, then idle ----------------- */
-  function initAgentStream() {
-    var term = document.querySelector('[data-stream="agent"]');
-    if (!term) return;
-    var extra = [
-      '<span class="ok">     + await tokenStore.read()</span>',
-      '&nbsp;',
-      '<span class="cl">⏺</span> <span class="c">Bash</span><span class="dim">(npm test)</span>',
-      '<span class="ok">  ⎿ ✓ 24 passed</span> <span class="dim">(1.8s)</span>',
-      '&nbsp;',
-      '<span class="cl"><span class="spin" data-spin="cl">✻</span></span> Sessions persist via the token store.'
-    ];
-    var caret = document.createElement("div");
-    caret.className = "ln";
-    caret.innerHTML = '<span class="caret"></span>';
-    term.appendChild(caret);
-    if (reduce) {
-      extra.forEach(function (h) {
-        var d = document.createElement("div"); d.className = "ln"; d.innerHTML = h;
-        term.insertBefore(d, caret);
-      });
-      return;
-    }
-    var i = 0;
-    function step() {
-      if (i >= extra.length) return;
-      var d = document.createElement("div");
-      d.className = "ln";
-      d.innerHTML = extra[i];
-      d.style.opacity = "0";
-      d.style.transform = "translateY(3px)";
-      d.style.transition = "opacity .26s var(--ease-out), transform .26s var(--ease-out)";
-      term.insertBefore(d, caret);
-      setTimeout(function () { d.style.opacity = ""; d.style.transform = ""; }, 20);
-      i++;
-      term.scrollTop = term.scrollHeight;
-      setTimeout(step, (620 + Math.random() * 380) * motionMult());
-    }
-    var started = false;
-    var io = new IntersectionObserver(function (ents) {
-      ents.forEach(function (e) {
-        if (e.isIntersecting && !started) { started = true; setTimeout(step, 900); io.disconnect(); }
-      });
-    }, { threshold: 0.3 });
-    io.observe(term);
-  }
-
-  /* ---- scroll-driven pane split --------------------------------------
-     Pane geometry is a pure function of scroll progress, but every write is
-     coalesced into ONE requestAnimationFrame tick per frame (rather than the
-     old time-throttle that fired off-frame and stuttered). Combined with
-     `contain` on .sp in the CSS, the dividers track the cursor 1:1 and the
-     rest of the page never reflows. */
+  /* ---- scroll-driven pane split ----------------------------------------
+     Geometry is a pure function of scroll progress; writes are coalesced
+     into one rAF tick per frame. `contain` on .sp keeps the rest of the
+     page from ever reflowing. */
   function initSplit() {
     var track = document.getElementById("splitTrack");
     var panes = document.getElementById("splitPanes");
@@ -98,7 +51,7 @@
     var steps = [].slice.call(document.querySelectorAll(".split-step"));
     var GAP = 0.6; // % seam between panes
     function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
-    function smooth(t) { return t * t * (3 - 2 * t); } // eased phase ends, monotonic w/ scroll
+    function smooth(t) { return t * t * (3 - 2 * t); }
     function set(sp, l, t, w, h, op) {
       var f = function (n) { return (Math.round(n * 1000) / 1000) + "%"; };
       sp.style.left = f(l); sp.style.top = f(t);
@@ -106,15 +59,21 @@
       sp.style.opacity = Math.round(op * 1000) / 1000;
       sp.style.pointerEvents = op > 0.05 ? "auto" : "none";
     }
+    var wasOn = [false, false];
+    function press(i) {
+      // keycap physically depresses the moment its split fires
+      var k = steps[i] && steps[i].querySelector(".k");
+      if (!k) return;
+      k.classList.add("press");
+      setTimeout(function () { k.classList.remove("press"); }, 420);
+    }
     function render(p) {
-      // phase A (0→.5): split right — pane0 100→50%, pane1 grows from the right
-      // phase B (.5→1): split down  — pane1 100→50% tall, pane2 grows from bottom
       var a = smooth(clamp01(p / 0.5));
       var b = smooth(clamp01((p - 0.5) / 0.5));
-      var w0 = 100 - 50 * a;                  // left column width
-      var rx = w0 + (a > 0.001 ? GAP : 0);    // right column starts after a seam
+      var w0 = 100 - 50 * a;
+      var rx = w0 + (a > 0.001 ? GAP : 0);
       var rw = 100 - rx;
-      var h1 = 100 - 50 * b;                  // top-right height
+      var h1 = 100 - 50 * b;
       var ty = h1 + (b > 0.001 ? GAP : 0);
       set(sps[0], 0, 0, w0, 100, 1);
       set(sps[1], rx, 0, rw, h1, a);
@@ -122,8 +81,12 @@
       sps[0].classList.toggle("focused", a < 0.5);
       sps[1].classList.toggle("focused", a >= 0.5 && b < 0.5);
       sps[2].classList.toggle("focused", b >= 0.5);
-      if (steps[0]) steps[0].classList.toggle("on", a > 0.03);
-      if (steps[1]) steps[1].classList.toggle("on", b > 0.03);
+      var on0 = a > 0.03, on1 = b > 0.03;
+      if (steps[0]) steps[0].classList.toggle("on", on0);
+      if (steps[1]) steps[1].classList.toggle("on", on1);
+      if (on0 && !wasOn[0]) press(0);
+      if (on1 && !wasOn[1]) press(1);
+      wasOn = [on0, on1];
     }
     function onScroll() {
       var r = track.getBoundingClientRect();
@@ -142,13 +105,20 @@
     onScroll();
   }
 
-  /* ---- theme card quick-pick (syncs with Tweaks via event) ------------ */
+  /* ---- theme cards: re-theme the whole page (terminals included) ------- */
+  function setTheme(t) {
+    // dispatch only after the attribute lands — view transitions apply it async
+    var apply = function () {
+      root.setAttribute("data-theme", t);
+      window.dispatchEvent(new CustomEvent("lume:settheme", { detail: t }));
+    };
+    if (document.startViewTransition && !reduce) document.startViewTransition(apply);
+    else apply();
+  }
   function initThemeCards() {
     document.querySelectorAll("[data-theme-pick]").forEach(function (card) {
       card.addEventListener("click", function () {
-        var t = card.getAttribute("data-theme-pick");
-        root.setAttribute("data-theme", t);
-        window.dispatchEvent(new CustomEvent("lume:settheme", { detail: t }));
+        setTheme(card.getAttribute("data-theme-pick"));
       });
     });
   }
@@ -175,30 +145,20 @@
     btn.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doCopy(); } });
   }
 
-  /* ---- animated agent spinners (authentic per-agent glyph cycles) ----- */
-  function initSpinner() {
-    if (reduce) return;
-    var frames = {
-      cl: ["✻", "✶", "✳", "∗"],
-      cx: ["◐", "◓", "◑", "◒"],
-      gm: ["✦", "✧", "✶", "✧"]
-    };
-    var idx = 0;
-    setInterval(function () {
-      idx++;
-      [].slice.call(document.querySelectorAll("[data-spin]")).forEach(function (el) {
-        var f = frames[el.getAttribute("data-spin")] || frames.cl;
-        el.textContent = f[idx % f.length];
-      });
-    }, 150);
-  }
-
   function init() {
     initRise();
-    initAgentStream();
-    initSpinner();
+    initWordRise();
+    initScramble();
+    initConstellation();
+    initHeroTerms();
     initSplit();
+    initMdLive();
+    initKeysDemo();
     initThemeCards();
+    initSparks();
+    initPalette();
+    initStatusbar();
+    initCtaPrompt();
     initCopy();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
