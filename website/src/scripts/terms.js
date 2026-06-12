@@ -36,11 +36,14 @@ export function xtermTheme() {
 let xtermMod = null;
 async function loadXterm() {
   if (xtermMod) return xtermMod;
+  // xterm's stylesheet is imported eagerly in the page (index.astro) so it's
+  // bundled into the page CSS and always served — importing it here as a lazy
+  // chunk made Vite reference a CSS asset it never emitted (404 → unstyled,
+  // zero-height terminals that render blank).
   const [{ Terminal }, { WebglAddon }, { FitAddon }] = await Promise.all([
     import("@xterm/xterm"),
     import("@xterm/addon-webgl"),
     import("@xterm/addon-fit"),
-    import("@xterm/xterm/css/xterm.css"),
   ]);
   xtermMod = { Terminal, WebglAddon, FitAddon };
   return xtermMod;
