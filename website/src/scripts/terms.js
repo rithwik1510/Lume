@@ -187,15 +187,23 @@ export function initHeroTerms() {
   }, { threshold: 0.05 });
   vis.observe(stage);
 
-  const boot = async () => {
+  const boot = () => {
     const scripts = { cl: CL, cx: CX, gm: GM };
-    for (const el of mounts) {
+    // Hydrate each pane independently. One pane failing to mount (e.g. a WebGL
+    // context drop on the focused pane) must never blank that pane or block its
+    // siblings — so no shared await chain, and the static mock is restored on
+    // any failure or stall instead of leaving an empty pane.
+    mounts.forEach((el) => {
       const kind = el.getAttribute("data-term");
-      el.textContent = "";
+      const fallback = el.innerHTML;
+      const restore = () => { el.classList.remove("term-host"); el.innerHTML = fallback; };
       el.classList.add("term-host");
-      const term = await makeTerm(el, { fontSize: kind === "cl" ? 12 : 11.5 });
-      play(term, scripts[kind] || CL);
-    }
+      el.textContent = "";
+      const stall = setTimeout(() => { if (!el.querySelector(".xterm")) restore(); }, 4000);
+      makeTerm(el, { fontSize: kind === "cl" ? 12 : 11.5 })
+        .then((term) => { clearTimeout(stall); play(term, scripts[kind] || CL); })
+        .catch(() => { clearTimeout(stall); restore(); });
+    });
   };
 
   const io = new IntersectionObserver((ents) => {
