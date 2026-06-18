@@ -1,7 +1,26 @@
 // src/codemirror/setup.ts — build a CodeMirror EditorView with our defaults.
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import {
+  bracketMatching,
+  defaultHighlightStyle,
+  foldGutter,
+  foldKeymap,
+  indentOnInput,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { EditorState, type EditorSelection, type Extension } from "@codemirror/state";
+import {
+  drawSelection,
+  dropCursor,
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  keymap,
+  lineNumbers,
+} from "@codemirror/view";
 
 import { markdownExtensions } from "@/codemirror/markdownExtensions";
 import { lumeTheme } from "@/codemirror/theme";
@@ -11,19 +30,37 @@ export interface BuildEditorOptions {
   doc: string;
   readOnly?: boolean;
   lineNumbersOn?: boolean;
+  selection?: EditorSelection;
   onChange?: (doc: string) => void;
 }
 
 export function buildEditor(opts: BuildEditorOptions): EditorView {
   const extensions: Extension[] = [
+    highlightSpecialChars(),
     history(),
-    keymap.of([...defaultKeymap, ...historyKeymap]),
+    drawSelection(),
+    dropCursor(),
+    EditorState.allowMultipleSelections.of(true),
+    indentOnInput(),
+    bracketMatching(),
+    closeBrackets(),
+    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    search({ top: true }),
+    highlightSelectionMatches(),
+    highlightActiveLine(),
+    keymap.of([
+      ...closeBracketsKeymap,
+      ...searchKeymap,
+      ...foldKeymap,
+      ...defaultKeymap,
+      ...historyKeymap,
+    ]),
     ...markdownExtensions(),
     lumeTheme,
     EditorState.readOnly.of(!!opts.readOnly),
   ];
   if (opts.lineNumbersOn) {
-    extensions.unshift(lineNumbers());
+    extensions.unshift(lineNumbers(), foldGutter(), highlightActiveLineGutter());
   }
   if (opts.onChange) {
     extensions.push(
@@ -34,6 +71,6 @@ export function buildEditor(opts: BuildEditorOptions): EditorView {
   }
   return new EditorView({
     parent: opts.parent,
-    state: EditorState.create({ doc: opts.doc, extensions }),
+    state: EditorState.create({ doc: opts.doc, selection: opts.selection, extensions }),
   });
 }
