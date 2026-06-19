@@ -13,7 +13,7 @@
 // across the top. The Sidebar remains visible." The sidebars and the
 // ContextMenu portal stay mounted alongside.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -55,6 +55,32 @@ export default function App() {
   const quickViewerOpen = useMdStore((s) => s.quickViewer.open);
   const previewOpen = usePreviewStore((s) => s.open);
   const mdMode = useMdStore((s) => s.mdEditorMode);
+  const splitView = useSessionsStore((s) => s.splitView);
+
+  // Session split-view is mutually exclusive with the other central-area
+  // surfaces (Quick Viewer / Preview / MD Editor Full View) — the v1 decision.
+  // One transition-based guard so the LATEST action wins (no who-fired-first
+  // race): if the split just opened it closes the panels; if a panel/MD-full
+  // just opened while a split was up, it collapses the split.
+  const prevSplit = useRef(splitView);
+  const prevSurfaces = useRef({ qv: quickViewerOpen, pv: previewOpen, md: mdMode });
+  useEffect(() => {
+    const splitJustOpened = !prevSplit.current && !!splitView;
+    const surfaceJustOpened =
+      (!prevSurfaces.current.qv && quickViewerOpen) ||
+      (!prevSurfaces.current.pv && previewOpen) ||
+      (prevSurfaces.current.md !== "full" && mdMode === "full");
+
+    if (splitJustOpened) {
+      if (useMdStore.getState().quickViewer.open) useMdStore.getState().closeQuickViewer();
+      if (usePreviewStore.getState().open) usePreviewStore.getState().closePreview();
+    } else if (surfaceJustOpened && splitView) {
+      useSessionsStore.getState().closeSplit();
+    }
+
+    prevSplit.current = splitView;
+    prevSurfaces.current = { qv: quickViewerOpen, pv: previewOpen, md: mdMode };
+  }, [splitView, quickViewerOpen, previewOpen, mdMode]);
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();

@@ -6,6 +6,7 @@ import { useSessionsStore, type Session } from "@/store/sessionsStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { revealInExplorer } from "@/lib/revealInExplorer";
+import { beginInternalSessionDrag } from "@/lib/internalSessionDrag";
 import { InlineRename } from "@/components/InlineRename";
 import { IconTrash } from "@/components/icons";
 
@@ -40,6 +41,14 @@ export function SessionRow({ session }: Props) {
   const onClick = () => {
     if (renaming) return;
     activate(session.id);
+  };
+
+  // Drag the row onto the main area to view this session beside the active one.
+  // Pointer-based (not HTML5 DnD) for the Tauri/WebView2 reason documented in
+  // internalSessionDrag.ts. A sub-threshold movement falls through to onClick.
+  const onMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || renaming) return;
+    beginInternalSessionDrag(session.id, session.name, e.clientX, e.clientY);
   };
 
   const onTrash = async (e: ReactMouseEvent<HTMLButtonElement>) => {
@@ -85,6 +94,7 @@ export function SessionRow({ session }: Props) {
       data-session-id={session.id}
       title={session.name}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
     >
       {/* Fixed-size slot so every state (circle dots, working box) occupies
@@ -131,6 +141,7 @@ export function SessionRow({ session }: Props) {
       )}
       <button
         className={styles.trash}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => void onTrash(e)}
         title="Delete session"
         aria-label="Delete session"

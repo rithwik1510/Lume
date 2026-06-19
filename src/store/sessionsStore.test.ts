@@ -657,3 +657,134 @@ describe("sessionsStore — session restore (features A + B)", () => {
     expect(out.reopenLastSession).toBe(true);
   });
 });
+
+describe("sessionsStore — split view", () => {
+  beforeEach(() => {
+    useSessionsStore.getState().reset();
+  });
+
+  function active(id: string) {
+    useSessionsStore.getState().activateSession(id);
+  }
+
+  it("openSplitWith pairs the companion on the right and keeps focus on the active (left) session", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toEqual([a, b]);
+    expect(s.activeSessionId).toBe(a); // focus did NOT move to the companion
+    expect(s.sessions[b].status).toBe("active"); // companion mounted
+  });
+
+  it("openSplitWith seeds a first pane for a never-opened companion so the slot isn't blank", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    expect(useSessionsStore.getState().sessions[b].layoutRoot).toBeNull();
+    useSessionsStore.getState().openSplitWith(b);
+    const comp = useSessionsStore.getState().sessions[b];
+    expect(comp.layoutRoot).not.toBeNull();
+    expect(comp.focusedPaneId).not.toBeNull();
+  });
+
+  it("openSplitWith with no active session opens the companion full-screen (no split)", () => {
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    useSessionsStore.getState().openSplitWith(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toBeNull();
+    expect(s.activeSessionId).toBe(b);
+    expect(s.sessions[b].status).toBe("active");
+  });
+
+  it("openSplitWith onto the active session is a no-op split (stays single)", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    active(a);
+    useSessionsStore.getState().openSplitWith(a);
+    expect(useSessionsStore.getState().splitView).toBeNull();
+  });
+
+  it("openSplitWith replaces the right slot when a split is already open", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    const c = useSessionsStore.getState().createSession("/p", "C");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().openSplitWith(c);
+    expect(useSessionsStore.getState().splitView).toEqual([a, c]);
+  });
+
+  it("closeSplit collapses to single view and keeps the removed session alive", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().closeSplit();
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toBeNull();
+    expect(s.activeSessionId).toBe(a);
+    expect(s.sessions[b].status).toBe("active"); // not torn down — still a bg session
+  });
+
+  it("closeSplit moves focus to the left session when the right was focused", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    active(b); // focus the right slot (still a member → split preserved)
+    expect(useSessionsStore.getState().splitView).toEqual([a, b]);
+    useSessionsStore.getState().closeSplit();
+    expect(useSessionsStore.getState().activeSessionId).toBe(a);
+  });
+
+  it("activating a member moves the focus ring but keeps the split", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    active(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toEqual([a, b]);
+    expect(s.activeSessionId).toBe(b);
+  });
+
+  it("activating a non-member collapses the split", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    const c = useSessionsStore.getState().createSession("/p", "C");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    active(c);
+    expect(useSessionsStore.getState().splitView).toBeNull();
+    expect(useSessionsStore.getState().activeSessionId).toBe(c);
+  });
+
+  it("stopSession on a split member collapses the split", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().stopSession(b);
+    expect(useSessionsStore.getState().splitView).toBeNull();
+  });
+
+  it("purgeSession on a split member collapses the split", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().purgeSession(b);
+    expect(useSessionsStore.getState().splitView).toBeNull();
+  });
+
+  it("coerceRehydrated always lands in single view (split is transient)", () => {
+    const out = coerceRehydrated({
+      sessions: {},
+      activeSessionId: null,
+      groupLabels: {},
+      collapsedGroups: [],
+    });
+    expect(out.splitView).toBeNull();
+  });
+});

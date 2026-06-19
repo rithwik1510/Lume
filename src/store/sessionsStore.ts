@@ -23,7 +23,7 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import type { LayoutNode, LeafNode } from "@/store/layout/tree";
-import { leaves as treeLeaves } from "@/store/layout/tree";
+import { leaf, leaves as treeLeaves } from "@/store/layout/tree";
 import type { PaneId, Shell } from "@/types";
 import { nextPaneId } from "@/lib/paneIds";
 import { tauriPersistStorage } from "@/lib/persistStorage";
@@ -74,6 +74,13 @@ export interface SessionsState {
   reopenLastSession: boolean;
   groupLabels: Record<string, string>;
   collapsedGroups: string[];
+  // Two sessions shown side-by-side in the main area, as [leftId, rightId].
+  // null = the normal single-session view. Transient view state, NEVER
+  // persisted (like activeSessionId): a fresh launch is always single-view.
+  // When set, activeSessionId is guaranteed to be one of the two members — it
+  // marks which slot owns the keyboard (the focus ring); the slots themselves
+  // keep their left/right position regardless of which is focused.
+  splitView: [SessionId, SessionId] | null;
 
   // Actions — implemented in subsequent tasks
   createSession: (folderPath: string, name?: string) => SessionId;
@@ -91,6 +98,13 @@ export interface SessionsState {
   setLayoutRoot: (id: SessionId, root: LayoutNode | null) => void;
   setFocusedPane: (id: SessionId, paneId: PaneId | null) => void;
   toggleFileTree: (id: SessionId) => void;
+  /** Show `companionId` beside the active session (right slot), reviving it if
+   *  stopped — WITHOUT stealing keyboard focus from the active (left) session.
+   *  No-ops onto a single view if there's no active session or it's a self-drop. */
+  openSplitWith: (companionId: SessionId) => void;
+  /** Collapse the split back to a single view (the × on the seam). Removes the
+   *  right slot; the removed session stays alive as a background session. */
+  closeSplit: () => void;
   // Per-pane launch memory (Session restore — feature B). Both write onto the
   // matching leaf inside the session's layoutRoot, so they persist for free.
   setPaneShell: (id: SessionId, paneId: PaneId, shell: Shell) => void;
@@ -132,6 +146,7 @@ const emptyState = () => ({
   reopenLastSession: true,
   groupLabels: {},
   collapsedGroups: [],
+  splitView: null,
 });
 
 export const useSessionsStore = create<SessionsState>()(
@@ -178,6 +193,9 @@ export const useSessionsStore = create<SessionsState>()(
             s.activeSessionId = id;
             // Remember it for next launch (feature A — reopen last session).
             s.lastActiveSessionId = id;
+            // Split coherence: focusing a member just moves the focus ring;
+            // navigating to a session outside the pair collapses to single view.
+            if (s.splitView && !s.splitView.includes(id)) s.splitView = null;
           }),
 
         stopSession: (id) =>
@@ -186,6 +204,8 @@ export const useSessionsStore = create<SessionsState>()(
             if (!session) return;
             session.status = "stopped";
             if (s.activeSessionId === id) s.activeSessionId = null;
+            // A stopped session can't occupy a split slot — collapse the pair.
+            if (s.splitView && s.splitView.includes(id)) s.splitView = null;
           }),
 
         purgeSession: (id) =>
@@ -194,6 +214,7 @@ export const useSessionsStore = create<SessionsState>()(
             delete s.sessions[id];
             if (s.activeSessionId === id) s.activeSessionId = null;
             if (s.lastActiveSessionId === id) s.lastActiveSessionId = null;
+            if (s.splitView && s.splitView.includes(id)) s.splitView = null;
           }),
 
         purgeGroup: (folderPath) =>
@@ -203,6 +224,7 @@ export const useSessionsStore = create<SessionsState>()(
                 delete s.sessions[id];
                 if (s.activeSessionId === id) s.activeSessionId = null;
                 if (s.lastActiveSessionId === id) s.lastActiveSessionId = null;
+                if (s.splitView && s.splitView.includes(id)) s.splitView = null;
               }
             }
           }),
@@ -282,6 +304,62 @@ export const useSessionsStore = create<SessionsState>()(
             if (session) session.fileTreeOpen = !session.fileTreeOpen;
           }),
 
+        openSplitWith: (companionId) =>
+          set((s) => {
+            const comp = s.sessions[companionId];
+            if (!comp) return;
+            const active = s.activeSessionId;
+
+            // Bring the companion onto the screen. Flipping status to "active"
+            // is what makes MainArea mount it and the orchestrator spawn (or
+            // revive) its PTYs — the same path as clicking it in the sidebar.
+            // Seed a first pane for a brand-new session that was never opened,
+            // mirroring App.tsx's bootstrap, so the slot isn't blank.
+            comp.status = "active";
+            comp.unread = false;
+            comp.lastActiveAt = Date.now();
+            if (comp.layoutRoot === null) {
+              const pid = nextPaneId();
+              comp.layoutRoot = leaf(pid);
+              comp.focusedPaneId = pid;
+            }
+
+            // No left session to pair with (all-stopped), or a self-drop: there's
+            // nothing to split against, so just open the companion full-screen.
+            if (active === null || companionId === active) {
+              s.activeSessionId = companionId;
+              s.lastActiveSessionId = companionId;
+              s.splitView = null;
+              return;
+            }
+
+            // Pair them with the active session pinned to the left (keyboard
+            // focus stays where it was); the companion takes the right slot. If
+            // a split was already open, this replaces its right slot.
+            s.splitView = [active, companionId];
+          }),
+
+        closeSplit: () =>
+          set((s) => {
+            if (!s.splitView) return;
+            const [left, right] = s.splitView;
+            s.splitView = null;
+            // The × removes the right slot. If focus was on the right session,
+            // hand it to the surviving left one so the keyboard target stays
+            // visible. The removed session is NOT torn down — it lives on as a
+            // background session (still streaming; its dot lights if it rings).
+            if (s.activeSessionId === right) {
+              const l = s.sessions[left];
+              if (l) {
+                l.status = "active";
+                l.unread = false;
+                l.lastActiveAt = Date.now();
+                s.activeSessionId = left;
+                s.lastActiveSessionId = left;
+              }
+            }
+          }),
+
         setPaneShell: (id, paneId, shell) =>
           set((s) => {
             const session = s.sessions[id];
@@ -329,6 +407,7 @@ export const useSessionsStore = create<SessionsState>()(
             s.reopenLastSession = true;
             s.groupLabels = {};
             s.collapsedGroups = [];
+            s.splitView = null;
           }),
       })),
       {
@@ -446,6 +525,8 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
     reopenLastSession,
     groupLabels,
     collapsedGroups,
+    // Split is transient view state — a fresh launch is always single-view.
+    splitView: null,
   };
 }
 

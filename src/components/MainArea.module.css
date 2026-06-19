@@ -9,11 +9,96 @@
   animation: view-fade-in var(--dur-base) var(--ease-out);
 }
 
+/* Geometry (top/right/bottom/left/width) is set inline per slot role so a
+ * split is a pure left/width change on already-mounted wrappers — no DOM
+ * reparenting, so xterm canvases are never disturbed. */
 .sessionPane {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+}
+
+/* The split slot that currently owns the keyboard. A 1px inset accent ring —
+ * no layout shift, no shadow (DESIGN.md). Only shown while split is active. */
+.focusedSlot {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  z-index: 1;
+}
+
+/* The draggable seam between two sessions. Mirrors PaneTree's 3px splitter. */
+.splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transform: translateX(-50%);
+  background: var(--border);
+  cursor: col-resize;
+  z-index: 3;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.splitter:hover,
+.splitterDragging {
+  background: var(--accent-dim);
+}
+
+/* × on the seam — collapses the split back to one session. Sits at the top of
+ * the divider so it never collides with a pane's own close button. */
+.closeSplit {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.closeSplit:hover {
+  color: var(--fg-0);
+  border-color: var(--accent-dim);
+}
+
+/* Drop affordance shown while dragging a session row: the right half lights up
+ * to teach "this docks on the right". pointer-events:none so the drag's own
+ * hit-test (elementFromPoint is unused here, but keep it transparent anyway)
+ * and the splitter underneath are never blocked. */
+.dropZone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px dashed var(--accent-dim);
+  background: var(--accent-alpha);
+  opacity: 0.45;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.dropZoneOver {
+  opacity: 1;
+}
+.dropHint {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--fg-0);
+  background: var(--bg-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
 }
 
 .empty {
