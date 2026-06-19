@@ -4,6 +4,24 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.6] — 2026-06-19
+
+View two sessions side-by-side.
+
+### Added
+- **Drag a session onto the screen to split it.** Grab any session from the
+  sidebar and drop it on the terminal area — it docks beside the one you're in,
+  so you can watch two projects (or two agents in different folders) at once. A
+  "Drop to split" hint shows where it'll land; the seam between them drags to
+  rebalance, clicking either side hands it the keyboard, and the × on the seam
+  collapses back to one. The dragged-in session revives the same way clicking it
+  does, and nothing is torn down when you close the split — it just goes back to
+  being a background session. Split view replaces the Quick Viewer / Preview /
+  Markdown editor while it's open (and they replace it), and it's a transient
+  view — a fresh launch always opens single.
+
+[0.1.0-beta.6]: https://github.com/rithwik1510/Workflow/releases/tag/v0.1.0-beta.6
+
 ## [0.1.0-beta.5] — 2026-06-10
 
 Your agents come back when you reopen Lume, plus attention-signal polish.
