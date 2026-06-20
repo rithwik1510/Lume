@@ -145,11 +145,20 @@ import { initMdLive } from "./mdlive.js";
     btn.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doCopy(); } });
   }
 
-  function init() {
+  // Above-the-fold reveal runs immediately so the hero looks exactly as designed
+  // from first paint — the rise/word-rise/scramble entrances and the ambient
+  // constellation behind the hero. (The constellation's draw loop is a rAF, so
+  // arming it eagerly costs nothing on the load path.)
+  function initEager() {
     initRise();
     initWordRise();
     initScramble();
     initConstellation();
+  }
+  // Everything else is progressive enhancement (below-the-fold sections, the live
+  // terminals, the palette). Defer it past `load` + an idle slot so it never
+  // inflates the initial load — the static HTML is already interactive.
+  function initDeferred() {
     initHeroTerms();
     initSplit();
     initMdLive();
@@ -161,6 +170,13 @@ import { initMdLive } from "./mdlive.js";
     initCtaPrompt();
     initCopy();
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  function schedule(fn) {
+    const run = () =>
+      window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 1);
+    if (document.readyState === "complete") run();
+    else window.addEventListener("load", run, { once: true });
+  }
+  function boot() { initEager(); schedule(initDeferred); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
 })();

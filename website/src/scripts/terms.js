@@ -209,14 +209,24 @@ export function initHeroTerms() {
     });
   };
 
-  const io = new IntersectionObserver((ents) => {
-    ents.forEach((e) => {
-      if (!e.isIntersecting) return;
-      io.disconnect();
-      boot();
-    });
-  }, { rootMargin: "200px" });
-  io.observe(stage);
+  // Keep the 430 KB of xterm/webgl chunks off the initial load path. The static
+  // HTML mock paints first (by design), so we only arm the intersection-boot
+  // after the window `load` event and an idle slot — xterm never competes with
+  // first paint, and `loadEventEnd` stays tiny.
+  const arm = () => {
+    const io = new IntersectionObserver((ents) => {
+      ents.forEach((e) => {
+        if (!e.isIntersecting) return;
+        io.disconnect();
+        boot();
+      });
+    }, { rootMargin: "200px" });
+    io.observe(stage);
+  };
+  const schedule = () =>
+    window.requestIdleCallback ? requestIdleCallback(arm, { timeout: 1500 }) : setTimeout(arm, 200);
+  if (document.readyState === "complete") schedule();
+  else window.addEventListener("load", schedule, { once: true });
 }
 
 /* ============================================================================
