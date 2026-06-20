@@ -22,6 +22,8 @@ import "@xterm/xterm/css/xterm.css";
 import "@/styles/xterm-overrides.css";
 
 import { registerMdLinkProvider } from "@/terminals/mdLinkProvider";
+import { RendererPool } from "@/terminals/webglPool";
+import { shouldRenderLive } from "@/terminals/visibility";
 import type { PaneId } from "@/types";
 import { useSettingsStore } from "@/store/settingsStore";
 
@@ -34,6 +36,73 @@ interface TerminalEntry {
 }
 
 const entries = new Map<PaneId, TerminalEntry>();
+
+// ---------------------------------------------------------------------------
+// WebGL context pool — bounds live WebGL renderers so a fleet of sessions can't
+// blow past WebView2's ~16-context cap. Only visible panes hold a context;
+// backgrounded panes fall back to the DOM renderer (lossless — the buffer is
+// renderer-independent) and reacquire WebGL when foregrounded. The actual
+// create/dispose lives here (it touches `entries` + WebglAddon); the pool is
+// pure LRU bookkeeping.
+// ---------------------------------------------------------------------------
+
+/** Max simultaneous WebGL contexts. Comfortably under WebView2's ~16. */
+const WEBGL_CAP = 8;
+
+function createWebglFor(paneId: PaneId): boolean {
+  const entry = entries.get(paneId);
+  if (!entry) return false;
+  if (entry.webgl) return true; // already active
+  if (!entry.term.element) return false; // terminal not opened yet — retry on attach
+  try {
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => {
+      try {
+        webgl.dispose();
+      } catch {
+        // already disposed
+      }
+      if (entry.webgl === webgl) entry.webgl = null;
+      rendererPool.noteContextLost(paneId);
+    });
+    entry.term.loadAddon(webgl);
+    entry.webgl = webgl;
+    return true;
+  } catch (e) {
+    try {
+      entry.term.write(`\r\n\x1b[31m[webgl failed, using canvas: ${String(e)}]\x1b[0m\r\n`);
+    } catch {
+      // terminal not writable yet
+    }
+    return false;
+  }
+}
+
+function disposeWebglFor(paneId: PaneId): void {
+  const entry = entries.get(paneId);
+  if (!entry || !entry.webgl) return;
+  try {
+    entry.webgl.dispose();
+  } catch {
+    // already disposed
+  }
+  entry.webgl = null;
+}
+
+const rendererPool = new RendererPool(WEBGL_CAP, {
+  activate: createWebglFor,
+  evict: disposeWebglFor,
+});
+
+/** Pane became visible — ensure it holds a (pooled) WebGL context. */
+export function acquireRenderer(paneId: PaneId): void {
+  rendererPool.acquire(paneId);
+}
+
+/** Pane went background — its context becomes evictable under cap pressure. */
+export function markBackgroundRenderer(paneId: PaneId): void {
+  rendererPool.markBackground(paneId);
+}
 
 /**
  * Escape sequence that turns off every xterm mouse-tracking mode we know of.
@@ -147,47 +216,36 @@ export function attach(paneId: PaneId, host: HTMLElement): boolean {
   const entry = entries.get(paneId);
   if (!entry) throw new Error(`no terminal for paneId=${paneId}`);
 
-  // Path 1: same host.
   if (entry.attachedTo === host) {
+    // Path 1: same host.
     entry.fit.fit();
-    return entry.webgl !== null;
-  }
-
-  // Path 2: xterm has been opened before. Reparent — DO NOT reopen.
-  // term.element is the xterm.js-internal root; it's null until open()
-  // has been called once, and a real DOM node after. This check survives
-  // any number of detach/remount cycles because it doesn't depend on our
-  // own `attachedTo` bookkeeping.
-  if (entry.term.element) {
+  } else if (entry.term.element) {
+    // Path 2: xterm has been opened before. Reparent — DO NOT reopen.
+    // term.element is the xterm.js-internal root; it's null until open()
+    // has been called once, and a real DOM node after. This check survives
+    // any number of detach/remount cycles because it doesn't depend on our
+    // own `attachedTo` bookkeeping. (Reopening silently breaks rendering.)
     host.appendChild(entry.term.element);
     entry.attachedTo = host;
     entry.fit.fit();
-    return entry.webgl !== null;
+  } else {
+    // Path 3: first-ever open for this Terminal.
+    entry.term.open(host);
+    entry.attachedTo = host;
+    // Register the MD-link provider exactly once per Terminal instance, on
+    // the first-mount path. Reparent (Path 2) doesn't re-register — the
+    // provider is bound to the Terminal, not the DOM host.
+    entry.linkDisposable = registerMdLinkProvider(entry.term, paneId);
+    entry.fit.fit();
   }
 
-  // Path 3: first-ever open for this Terminal.
-  entry.term.open(host);
-  entry.attachedTo = host;
+  // WebGL is governed centrally by the pool. A visible pane gets a context now
+  // (created lazily — same try/catch as before); a hidden pane uses the DOM
+  // renderer until it's foregrounded. The empty-visible-set fail-safe in
+  // shouldRenderLive means a missing/uninstalled governor treats every pane as
+  // visible, i.e. identical to the old "every pane gets WebGL" behavior.
+  if (shouldRenderLive(paneId)) acquireRenderer(paneId);
 
-  // Register the MD-link provider exactly once per Terminal instance, on
-  // the first-mount path. Reparent (Path 2) doesn't re-register — the
-  // provider is bound to the Terminal, not the DOM host.
-  entry.linkDisposable = registerMdLinkProvider(entry.term, paneId);
-
-  if (!entry.webgl) {
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
-      entry.term.loadAddon(webgl);
-      entry.webgl = webgl;
-    } catch (e) {
-      entry.term.write(
-        `\r\n\x1b[31m[webgl failed, using canvas: ${String(e)}]\x1b[0m\r\n`
-      );
-    }
-  }
-
-  entry.fit.fit();
   return entry.webgl !== null;
 }
 
@@ -217,6 +275,7 @@ export function disposeTerminal(paneId: PaneId): void {
   }
   entry.term.dispose();
   entries.delete(paneId);
+  rendererPool.forget(paneId);
 }
 
 /** Resize hook — called from window resize or splitter drag. */

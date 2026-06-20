@@ -658,6 +658,20 @@ export function getActivePaneIds(state: SessionsState): PaneId[] {
   return out;
 }
 
+/** Union of paneIds that are ON SCREEN right now: the foreground session's
+ *  panes, or both split-view members' panes when a split is open. Drives the
+ *  render governor — only these panes render live + hold a WebGL context. */
+export function getVisiblePaneIds(state: SessionsState): PaneId[] {
+  const sessionIds =
+    state.splitView ?? (state.activeSessionId ? [state.activeSessionId] : []);
+  const out: PaneId[] = [];
+  for (const sid of sessionIds) {
+    const root = state.sessions[sid]?.layoutRoot;
+    if (root) out.push(...treeLeaves(root));
+  }
+  return out;
+}
+
 export interface PaneLaunchSpec {
   shell?: Shell;
   startupCommand?: string;

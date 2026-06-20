@@ -43,6 +43,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { applyXtermFontFamilyToAll, applyXtermThemeToAll } from "@/terminals/registry";
 import { installPtyOrchestrator } from "@/terminals/orchestrator";
+import { installRenderGovernor } from "@/terminals/renderGovernor";
 import { useExternalFileDrop } from "@/hooks/useExternalFileDrop";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { nextPaneId } from "@/lib/paneIds";
@@ -84,6 +85,12 @@ export default function App() {
 
   useEffect(() => {
     const dispose = installPtyOrchestrator();
+    // Render governor: of the active sessions the orchestrator keeps running,
+    // only the on-screen one(s) render live + hold a WebGL context; background
+    // sessions buffer their output and replay on return. Bounds Lume's cost to
+    // what's visible. Installed after the orchestrator so the panes it spawns
+    // exist; seeds visibility immediately and tracks it thereafter.
+    const disposeGovernor = installRenderGovernor();
     const disposePoller = installBranchPoller();
     let cancelResume: (() => void) | undefined;
 
@@ -165,6 +172,7 @@ export default function App() {
       if (unsubFinishHydration) unsubFinishHydration();
       cancelResume?.();
       disposePoller();
+      disposeGovernor();
       dispose();
     };
   }, []);

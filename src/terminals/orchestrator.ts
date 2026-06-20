@@ -29,11 +29,11 @@ import { makeCommandCapture } from "@/lib/commandCapture";
 import {
   getOrCreateTerminal,
   resetMouseModes,
-  writeToTerminal,
   onTerminalData,
   disposeTerminal,
   fitTerminal,
 } from "@/terminals/registry";
+import { ingest, forget as forgetRenderSink } from "@/terminals/renderSink";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
 import { detectShells, configIdMatchesShell } from "@/lib/shellsClient";
 import { noteOutput, forgetPane, disposeAttentionTracker } from "@/sessions/attentionTracker";
@@ -187,8 +187,11 @@ export async function spawnPane(
               (msg as ArrayBufferView).byteOffset,
               (msg as ArrayBufferView).byteLength
             );
-      // PTY bytes NEVER touch Zustand. Direct to xterm.
-      writeToTerminal(paneId, bytes);
+      // PTY bytes NEVER touch Zustand. Route through the render sink: a visible
+      // pane goes straight to xterm; a backgrounded pane is buffered (drop-oldest)
+      // and replayed on foreground, so off-screen sessions don't burn the main
+      // thread parsing output you can't see.
+      ingest(paneId, bytes);
       // Cheap throttled metadata bump for the UI's "active pane" indicator.
       usePtyStore.getState().markActivity(paneId);
       // Feed the attention tracker: a background session that streams output then
@@ -238,8 +241,10 @@ async function killPane(paneId: PaneId): Promise<void> {
   // 2. Pull the input wire.
   runtimes.get(paneId)?.inputDisposer.dispose();
   runtimes.delete(paneId);
-  // 3. Drop the Terminal + metadata + attention/command-tracker state.
+  // 3. Drop the Terminal + metadata + attention/command-tracker state + any
+  //    buffered background output held by the render sink.
   disposeTerminal(paneId);
+  forgetRenderSink(paneId);
   usePtyStore.getState().removePane(paneId);
   forgetPane(paneId);
 }
