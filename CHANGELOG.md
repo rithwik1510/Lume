@@ -4,6 +4,20 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.7] — 2026-06-20
+
+Smooth with a fleet of sessions open.
+
+### Performance
+- **Off-screen sessions no longer render in real time.** Every session you have
+  open kept parsing its output into the renderer even when you couldn't see it,
+  so a fleet of 6-7+ sessions under heavy output could saturate the UI and
+  freeze. Now only the session(s) on screen render live; background sessions
+  keep running and replay instantly the moment you switch back. The app's cost
+  is bounded by what's on screen, not by how many sessions you've opened.
+- **WebGL terminal contexts are pooled and capped.** Many open sessions can no
+  longer exhaust the GPU's context limit and drop terminals to slow rendering.
+
 ## [0.1.0-beta.6] — 2026-06-19
 
 View two sessions side-by-side.
