@@ -8,7 +8,9 @@
 // purely a change of left/width on two existing wrappers — no DOM reparenting,
 // so xterm canvases are never disturbed (the seamless part). The seam is a
 // pointer-drag splitter that reuses the same resizeBus fit-gate as PaneTree's
-// internal splitters, plus a × on the seam to collapse back to one session.
+// internal splitters, plus a × at the top-right of the docked (right) session
+// to collapse back to one session — the drag always docks the new session on
+// the right, so that corner is where you reach to dismiss it.
 
 import {
   useRef,
@@ -146,7 +148,6 @@ export function MainArea() {
           <button
             type="button"
             className={styles.closeSplit}
-            style={{ left: `${leftPct}%` }}
             onClick={() => closeSplit()}
             title="Close split"
             aria-label="Close split view"

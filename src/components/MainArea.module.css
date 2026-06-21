@@ -41,12 +41,15 @@
   background: var(--accent-dim);
 }
 
-/* × on the seam — collapses the split back to one session. Sits at the top of
- * the divider so it never collides with a pane's own close button. */
+/* × that collapses the split back to one session. The drag gesture always docks
+ * the new session on the right slot, so the button lives at that pane's top-right
+ * corner — where you'd reach to dismiss it — rather than floating on the center
+ * seam. In the common single-pane-per-session split the corner is free; a pane's
+ * own close button only appears once a session is split internally. */
 .closeSplit {
   position: absolute;
   top: 6px;
-  transform: translateX(-50%);
+  right: 6px;
   z-index: 4;
   width: 18px;
   height: 18px;
