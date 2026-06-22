@@ -148,8 +148,17 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
   });
 
   // Terminal copy/paste — xterm doesn't wire the clipboard itself.
-  //   Ctrl+Shift+C → copy the current selection (Ctrl+C must stay SIGINT)
-  //   Ctrl+V / Ctrl+Shift+V → paste (both, matching Windows Terminal)
+  //   Ctrl+Shift+C       → always copy the current selection.
+  //   Ctrl+C             → copy IF something is selected, then clear it;
+  //                        with no selection it falls through as SIGINT so it
+  //                        can still interrupt the running program. This is
+  //                        what Windows Terminal / VS Code do, and it's the
+  //                        ergonomic default people expect.
+  //   Ctrl+V / Ctrl+Shift+V → paste (both, matching Windows Terminal).
+  // Note: inside a mouse-reporting TUI (Claude Code, Codex, vim, …) the app
+  // owns the mouse, so a plain drag never makes a selection xterm can see —
+  // hold Shift while dragging to force-select first (xterm's shiftKey
+  // override), then copy.
   // We preventDefault + return false so the key is fully consumed: no
   // double-paste from the webview's native paste handler, and the keystroke
   // never leaks into the shell. term.paste() routes through the onData wire
@@ -158,9 +167,14 @@ export function getOrCreateTerminal(paneId: PaneId): Terminal {
     if (e.type !== "keydown") return true;
     if (!e.ctrlKey || e.altKey || e.metaKey) return true;
     const key = e.key.toLowerCase();
-    if (e.shiftKey && key === "c") {
+    if (key === "c") {
       const selection = term.getSelection();
-      if (selection) void writeClipboardText(selection);
+      // Plain Ctrl+C with no selection → let it through as SIGINT.
+      if (!e.shiftKey && !selection) return true;
+      if (selection) {
+        void writeClipboardText(selection);
+        term.clearSelection();
+      }
       e.preventDefault();
       return false;
     }
