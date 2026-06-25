@@ -4,6 +4,22 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.8] — 2026-06-25
+
+Side-by-side splits you can name, leave, and come back to.
+
+### Added
+- **Split sessions stay paired.** When you drag one session beside another, the
+  two now join into a durable group shown as a single bracketed pair in the
+  sidebar — each keeping its own working / needs-you dot, so you still see at a
+  glance which agent needs you. Jump to another session and come back: clicking
+  the pair reopens the split right where you left it, and the pairing survives an
+  app restart. The × on the seam separates them again (back to two standalone
+  sessions); leaving by clicking another session keeps the pairing for later;
+  right-click a member → **Ungroup split** to break it apart.
+
+[0.1.0-beta.8]: https://github.com/rithwik1510/Lume/releases/tag/v0.1.0-beta.8
+
 ## [0.1.0-beta.7] — 2026-06-20
 
 Smooth with a fleet of sessions open.
