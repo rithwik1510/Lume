@@ -113,10 +113,10 @@ export interface SessionsState {
    *  stopped — WITHOUT stealing keyboard focus from the active (left) session.
    *  No-ops onto a single view if there's no active session or it's a self-drop. */
   openSplitWith: (companionId: SessionId) => void;
-  /** Collapse the split back to a single view (the × on the seam). Removes the
-   *  right slot; the removed session stays alive as a background session. The
-   *  durable group is KEPT — the pair stays bracketed in the sidebar and clicking
-   *  it re-opens the split. */
+  /** Collapse the split AND unjoin the pair (the × on the seam). Dissolves the
+   *  durable group so the two sessions return to standalone rows; the removed
+   *  right session stays alive as a background session. (To leave the split but
+   *  KEEP the pairing for later, just activate another session instead.) */
   closeSplit: () => void;
   /** Sidebar-click entry point. If `id` belongs to a durable split group, revive
    *  both members and re-open the split with the keyboard focus on the clicked
@@ -378,6 +378,13 @@ export const useSessionsStore = create<SessionsState>()(
             if (!s.splitView) return;
             const [left, right] = s.splitView;
             s.splitView = null;
+            // The × unjoins the pair: drop the durable group so the two sessions
+            // go back to standalone rows in the sidebar (the bracket disappears).
+            // Leaving the split WITHOUT unjoining is the other path — activating
+            // another session collapses the view but keeps the group.
+            s.splitGroups = s.splitGroups.filter(
+              (g) => !g.includes(left) && !g.includes(right)
+            );
             // The × removes the right slot. If focus was on the right session,
             // hand it to the surviving left one so the keyboard target stays
             // visible. The removed session is NOT torn down — it lives on as a

@@ -808,7 +808,7 @@ describe("sessionsStore — durable split groups", () => {
     expect(useSessionsStore.getState().splitGroups).toEqual([[a, b]]);
   });
 
-  it("closeSplit collapses the view but KEEPS the durable group", () => {
+  it("closeSplit (the ×) unjoins the pair — dissolves the group and collapses", () => {
     const a = useSessionsStore.getState().createSession("/p", "A");
     const b = useSessionsStore.getState().createSession("/p", "B");
     active(a);
@@ -816,15 +816,31 @@ describe("sessionsStore — durable split groups", () => {
     useSessionsStore.getState().closeSplit();
     const s = useSessionsStore.getState();
     expect(s.splitView).toBeNull();
-    expect(s.splitGroups).toEqual([[a, b]]); // pair remembered
+    expect(s.splitGroups).toEqual([]); // unjoined — back to separate sessions
+    expect(s.sessions[b].status).toBe("active"); // right session still alive
+  });
+
+  it("activating another session collapses the view but KEEPS the group (vs the ×)", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    const c = useSessionsStore.getState().createSession("/p", "C");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    active(c); // leave the split by navigating away — pairing must survive
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toBeNull();
+    expect(s.splitGroups).toEqual([[a, b]]); // remembered → reopen later
   });
 
   it("enterSession on a grouped member re-opens the split, focusing the clicked one", () => {
     const a = useSessionsStore.getState().createSession("/p", "A");
     const b = useSessionsStore.getState().createSession("/p", "B");
+    const c = useSessionsStore.getState().createSession("/p", "C");
     active(a);
     useSessionsStore.getState().openSplitWith(b);
-    useSessionsStore.getState().closeSplit();
+    // Leave the split WITHOUT unjoining (navigate away keeps the group).
+    active(c);
+    expect(useSessionsStore.getState().splitView).toBeNull();
     // Click the right member in the sidebar — split comes back, focus on b.
     useSessionsStore.getState().enterSession(b);
     const s = useSessionsStore.getState();

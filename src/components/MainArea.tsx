@@ -149,8 +149,8 @@ export function MainArea() {
             type="button"
             className={styles.closeSplit}
             onClick={() => closeSplit()}
-            title="Close split"
-            aria-label="Close split view"
+            title="Close split — separate the sessions"
+            aria-label="Close split and unjoin the sessions"
           >
             <IconClose size={12} />
           </button>
