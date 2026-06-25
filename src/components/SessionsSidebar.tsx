@@ -20,7 +20,7 @@ import { SessionGroup } from "@/components/SessionGroup";
 import { IconEllipsis } from "@/components/icons";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { pickAndCreateSession } from "@/lib/sessions/sessionEntryFlows";
-import { groupedSessions, useSessionsStore } from "@/store/sessionsStore";
+import { planSidebar, useSessionsStore } from "@/store/sessionsStore";
 import { useSidebarStore } from "@/store/sidebarStore";
 
 // Slightly longer than --dur-panel (300ms) so the gate releases just after the
@@ -36,15 +36,17 @@ function prefersReducedMotion(): boolean {
 }
 
 export function SessionsSidebar() {
-  // Derive groups from the three RAW slices (each a stable reference) inside a
-  // useMemo — subscribing to groupedSessions(s) directly returns a fresh array
-  // every call and crashes under Zustand v5 (see SessionsSidebar.test.tsx).
+  // Derive the render plan from the RAW slices (each a stable reference) inside a
+  // useMemo — subscribing to planSidebar(s) directly returns a fresh array every
+  // call and crashes under Zustand v5 (see SessionsSidebar.test.tsx). splitGroups
+  // is included so durable pairs fold into bracketed rows.
   const sessions = useSessionsStore((s) => s.sessions);
   const groupLabels = useSessionsStore((s) => s.groupLabels);
   const collapsedGroups = useSessionsStore((s) => s.collapsedGroups);
+  const splitGroups = useSessionsStore((s) => s.splitGroups);
   const groups = useMemo(
-    () => groupedSessions({ sessions, groupLabels, collapsedGroups }),
-    [sessions, groupLabels, collapsedGroups]
+    () => planSidebar({ sessions, groupLabels, collapsedGroups, splitGroups }),
+    [sessions, groupLabels, collapsedGroups, splitGroups]
   );
 
   const collapsed = !useSidebarStore((s) => s.sidebarVisible);

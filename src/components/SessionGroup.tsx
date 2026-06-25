@@ -6,7 +6,8 @@
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionGroup.module.css";
 import { SessionRow } from "@/components/SessionRow";
-import { useSessionsStore, type SessionGroupView } from "@/store/sessionsStore";
+import { SplitPair } from "@/components/SplitPair";
+import { useSessionsStore, type SidebarFolderView } from "@/store/sessionsStore";
 import { createAndActivateSession } from "@/lib/sessions/sessionEntryFlows";
 import { InlineRename } from "@/components/InlineRename";
 import { IconChevron, IconPlus } from "@/components/icons";
@@ -15,7 +16,7 @@ import { useConfirmStore } from "@/store/confirmStore";
 import { revealInExplorer } from "@/lib/revealInExplorer";
 
 interface Props {
-  group: SessionGroupView;
+  group: SidebarFolderView;
 }
 
 export function SessionGroup({ group }: Props) {
@@ -92,9 +93,13 @@ export function SessionGroup({ group }: Props) {
       </div>
       {!group.collapsed && (
         <div className={styles.children}>
-          {group.sessions.map((s) => (
-            <SessionRow key={s.id} session={s} />
-          ))}
+          {group.rows.map((row) =>
+            row.kind === "pair" ? (
+              <SplitPair key={`pair-${row.left.id}`} left={row.left} right={row.right} />
+            ) : (
+              <SessionRow key={row.session.id} session={row.session} />
+            )
+          )}
         </div>
       )}
     </div>

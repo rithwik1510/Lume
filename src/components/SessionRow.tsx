@@ -2,7 +2,7 @@
 
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionRow.module.css";
-import { useSessionsStore, type Session } from "@/store/sessionsStore";
+import { useSessionsStore, groupOf, type Session } from "@/store/sessionsStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { revealInExplorer } from "@/lib/revealInExplorer";
@@ -16,10 +16,18 @@ interface Props {
 
 export function SessionRow({ session }: Props) {
   const activeId = useSessionsStore((s) => s.activeSessionId);
-  const activate = useSessionsStore((s) => s.activateSession);
+  const enter = useSessionsStore((s) => s.enterSession);
+  const ungroup = useSessionsStore((s) => s.ungroupSession);
   const purge = useSessionsStore((s) => s.purgeSession);
   const rename = useSessionsStore((s) => s.renameSession);
+  const splitGroups = useSessionsStore((s) => s.splitGroups);
+  const splitView = useSessionsStore((s) => s.splitView);
   const isActive = session.id === activeId;
+  // Part of a durable split group? (drives the Ungroup menu item.) Visible in
+  // the split that's open right now? (faint highlight on the non-focused slot
+  // so it reads as on-screen even though the keyboard ring is on its partner.)
+  const grouped = groupOf(splitGroups, session.id) !== null;
+  const inSplit = splitView !== null && splitView.includes(session.id);
   const [renaming, setRenaming] = useState(false);
 
   // Two signals (see attentionTracker.ts), needs-you trumping in-progress —
@@ -40,7 +48,9 @@ export function SessionRow({ session }: Props) {
 
   const onClick = () => {
     if (renaming) return;
-    activate(session.id);
+    // Group-aware: a grouped row re-opens its split; an ungrouped one just
+    // activates. enterSession handles both.
+    enter(session.id);
   };
 
   // Drag the row onto the main area to view this session beside the active one.
@@ -73,6 +83,8 @@ export function SessionRow({ session }: Props) {
     useContextMenuStore.getState().openMenu(e.clientX, e.clientY, [
       { label: "Rename", onClick: () => setRenaming(true) },
       { label: "Reveal in Explorer", onClick: () => void revealInExplorer(session.folderPath) },
+      // Only meaningful when this session is half of a durable split pair.
+      ...(grouped ? [{ label: "Ungroup split", onClick: () => ungroup(session.id) }] : []),
       {
         label: "Delete",
         onClick: async () => {
@@ -90,7 +102,9 @@ export function SessionRow({ session }: Props) {
 
   return (
     <div
-      className={`${styles.row} ${isActive ? styles.active : ""}`}
+      className={`${styles.row} ${isActive ? styles.active : ""} ${
+        inSplit && !isActive ? styles.inSplit : ""
+      }`}
       data-session-id={session.id}
       title={session.name}
       onClick={onClick}

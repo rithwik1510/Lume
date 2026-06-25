@@ -18,6 +18,13 @@
   color: var(--fg-0);
   font-weight: 600;
 }
+/* The non-focused half of the split that's currently on screen: lift it above
+ * a plain background row so the pair reads as "both visible", while the bolder
+ * .active style still marks which one owns the keyboard. */
+.row.inSplit {
+  background: var(--bg-1);
+  color: var(--fg-1);
+}
 
 /* Fixed slot sized to the largest indicator (the 13px working box) so the
  * session label never shifts when a state toggles and every indicator shares

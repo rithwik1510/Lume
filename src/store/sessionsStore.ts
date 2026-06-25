@@ -36,6 +36,12 @@ import {
 
 export type SessionId = string;
 export type SessionStatus = "active" | "stopped";
+/** A durable side-by-side pairing of two sessions, as [leftId, rightId].
+ *  Unlike splitView (transient view state), a SplitGroup PERSISTS: the sidebar
+ *  renders the pair as one bracketed unit, and clicking either member re-opens
+ *  the split — even after collapsing it, switching away, or restarting the app.
+ *  A session belongs to at most one group (enforced on create + rehydrate). */
+export type SplitGroup = [SessionId, SessionId];
 
 export interface Session {
   id: SessionId;
@@ -81,6 +87,11 @@ export interface SessionsState {
   // marks which slot owns the keyboard (the focus ring); the slots themselves
   // keep their left/right position regardless of which is focused.
   splitView: [SessionId, SessionId] | null;
+  // Durable side-by-side pairings (persisted). splitView is the split currently
+  // SHOWN; splitGroups is the set of pairs REMEMBERED — they survive collapsing
+  // the split, navigating away, and app restart. Formed by drag-to-split,
+  // dissolved by ungroup or when a member is deleted.
+  splitGroups: SplitGroup[];
 
   // Actions — implemented in subsequent tasks
   createSession: (folderPath: string, name?: string) => SessionId;
@@ -103,8 +114,17 @@ export interface SessionsState {
    *  No-ops onto a single view if there's no active session or it's a self-drop. */
   openSplitWith: (companionId: SessionId) => void;
   /** Collapse the split back to a single view (the × on the seam). Removes the
-   *  right slot; the removed session stays alive as a background session. */
+   *  right slot; the removed session stays alive as a background session. The
+   *  durable group is KEPT — the pair stays bracketed in the sidebar and clicking
+   *  it re-opens the split. */
   closeSplit: () => void;
+  /** Sidebar-click entry point. If `id` belongs to a durable split group, revive
+   *  both members and re-open the split with the keyboard focus on the clicked
+   *  member; otherwise behave exactly like activateSession. */
+  enterSession: (id: SessionId) => void;
+  /** Dissolve the durable group containing `id` (right-click → Ungroup). Both
+   *  members return to standalone rows; collapses the split if it's on screen. */
+  ungroupSession: (id: SessionId) => void;
   // Per-pane launch memory (Session restore — feature B). Both write onto the
   // matching leaf inside the session's layoutRoot, so they persist for free.
   setPaneShell: (id: SessionId, paneId: PaneId, shell: Shell) => void;
@@ -147,6 +167,7 @@ const emptyState = () => ({
   groupLabels: {},
   collapsedGroups: [],
   splitView: null,
+  splitGroups: [],
 });
 
 export const useSessionsStore = create<SessionsState>()(
@@ -215,6 +236,8 @@ export const useSessionsStore = create<SessionsState>()(
             if (s.activeSessionId === id) s.activeSessionId = null;
             if (s.lastActiveSessionId === id) s.lastActiveSessionId = null;
             if (s.splitView && s.splitView.includes(id)) s.splitView = null;
+            // A deleted session can't be half of a pair — dissolve its group.
+            s.splitGroups = s.splitGroups.filter((g) => !g.includes(id));
           }),
 
         purgeGroup: (folderPath) =>
@@ -227,6 +250,10 @@ export const useSessionsStore = create<SessionsState>()(
                 if (s.splitView && s.splitView.includes(id)) s.splitView = null;
               }
             }
+            // Drop any group whose members no longer both exist.
+            s.splitGroups = s.splitGroups.filter(
+              (g) => s.sessions[g[0]] !== undefined && s.sessions[g[1]] !== undefined
+            );
           }),
 
         renameSession: (id, name) =>
@@ -337,6 +364,13 @@ export const useSessionsStore = create<SessionsState>()(
             // focus stays where it was); the companion takes the right slot. If
             // a split was already open, this replaces its right slot.
             s.splitView = [active, companionId];
+            // Promote the pairing into a DURABLE group so it survives collapse +
+            // restart. Drop any prior group either session was in (≤1 group per
+            // session), then record the new pair in left/right order.
+            s.splitGroups = s.splitGroups.filter(
+              (g) => !g.includes(active) && !g.includes(companionId)
+            );
+            s.splitGroups.push([active, companionId]);
           }),
 
         closeSplit: () =>
@@ -358,6 +392,54 @@ export const useSessionsStore = create<SessionsState>()(
                 s.lastActiveSessionId = left;
               }
             }
+          }),
+
+        enterSession: (id) =>
+          set((s) => {
+            const session = s.sessions[id];
+            if (!session) return;
+            const group = s.splitGroups.find((g) => g.includes(id)) ?? null;
+            // Ungrouped (or a stale group whose other member vanished): plain
+            // activate — same semantics as activateSession.
+            if (!group || !s.sessions[group[0]] || !s.sessions[group[1]]) {
+              if (group) s.splitGroups = s.splitGroups.filter((g) => g !== group);
+              session.status = "active";
+              session.unread = false;
+              session.lastActiveAt = Date.now();
+              s.activeSessionId = id;
+              s.lastActiveSessionId = id;
+              if (s.splitView && !s.splitView.includes(id)) s.splitView = null;
+              return;
+            }
+            // Grouped: revive BOTH members (seeding a first pane for any that
+            // was never opened, mirroring openSplitWith) and re-open the split.
+            // Slots keep their stored left/right order; the clicked member just
+            // takes the keyboard focus ring.
+            for (const mid of group) {
+              const m = s.sessions[mid];
+              if (!m) continue;
+              m.status = "active";
+              m.unread = false;
+              m.lastActiveAt = Date.now();
+              if (m.layoutRoot === null) {
+                const pid = nextPaneId();
+                m.layoutRoot = leaf(pid);
+                m.focusedPaneId = pid;
+              }
+            }
+            s.splitView = [group[0], group[1]];
+            s.activeSessionId = id;
+            s.lastActiveSessionId = id;
+          }),
+
+        ungroupSession: (id) =>
+          set((s) => {
+            const before = s.splitGroups.length;
+            s.splitGroups = s.splitGroups.filter((g) => !g.includes(id));
+            if (s.splitGroups.length === before) return; // wasn't grouped
+            // If the dissolved pair is the one currently on screen, collapse to
+            // a single view (the focused member stays solo).
+            if (s.splitView && s.splitView.includes(id)) s.splitView = null;
           }),
 
         setPaneShell: (id, paneId, shell) =>
@@ -408,6 +490,7 @@ export const useSessionsStore = create<SessionsState>()(
             s.groupLabels = {};
             s.collapsedGroups = [];
             s.splitView = null;
+            s.splitGroups = [];
           }),
       })),
       {
@@ -441,6 +524,10 @@ export const useSessionsStore = create<SessionsState>()(
           ),
           groupLabels: state.groupLabels,
           collapsedGroups: state.collapsedGroups,
+          // Durable split pairings survive restart (the sidebar shows them
+          // bracketed; clicking re-opens the split). splitView itself stays
+          // transient (omitted) so a cold start is always single-view.
+          splitGroups: state.splitGroups,
           // Feature A: persisted so boot can reopen the last session. Unlike
           // activeSessionId (deliberately omitted → cold start is all-stopped),
           // these survive across launches.
@@ -517,6 +604,19 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
   const lastRunningSessionIds = (state.lastRunningSessionIds ?? []).filter(
     (id) => sessions[id] !== undefined
   );
+  // Durable split groups: keep only well-formed pairs whose BOTH members still
+  // exist, distinct, and with each session in at most one group (first wins).
+  const claimed = new Set<SessionId>();
+  const splitGroups: SplitGroup[] = [];
+  for (const g of state.splitGroups ?? []) {
+    if (!Array.isArray(g) || g.length !== 2) continue;
+    const [a, b] = g;
+    if (a === b || !sessions[a] || !sessions[b]) continue;
+    if (claimed.has(a) || claimed.has(b)) continue;
+    claimed.add(a);
+    claimed.add(b);
+    splitGroups.push([a, b]);
+  }
   return {
     sessions,
     activeSessionId: null,
@@ -525,8 +625,10 @@ export function coerceRehydrated(state: Partial<SessionsState>): Partial<Session
     reopenLastSession,
     groupLabels,
     collapsedGroups,
-    // Split is transient view state — a fresh launch is always single-view.
+    // Split VIEW is transient — a fresh launch is always single-view — but the
+    // durable GROUPS are restored so the sidebar shows the bracketed pairs.
     splitView: null,
+    splitGroups,
   };
 }
 
@@ -639,6 +741,74 @@ export function groupedSessions(
     (a, b) => (firstCreatedByFolder[b.folderPath] ?? 0) - (firstCreatedByFolder[a.folderPath] ?? 0)
   );
   return groups;
+}
+
+/** The durable split group containing `id`, or null. Pure over the pairs list. */
+export function groupOf(groups: SplitGroup[], id: SessionId): SplitGroup | null {
+  for (const g of groups) if (g[0] === id || g[1] === id) return g;
+  return null;
+}
+
+// A sidebar row is either a lone session or a bracketed split pair. The pair is
+// anchored at the LEFT (primary) member's slot in its folder; the right member
+// is drawn inside the bracket and omitted from wherever else it would list (its
+// own folder included — so a cross-folder pair shows together under the left).
+export type SidebarRow =
+  | { kind: "single"; session: Session }
+  | { kind: "pair"; left: Session; right: Session };
+
+export interface SidebarFolderView {
+  folderPath: string;
+  label: string;
+  collapsed: boolean;
+  sessions: Session[]; // every session in this folder (for counts / add target)
+  rows: SidebarRow[]; // render plan with split pairs bracketed
+}
+
+/**
+ * The full sidebar render plan: folders (via groupedSessions) with durable split
+ * pairs folded into bracketed rows. A pair renders once, at its left member's
+ * position in the left member's folder; the right member is consumed there and
+ * skipped everywhere else. Folders left with no rows (their only session was a
+ * right-member shown under another folder) are dropped.
+ */
+export function planSidebar(
+  state: Pick<SessionsState, "sessions" | "groupLabels" | "collapsedGroups" | "splitGroups">
+): SidebarFolderView[] {
+  const base = groupedSessions(state);
+  // Index valid pairs (both members exist), enforcing ≤1 group per session.
+  const pairByLeft = new Map<SessionId, SplitGroup>();
+  const consumedRight = new Set<SessionId>();
+  const claimed = new Set<SessionId>();
+  for (const g of state.splitGroups) {
+    const [l, r] = g;
+    if (!state.sessions[l] || !state.sessions[r]) continue;
+    if (claimed.has(l) || claimed.has(r)) continue;
+    claimed.add(l);
+    claimed.add(r);
+    pairByLeft.set(l, g);
+    consumedRight.add(r);
+  }
+  const out: SidebarFolderView[] = [];
+  for (const folder of base) {
+    const rows: SidebarRow[] = [];
+    for (const s of folder.sessions) {
+      if (consumedRight.has(s.id)) continue; // drawn inside its pair elsewhere
+      const pair = pairByLeft.get(s.id);
+      const right = pair ? state.sessions[pair[1]] : undefined;
+      if (pair && right) rows.push({ kind: "pair", left: s, right });
+      else rows.push({ kind: "single", session: s });
+    }
+    if (rows.length === 0) continue;
+    out.push({
+      folderPath: folder.folderPath,
+      label: folder.label,
+      collapsed: folder.collapsed,
+      sessions: folder.sessions,
+      rows,
+    });
+  }
+  return out;
 }
 
 export function findSessionForPane(state: SessionsState, paneId: PaneId): Session | null {

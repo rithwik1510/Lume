@@ -1,0 +1,26 @@
+/* The bracket lives in the row's left indent gutter (rows pad-left 24px; the
+ * status dots start ~24px). A left edge with rounded top/bottom corners reads as
+ * a "[" embracing both rows — the visual "these two are one". border-right:none
+ * leaves just the spine + the two ticks. pointer-events:none so it never eats a
+ * click meant for a row. Insets top/bottom align the ticks near the first/last
+ * dot centres. */
+.pair {
+  position: relative;
+}
+.pair::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 12px;
+  bottom: 12px;
+  width: 6px;
+  border: 1.5px solid var(--fg-3, #4a4a4a);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  pointer-events: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+/* Live: this pair is the split currently on screen. */
+.pairActive::before {
+  border-color: var(--accent, #5fa8ff);
+}

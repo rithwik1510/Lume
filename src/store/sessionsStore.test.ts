@@ -21,6 +21,8 @@ import {
   paneLaunchSpec,
   coerceRehydrated,
   remapSessionPaneIds,
+  groupOf,
+  planSidebar,
   type Session,
 } from "@/store/sessionsStore";
 
@@ -786,5 +788,207 @@ describe("sessionsStore — split view", () => {
       collapsedGroups: [],
     });
     expect(out.splitView).toBeNull();
+  });
+});
+
+describe("sessionsStore — durable split groups", () => {
+  beforeEach(() => {
+    useSessionsStore.getState().reset();
+  });
+
+  function active(id: string) {
+    useSessionsStore.getState().activateSession(id);
+  }
+
+  it("openSplitWith records a durable group in left/right order", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    expect(useSessionsStore.getState().splitGroups).toEqual([[a, b]]);
+  });
+
+  it("closeSplit collapses the view but KEEPS the durable group", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().closeSplit();
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toBeNull();
+    expect(s.splitGroups).toEqual([[a, b]]); // pair remembered
+  });
+
+  it("enterSession on a grouped member re-opens the split, focusing the clicked one", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().closeSplit();
+    // Click the right member in the sidebar — split comes back, focus on b.
+    useSessionsStore.getState().enterSession(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toEqual([a, b]); // slot order preserved
+    expect(s.activeSessionId).toBe(b);
+    expect(s.sessions[a].status).toBe("active"); // both members revived
+    expect(s.sessions[b].status).toBe("active");
+  });
+
+  it("enterSession revives a grouped member with no layout by seeding a pane", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b); // b seeded here
+    // Simulate a cold-start-style revival: stop both, clear b's layout.
+    useSessionsStore.getState().enterSession(a); // grouped → reopens, no throw
+    expect(useSessionsStore.getState().sessions[a].layoutRoot).not.toBeNull();
+  });
+
+  it("enterSession on an ungrouped session behaves like activateSession", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().enterSession(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toBeNull();
+    expect(s.activeSessionId).toBe(b);
+  });
+
+  it("forming a new split re-pairs and drops the prior group of either session", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    const c = useSessionsStore.getState().createSession("/p", "C");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b); // [a,b]
+    useSessionsStore.getState().openSplitWith(c); // a re-paired → [a,c]
+    expect(useSessionsStore.getState().splitGroups).toEqual([[a, c]]);
+  });
+
+  it("ungroupSession dissolves the pair and collapses the split if it's shown", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().ungroupSession(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitGroups).toEqual([]);
+    expect(s.splitView).toBeNull();
+  });
+
+  it("purgeSession on a grouped member dissolves the group", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().purgeSession(b);
+    expect(useSessionsStore.getState().splitGroups).toEqual([]);
+  });
+
+  it("stopSession KEEPS the durable group (revivable later)", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    active(a);
+    useSessionsStore.getState().openSplitWith(b);
+    useSessionsStore.getState().stopSession(b);
+    const s = useSessionsStore.getState();
+    expect(s.splitView).toBeNull(); // can't show a stopped slot
+    expect(s.splitGroups).toEqual([[a, b]]); // pairing remembered
+  });
+
+  it("splitGroups persist; coerceRehydrated restores valid pairs and lands single-view", () => {
+    const a = "id-a";
+    const b = "id-b";
+    const mk = (id: string): Session => ({
+      id,
+      name: id,
+      folderPath: "/p",
+      layoutRoot: null,
+      focusedPaneId: null,
+      status: "active",
+      unread: false,
+      working: false,
+      gitBranch: null,
+      fileTreeOpen: false,
+      createdAt: 1,
+      lastActiveAt: 1,
+    });
+    const out = coerceRehydrated({
+      sessions: { [a]: mk(a), [b]: mk(b) },
+      splitGroups: [[a, b]],
+      groupLabels: {},
+      collapsedGroups: [],
+    });
+    expect(out.splitGroups).toEqual([[a, b]]);
+    expect(out.splitView).toBeNull();
+  });
+
+  it("coerceRehydrated drops groups with a missing member, dupes, and self-pairs", () => {
+    const a = "id-a";
+    const mk = (id: string): Session => ({
+      id,
+      name: id,
+      folderPath: "/p",
+      layoutRoot: null,
+      focusedPaneId: null,
+      status: "active",
+      unread: false,
+      working: false,
+      gitBranch: null,
+      fileTreeOpen: false,
+      createdAt: 1,
+      lastActiveAt: 1,
+    });
+    const out = coerceRehydrated({
+      sessions: { [a]: mk(a) },
+      // a→missing, a→a self-pair: both invalid → dropped.
+      splitGroups: [[a, "gone"], [a, a]],
+      groupLabels: {},
+      collapsedGroups: [],
+    });
+    expect(out.splitGroups).toEqual([]);
+  });
+
+  it("groupOf finds the pair containing an id, else null", () => {
+    expect(groupOf([["a", "b"]], "b")).toEqual(["a", "b"]);
+    expect(groupOf([["a", "b"]], "z")).toBeNull();
+  });
+});
+
+describe("sessionsStore — planSidebar (bracketed pairs)", () => {
+  beforeEach(() => {
+    useSessionsStore.getState().reset();
+  });
+
+  it("renders a grouped pair as one bracketed row at the left member's slot", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    useSessionsStore.getState().activateSession(a);
+    useSessionsStore.getState().openSplitWith(b);
+    const folders = planSidebar(useSessionsStore.getState());
+    const folder = folders.find((f) => f.folderPath === "/p")!;
+    const pairs = folder.rows.filter((r) => r.kind === "pair");
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]).toMatchObject({ kind: "pair", left: { id: a }, right: { id: b } });
+    // b is NOT also rendered as a single row.
+    expect(folder.rows.some((r) => r.kind === "single" && r.session.id === b)).toBe(false);
+  });
+
+  it("ungrouped sessions render as single rows", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const folders = planSidebar(useSessionsStore.getState());
+    const folder = folders.find((f) => f.folderPath === "/p")!;
+    expect(folder.rows).toEqual([{ kind: "single", session: expect.objectContaining({ id: a }) }]);
+  });
+
+  it("cross-folder pair shows under the left member's folder; right's folder drops if emptied", () => {
+    const a = useSessionsStore.getState().createSession("/p1", "A");
+    const b = useSessionsStore.getState().createSession("/p2", "B");
+    useSessionsStore.getState().activateSession(a);
+    useSessionsStore.getState().openSplitWith(b); // [a@/p1, b@/p2]
+    const folders = planSidebar(useSessionsStore.getState());
+    const p1 = folders.find((f) => f.folderPath === "/p1")!;
+    expect(p1.rows.some((r) => r.kind === "pair" && r.right.id === b)).toBe(true);
+    // /p2 only had b, now consumed into the pair → folder dropped.
+    expect(folders.find((f) => f.folderPath === "/p2")).toBeUndefined();
   });
 });

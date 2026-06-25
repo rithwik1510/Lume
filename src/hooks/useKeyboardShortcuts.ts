@@ -124,7 +124,9 @@ function cycleSession(delta: 1 | -1): boolean {
     ? flat.findIndex((s) => s.id === state.activeSessionId)
     : -1;
   const nextIdx = (idx + delta + flat.length) % flat.length;
-  useSessionsStore.getState().activateSession(flat[nextIdx]!.id);
+  // enterSession (not activateSession) so cycling onto a grouped session
+  // re-opens its split, matching a sidebar click.
+  useSessionsStore.getState().enterSession(flat[nextIdx]!.id);
   return true;
 }
 
@@ -132,7 +134,7 @@ function jumpToSession(n: number): boolean {
   const state = useSessionsStore.getState();
   const flat = groupedSessions(state).flatMap((g) => g.sessions);
   if (n < 1 || n > flat.length) return false;
-  useSessionsStore.getState().activateSession(flat[n - 1]!.id);
+  useSessionsStore.getState().enterSession(flat[n - 1]!.id);
   return true;
 }
 
