@@ -33,6 +33,7 @@ which = "6.0"
 toml = "0.8"
 toml_edit = "0.22"
 tauri-plugin-process = "2"
+tauri-plugin-clipboard-manager = "2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["tlhelp32", "handleapi"] }

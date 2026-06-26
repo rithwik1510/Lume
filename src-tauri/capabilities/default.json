@@ -18,6 +18,8 @@
     "store:default",
     "shell:default",
     "shell:allow-open",
-    "dialog:default"
+    "dialog:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }

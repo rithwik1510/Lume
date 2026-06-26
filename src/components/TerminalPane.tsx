@@ -25,6 +25,7 @@ import {
   resetMouseModes,
 } from "@/terminals/registry";
 import { registerOscHandlers } from "@/sessions/oscNotifications";
+import { registerClipboardOsc } from "@/sessions/oscClipboard";
 import { registerCommandTracking } from "@/sessions/commandTracker";
 import { muteOutput } from "@/sessions/attentionTracker";
 import { readClipboardText, writeClipboardText } from "@/lib/clipboardClient";
@@ -59,6 +60,10 @@ function TerminalPaneImpl({ paneId }: Props) {
     // flag. Registered per-mount; disposed in cleanup so a split-then-close
     // pane doesn't leave dangling handlers on a reused Terminal. See §10.2.
     const unregisterOsc = registerOscHandlers(paneId, getOrCreateTerminal(paneId));
+
+    // OSC 52 — honor clipboard writes a TUI emits (Claude Code / vim / tmux
+    // copy). Writes only; read queries are denied (see oscClipboard.ts).
+    const unregisterClipboardOsc = registerClipboardOsc(getOrCreateTerminal(paneId));
 
     // OSC 133 (FinalTerm) command-lifecycle marks — emitted by the shell
     // integration Lume injects into PowerShell-family shells. Ground truth
@@ -137,6 +142,7 @@ function TerminalPaneImpl({ paneId }: Props) {
       unsubResizeEnd();
       if (debounceTimer !== null) window.clearTimeout(debounceTimer);
       unregisterOsc();
+      unregisterClipboardOsc();
       unregisterCmd();
       detach(paneId);
     };
