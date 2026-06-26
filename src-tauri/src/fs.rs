@@ -26,6 +26,23 @@ pub struct DirEntry {
     pub modified_ms: Option<i64>,
 }
 
+/// Strip Windows' `\\?\` verbatim prefix that `fs::canonicalize` adds, so the
+/// paths we hand the UI match the *non-verbatim* paths the file watcher emits
+/// (`file_watcher.rs`) and the shell's cwd. Without this the Sidebar tree is
+/// keyed `\\?\C:\…\docs` while watcher-driven refreshes key plain `C:\…\docs`,
+/// so a file the agent just created updates a phantom key and never appears in
+/// the tree. No-op on paths without the prefix (and on non-Windows).
+fn strip_verbatim(p: &Path) -> String {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        s.into_owned()
+    }
+}
+
 fn to_entry(entry: &fs::DirEntry) -> AppResult<DirEntry> {
     let meta = entry.metadata().map_err(|e| AppError::Internal {
         reason: format!("metadata {}: {}", entry.path().display(), e),
@@ -37,7 +54,7 @@ fn to_entry(entry: &fs::DirEntry) -> AppResult<DirEntry> {
         .and_then(|d| i64::try_from(d.as_millis()).ok());
     Ok(DirEntry {
         name: entry.file_name().to_string_lossy().to_string(),
-        path: entry.path().to_string_lossy().to_string(),
+        path: strip_verbatim(&entry.path()),
         is_dir: meta.is_dir(),
         size: if meta.is_dir() { 0 } else { meta.len() },
         modified_ms,
@@ -118,6 +135,42 @@ mod tests {
             names,
             vec!["aaa_folder", "zzz_folder", "a_file.md", "z_file.md"]
         );
+    }
+
+    #[test]
+    fn list_dir_paths_have_no_verbatim_prefix() {
+        // Regression: canonicalize() adds `\\?\` on Windows; the watcher emits
+        // plain paths. If list_dir leaks the prefix, watcher-driven sidebar
+        // refreshes key a different string than the rendered tree and new files
+        // never show. Trivially passes on non-Windows (no prefix to add).
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("docs")).unwrap();
+        fs::File::create(dir.path().join("a.md")).unwrap();
+        let entries = list_dir(dir.path().to_string_lossy().to_string()).unwrap();
+        assert!(!entries.is_empty());
+        for e in &entries {
+            assert!(
+                !e.path.starts_with(r"\\?\"),
+                "entry path leaked verbatim prefix: {}",
+                e.path
+            );
+        }
+        let docs = entries.iter().find(|e| e.name == "docs").unwrap();
+        assert!(docs.path.ends_with("docs"), "got: {}", docs.path);
+    }
+
+    #[test]
+    fn strip_verbatim_removes_windows_prefixes() {
+        assert_eq!(strip_verbatim(Path::new(r"\\?\C:\a\b")), r"C:\a\b");
+        assert_eq!(
+            strip_verbatim(Path::new(r"\\?\UNC\srv\share")),
+            r"\\srv\share"
+        );
+        assert_eq!(
+            strip_verbatim(Path::new(r"C:\already\plain")),
+            r"C:\already\plain"
+        );
+        assert_eq!(strip_verbatim(Path::new("/unix/style")), "/unix/style");
     }
 
     #[test]
