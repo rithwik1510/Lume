@@ -19,16 +19,23 @@ vi.mock("@/lib/fsClient", () => ({
   writeTextFile: vi.fn(async () => undefined),
 }));
 
+// fileSearch is exercised in its own suite; here we stub it so the Quick Viewer
+// fallback path is controllable without standing up a fake fs tree.
+vi.mock("@/lib/fileSearch", () => ({ findFileByName: vi.fn(async () => null) }));
+
 // Helper to get the mocked fsClient functions with correct types
 import * as fsClient from "@/lib/fsClient";
+import * as fileSearch from "@/lib/fileSearch";
 const mockedRead = vi.mocked(fsClient.readTextFile);
 const mockedWrite = vi.mocked(fsClient.writeTextFile);
+const mockedFind = vi.mocked(fileSearch.findFileByName);
 
 describe("mdStore — Quick Viewer", () => {
   beforeEach(() => {
     useMdStore.getState().reset();
     useToastStore.getState().reset();
     mockedRead.mockImplementation(async (p: string) => `contents of ${p}`);
+    mockedFind.mockResolvedValue(null);
   });
 
   it("starts with quick viewer closed", () => {
@@ -78,6 +85,70 @@ describe("mdStore — Quick Viewer", () => {
     const s = useMdStore.getState();
     expect(s.quickViewer.path).toBe("/tmp/b.md");
     expect(s.quickViewer.content).toBe("contents of /tmp/b.md");
+  });
+
+  it("openMdLinkInQuickViewer falls through to the next candidate when the first read fails", async () => {
+    mockedRead.mockImplementation(async (p: string) => {
+      if (p === "C:\\cwd/a.md") throw new Error("ENOENT");
+      return `contents of ${p}`;
+    });
+
+    await useMdStore
+      .getState()
+      .openMdLinkInQuickViewer(["C:\\cwd/a.md", "C:\\folder/a.md"], "a.md");
+
+    const s = useMdStore.getState();
+    expect(s.quickViewer.open).toBe(true);
+    expect(s.quickViewer.path).toBe("C:\\folder/a.md");
+  });
+
+  it("openMdLinkInQuickViewer toasts and stays closed when no candidate reads", async () => {
+    mockedRead.mockImplementation(async () => {
+      throw new Error("ENOENT");
+    });
+
+    await useMdStore
+      .getState()
+      .openMdLinkInQuickViewer(["C:\\cwd/missing.md"], "missing.md");
+
+    expect(useMdStore.getState().quickViewer.open).toBe(false);
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts.length).toBe(1);
+    expect(toasts[0].severity).toBe("warn");
+    expect(toasts[0].message).toContain("missing.md");
+  });
+
+  it("searches the session folder for a bare filename when direct candidates miss", async () => {
+    mockedRead.mockImplementation(async (p: string) => {
+      if (p === "C:\\proj\\docs\\PLAN.md") return "found via search";
+      throw new Error("ENOENT");
+    });
+    mockedFind.mockResolvedValue("C:\\proj\\docs\\PLAN.md");
+
+    await useMdStore
+      .getState()
+      .openMdLinkInQuickViewer(["C:\\proj\\PLAN.md"], "PLAN.md", "C:\\proj");
+
+    expect(mockedFind).toHaveBeenCalledWith("C:\\proj", "PLAN.md");
+    const s = useMdStore.getState();
+    expect(s.quickViewer.open).toBe(true);
+    expect(s.quickViewer.path).toBe("C:\\proj\\docs\\PLAN.md");
+  });
+
+  it("toasts when the search fallback also misses", async () => {
+    mockedRead.mockImplementation(async () => {
+      throw new Error("ENOENT");
+    });
+    mockedFind.mockResolvedValue(null);
+
+    await useMdStore
+      .getState()
+      .openMdLinkInQuickViewer(["C:\\proj\\missing.md"], "missing.md", "C:\\proj");
+
+    expect(useMdStore.getState().quickViewer.open).toBe(false);
+    expect(
+      useToastStore.getState().toasts.some((t) => t.message.includes("missing.md"))
+    ).toBe(true);
   });
 });
 

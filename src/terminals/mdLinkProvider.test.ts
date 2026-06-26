@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { findMdLinks, resolveMdPath } from "@/terminals/mdLinkProvider";
+import {
+  findMdLinks,
+  resolveMdPath,
+  shouldActivateMdLink,
+  mdLinkCandidates,
+} from "@/terminals/mdLinkProvider";
 
 describe("findMdLinks", () => {
   it("finds a relative .md path in a line", () => {
@@ -40,5 +45,56 @@ describe("resolveMdPath", () => {
 
   it("returns null when cwd is null", () => {
     expect(resolveMdPath("./a.md", null)).toBeNull();
+  });
+});
+
+describe("shouldActivateMdLink", () => {
+  const plain = { ctrlKey: false, metaKey: false };
+  const ctrl = { ctrlKey: true, metaKey: false };
+  const meta = { ctrlKey: false, metaKey: true };
+
+  it("follows a plain click in a bare shell (no mouse capture)", () => {
+    expect(shouldActivateMdLink("none", plain)).toBe(true);
+  });
+
+  it("requires Ctrl when a TUI owns the mouse", () => {
+    // Claude Code / vim style mouse-reporting modes.
+    for (const mode of ["x10", "vt200", "drag", "any"] as const) {
+      expect(shouldActivateMdLink(mode, plain)).toBe(false);
+      expect(shouldActivateMdLink(mode, ctrl)).toBe(true);
+      expect(shouldActivateMdLink(mode, meta)).toBe(true);
+    }
+  });
+
+  it("still follows Ctrl+Click in a bare shell", () => {
+    expect(shouldActivateMdLink("none", ctrl)).toBe(true);
+  });
+});
+
+describe("mdLinkCandidates", () => {
+  it("returns an absolute path as the sole candidate", () => {
+    expect(mdLinkCandidates("C:\\x\\y.md", "C:\\cwd", "C:\\folder")).toEqual([
+      "C:\\x\\y.md",
+    ]);
+  });
+
+  it("resolves a relative path against cwd then session folder", () => {
+    expect(mdLinkCandidates("docs/a.md", "C:\\cwd", "C:\\folder")).toEqual([
+      "C:\\cwd/docs/a.md",
+      "C:\\folder/docs/a.md",
+    ]);
+  });
+
+  it("dedupes when cwd and folder are identical", () => {
+    expect(mdLinkCandidates("a.md", "C:\\same", "C:\\same")).toEqual([
+      "C:\\same/a.md",
+    ]);
+  });
+
+  it("skips null bases", () => {
+    expect(mdLinkCandidates("a.md", null, "C:\\folder")).toEqual([
+      "C:\\folder/a.md",
+    ]);
+    expect(mdLinkCandidates("a.md", null, null)).toEqual([]);
   });
 });

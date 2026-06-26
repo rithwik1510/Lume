@@ -11,6 +11,20 @@
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  /* Slide + fade in when the dock opens (large sliding surface → --dur-base).
+     transform is paint-only, so it never reflows the terminal area on its left. */
+  animation: qv-enter var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes qv-enter {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .header {
@@ -76,4 +90,24 @@
 .body {
   flex: 1;
   min-height: 0;
+  /* Cross-fade the rendered content on open and on file switch (the wrapper is
+     keyed by path in QuickViewer.tsx, so it remounts and replays this). */
+  animation: qv-body-fade var(--dur-fast) var(--ease-out) both;
+}
+
+@keyframes qv-body-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Respect reduced-motion: keep the surface, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .body {
+    animation: none;
+  }
 }

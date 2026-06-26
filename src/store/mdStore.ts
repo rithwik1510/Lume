@@ -4,6 +4,7 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import { readTextFile, writeTextFile } from "@/lib/fsClient";
+import { findFileByName } from "@/lib/fileSearch";
 import { tauriPersistStorage } from "@/lib/persistStorage";
 import { useToastStore } from "@/store/toastStore";
 
@@ -39,6 +40,15 @@ export interface MdStoreState {
   // Quick Viewer — read-only rendered HTML. Editing happens in MD Editor
   // Full View (openMdTab) to keep a single editing surface across the app.
   openMdInQuickViewer: (path: string) => Promise<void>;
+  // Open the first candidate path that actually reads (terminal MD-link click).
+  // `label` is the raw clicked text, used in the not-found toast. When every
+  // candidate misses and `searchRoot` is given, fall back to searching that
+  // folder for the clicked filename (agent printed a bare name in a subdir).
+  openMdLinkInQuickViewer: (
+    candidates: string[],
+    label: string,
+    searchRoot?: string | null
+  ) => Promise<void>;
   closeQuickViewer: () => void;
 
   // MD Editor Full View (used in Phase 6)
@@ -68,13 +78,59 @@ export const useMdStore = create<MdStoreState>()(
       quickViewer: { open: false, path: null, content: "" },
       focusedSurface: null,
 
-      openMdInQuickViewer: async (path) => {
+      // Try each candidate in order; open the Quick Viewer on the first that
+      // reads. _qvReq makes it last-call-wins so a newer click supersedes an
+      // in-flight read. If none read (path doesn't exist / resolved against the
+      // wrong cwd), surface a toast instead of opening a broken viewer — the
+      // "precision" half of MD-link opening.
+      openMdLinkInQuickViewer: async (candidates, label, searchRoot) => {
         const req = ++_qvReq;
-        const content = await readTextFile(path);
-        if (req !== _qvReq) return; // a newer open superseded this read
-        set((s) => {
-          s.quickViewer = { open: true, path, content };
-        });
+        // 1. Direct candidates (cwd / session folder joins).
+        for (const path of candidates) {
+          let content: string;
+          try {
+            content = await readTextFile(path);
+          } catch {
+            if (req !== _qvReq) return; // a newer open superseded this read
+            continue; // try the next candidate root
+          }
+          if (req !== _qvReq) return;
+          set((s) => {
+            s.quickViewer = { open: true, path, content };
+          });
+          return;
+        }
+        // 2. Fallback: the agent likely printed a bare filename for a file in a
+        // subfolder (e.g. "PLAN.md" living at docs/PLAN.md). Search the session
+        // folder for that basename and open the shallowest match.
+        if (searchRoot) {
+          const basename = label.split(/[/\\]/).pop() ?? label;
+          const found = await findFileByName(searchRoot, basename);
+          if (req !== _qvReq) return;
+          if (found) {
+            try {
+              const content = await readTextFile(found);
+              if (req !== _qvReq) return;
+              set((s) => {
+                s.quickViewer = { open: true, path: found, content };
+              });
+              return;
+            } catch {
+              // fall through to the not-found toast
+            }
+          }
+        }
+        if (req !== _qvReq) return;
+        useToastStore
+          .getState()
+          .push({ severity: "warn", message: `Couldn't open ${label}` });
+      },
+      openMdInQuickViewer: async (path) => {
+        // Sidebar / shortcut opens are exact paths — no search fallback needed.
+        await get().openMdLinkInQuickViewer(
+          [path],
+          path.split(/[/\\]/).pop() ?? path
+        );
       },
       closeQuickViewer: () => {
         set((s) => {

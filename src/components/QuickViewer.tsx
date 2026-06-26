@@ -86,7 +86,9 @@ export function QuickViewer() {
           </button>
         </div>
       </div>
-      <div className={styles.body}>
+      {/* Key on path so switching files (clicking a new link while the viewer
+          is already open) remounts the body and replays the content fade. */}
+      <div className={styles.body} key={path}>
         <MdEditorPreview source={content} />
       </div>
     </div>
