@@ -562,8 +562,14 @@ mod tests {
             path: "cmd.exe".into(),
         };
         let cmd = build_command(&c);
-        assert_eq!(cmd.get_env("TERM").unwrap().to_string_lossy(), "xterm-256color");
-        assert_eq!(cmd.get_env("COLORTERM").unwrap().to_string_lossy(), "truecolor");
+        assert_eq!(
+            cmd.get_env("TERM").unwrap().to_string_lossy(),
+            "xterm-256color"
+        );
+        assert_eq!(
+            cmd.get_env("COLORTERM").unwrap().to_string_lossy(),
+            "truecolor"
+        );
         assert_eq!(cmd.get_env("FORCE_COLOR").unwrap().to_string_lossy(), "1");
     }
 }
