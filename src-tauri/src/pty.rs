@@ -196,6 +196,9 @@ fn build_command(shell: &Shell) -> CommandBuilder {
     if !spec.args.is_empty() {
         cmd.args(spec.args);
     }
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("FORCE_COLOR", "1");
     cmd
 }
 
@@ -551,5 +554,16 @@ mod tests {
         assert!(shell_spec(&c, Some("C:\\x\\integration.ps1"))
             .args
             .is_empty());
+    }
+
+    #[test]
+    fn build_command_advertises_color_terminal_capabilities() {
+        let c = Shell::Cmd {
+            path: "cmd.exe".into(),
+        };
+        let cmd = build_command(&c);
+        assert_eq!(cmd.get_env("TERM").unwrap().to_string_lossy(), "xterm-256color");
+        assert_eq!(cmd.get_env("COLORTERM").unwrap().to_string_lossy(), "truecolor");
+        assert_eq!(cmd.get_env("FORCE_COLOR").unwrap().to_string_lossy(), "1");
     }
 }
