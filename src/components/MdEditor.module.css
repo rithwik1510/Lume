@@ -69,6 +69,24 @@
     0 4px 12px rgba(0, 0, 0, 0.38);
 }
 
+.penButton:disabled {
+  cursor: default;
+  color: var(--fg-3);
+  background: var(--bg-1);
+  border-color: var(--border);
+  box-shadow: none;
+  transform: none;
+  opacity: 0.65;
+}
+
+.penButton:disabled:hover {
+  color: var(--fg-3);
+  background: var(--bg-1);
+  border-color: var(--border);
+  box-shadow: none;
+  transform: none;
+}
+
 .penButton:active {
   transform: translateY(0);
   box-shadow:

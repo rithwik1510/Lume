@@ -17,13 +17,21 @@ import styles from "@/components/MdEditor.module.css";
 import { buildEditor } from "@/codemirror/setup";
 import { MdEditorPreview } from "@/components/MdEditorPreview";
 import { MdEditorTabStrip } from "@/components/MdEditorTabStrip";
-import { IconFolderOpen } from "@/components/icons";
+import { IconFolderOpen, IconSave } from "@/components/icons";
 import { pickMdFile } from "@/lib/dialogClient";
 import { useMdStore } from "@/store/mdStore";
 import { useToastStore } from "@/store/toastStore";
+import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 
 type Mode = "view" | "edit";
+
+interface EditorMemory {
+  anchor: number;
+  head: number;
+  scrollTop: number;
+  scrollLeft: number;
+}
 
 /** Pencil glyph. Lucide-style 2-path edit icon (page + tip). currentColor
  *  inherits from the button, so the SVG follows our view/edit accent states. */
@@ -51,6 +59,7 @@ export function MdEditor() {
   const tab = useMdStore((s) => s.tabs.find((t) => t.id === activeTabId) ?? null);
   const setTabContent = useMdStore((s) => s.setTabContent);
   const openMdTab = useMdStore((s) => s.openMdTab);
+  const saveMdTab = useMdStore((s) => s.saveMdTab);
 
   // Open a file through the native OS picker (filtered to Markdown) — the
   // intuitive alternative to typing an absolute path into Ctrl+O.
@@ -66,12 +75,8 @@ export function MdEditor() {
     }
   };
 
-  // Per-tab mode, reset to "view" whenever the active tab changes (CONTEXT.md
-  // "Tab switches reset the mode to view"). Held locally — there's no need to
-  // persist mode across app restarts; opening a file is "I want to read it".
   const [mode, setMode] = useState<Mode>("view");
   useEffect(() => {
-    setMode("view");
     // Report focus surface for the Status Bar (DESIGN.md §3, CONTEXT.md
     // "Status Bar"). Mounting MdEditor implies the user is reading it.
     useMdStore.getState().setFocusedSurface("md-editor");
@@ -79,20 +84,42 @@ export function MdEditor() {
 
   const editorHostRef = useRef<HTMLDivElement | null>(null);
   const editorViewRef = useRef<EditorView | null>(null);
+  const editorMemoryRef = useRef(new Map<string, EditorMemory>());
 
   // Build the CodeMirror EditorView when entering edit mode; destroy when
   // leaving. Doc is seeded from the store's current tab.content, and edits
   // flow back via setTabContent so view mode reflects the latest text.
   useEffect(() => {
     if (mode !== "edit" || !editorHostRef.current || tab === null) return;
+    const memory = editorMemoryRef.current.get(tab.id);
+    const docLen = tab.content.length;
     const view = buildEditor({
       parent: editorHostRef.current,
       doc: tab.content,
       lineNumbersOn: true,
+      selection: memory
+        ? EditorSelection.single(
+            Math.min(memory.anchor, docLen),
+            Math.min(memory.head, docLen)
+          )
+        : undefined,
       onChange: (doc) => setTabContent(tab.id, doc),
     });
     editorViewRef.current = view;
+    const raf = window.requestAnimationFrame(() => {
+      if (!memory) return;
+      view.scrollDOM.scrollTop = memory.scrollTop;
+      view.scrollDOM.scrollLeft = memory.scrollLeft;
+    });
     return () => {
+      window.cancelAnimationFrame(raf);
+      const main = view.state.selection.main;
+      editorMemoryRef.current.set(tab.id, {
+        anchor: main.anchor,
+        head: main.head,
+        scrollTop: view.scrollDOM.scrollTop,
+        scrollLeft: view.scrollDOM.scrollLeft,
+      });
       view.destroy();
       editorViewRef.current = null;
     };
@@ -116,6 +143,17 @@ export function MdEditor() {
         >
           <IconFolderOpen size={18} />
         </button>
+        {tab !== null && (
+          <button
+            className={styles.penButton}
+            onClick={() => void saveMdTab(tab.id)}
+            title="Save"
+            aria-label="Save"
+            disabled={!tab.dirty}
+          >
+            <IconSave size={16} />
+          </button>
+        )}
         {tab !== null && (
           <button
             className={`${styles.penButton} ${mode === "edit" ? styles.penActive : ""}`}
@@ -144,7 +182,7 @@ export function MdEditor() {
           </div>
         ) : (
           <div className={styles.view}>
-            <MdEditorPreview source={tab.content} />
+            <MdEditorPreview source={tab.content} filePath={tab.path} />
           </div>
         )}
       </div>

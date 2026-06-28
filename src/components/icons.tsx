@@ -96,6 +96,17 @@ export function IconEdit(props: IconProps) {
   );
 }
 
+/** Save — disk-style document action. */
+export function IconSave(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="M5 3h12l2 2v16H5z" />
+      <path d="M8 3v6h8V3" />
+      <path d="M8 21v-7h8v7" />
+    </Stroke>
+  );
+}
+
 /** Quick viewer (read-only preview) — an eye. */
 export function IconEye(props: IconProps) {
   return (
