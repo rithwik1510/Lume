@@ -4,7 +4,13 @@ import { renderMarkdown } from "@/preview/renderMarkdown";
 
 describe("renderMarkdown", () => {
   it("renders headings", () => {
-    expect(renderMarkdown("# Hello")).toContain("<h1>Hello</h1>");
+    expect(renderMarkdown("# Hello")).toContain('<h1 id="hello">Hello</h1>');
+  });
+
+  it("generates stable unique heading ids", () => {
+    const html = renderMarkdown("## Same\n\n## Same");
+    expect(html).toContain('id="same"');
+    expect(html).toContain('id="same-2"');
   });
 
   it("does not render raw HTML (XSS guard)", () => {
@@ -27,6 +33,27 @@ describe("renderMarkdown", () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
   });
+
+  it("does not force target=_blank on internal anchors", () => {
+    const html = renderMarkdown("[Jump](#hello)");
+    expect(html).toContain('href="#hello"');
+    expect(html).not.toContain('target="_blank"');
+  });
+
+  it("renders GitHub-style task list markers as disabled checkboxes", () => {
+    const html = renderMarkdown("- [x] Done\n- [ ] Later");
+    expect(html).toContain('class="task-list-item"');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain("disabled");
+    expect(html).toContain("checked");
+  });
+
+  it("renders simple callouts", () => {
+    const html = renderMarkdown("> [!WARNING]\n> Careful");
+    expect(html).toContain('class="callout callout-warning"');
+    expect(html).toContain("Warning");
+  });
+
   it("does not produce a clickable link for javascript: hrefs", () => {
     // markdown-it (html:false) does not linkify javascript: hrefs — the input
     // is rendered as literal text, never as <a href="javascript:...">. Confirm

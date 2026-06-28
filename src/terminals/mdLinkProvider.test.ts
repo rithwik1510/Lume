@@ -38,6 +38,12 @@ describe("resolveMdPath", () => {
     expect(resolveMdPath("C:\\x\\y.md", "C:\\cwd")).toBe("C:\\x\\y.md");
   });
 
+  it("returns UNC paths unchanged", () => {
+    expect(resolveMdPath("\\\\server\\share\\notes.md", "C:\\cwd")).toBe(
+      "\\\\server\\share\\notes.md"
+    );
+  });
+
   it("joins relative path with cwd using OS separator on Windows", () => {
     // resolveMdPath uses simple string join — the Rust side canonicalises.
     expect(resolveMdPath("./a.md", "C:\\cwd")).toBe("C:\\cwd/./a.md");
@@ -75,6 +81,12 @@ describe("mdLinkCandidates", () => {
   it("returns an absolute path as the sole candidate", () => {
     expect(mdLinkCandidates("C:\\x\\y.md", "C:\\cwd", "C:\\folder")).toEqual([
       "C:\\x\\y.md",
+    ]);
+  });
+
+  it("returns a UNC path as the sole candidate", () => {
+    expect(mdLinkCandidates("\\\\server\\share\\notes.md", "C:\\cwd", "C:\\folder")).toEqual([
+      "\\\\server\\share\\notes.md",
     ]);
   });
 

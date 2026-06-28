@@ -32,7 +32,7 @@ export function findMdLinks(line: string): MdLinkMatch[] {
 }
 
 export function isAbsolute(path: string): boolean {
-  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("/");
+  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("/") || path.startsWith("\\\\");
 }
 
 export function resolveMdPath(path: string, cwd: string | null): string | null {

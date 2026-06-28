@@ -4,12 +4,57 @@ import { useEffect, useMemo, useState } from "react";
 import styles from "@/components/MdEditorPreview.module.css";
 import { renderMarkdown } from "@/preview/renderMarkdown";
 import { openExternal } from "@/lib/openExternal";
+import { useMdStore } from "@/store/mdStore";
+import { useToastStore } from "@/store/toastStore";
 
 interface Props {
   source: string;
+  filePath?: string | null;
 }
 
-export function MdEditorPreview({ source }: Props) {
+function isAbsolutePath(path: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("/") || path.startsWith("\\\\");
+}
+
+function dirname(path: string): string {
+  const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return idx === -1 ? "" : path.slice(0, idx);
+}
+
+function decodeHrefPath(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+function resolveMarkdownHref(href: string, filePath: string | null | undefined): string | null {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return null;
+  const pathPart = href.split("#", 1)[0].split("?", 1)[0];
+  if (!/\.mdx?$/i.test(pathPart)) return null;
+  const decoded = decodeHrefPath(pathPart);
+  if (isAbsolutePath(decoded)) return decoded;
+  if (!filePath) return null;
+  const base = dirname(filePath);
+  if (!base) return decoded;
+  const sep = base.includes("\\") ? "\\" : "/";
+  return `${base}${base.endsWith("/") || base.endsWith("\\") ? "" : sep}${decoded}`;
+}
+
+function scrollToHeading(container: HTMLElement, href: string): boolean {
+  if (!href.startsWith("#") || href.length === 1) return false;
+  const targetId = decodeHrefPath(href.slice(1));
+  const target = Array.from(container.querySelectorAll<HTMLElement>("[id]")).find(
+    (node) => node.id === targetId
+  );
+  target?.scrollIntoView({ block: "start", behavior: "smooth" });
+  return target !== undefined;
+}
+
+export function MdEditorPreview({ source, filePath = null }: Props) {
+  const openMdTab = useMdStore((s) => s.openMdTab);
+
   // The markdown-it + DOMPurify pass is deferred one tick (setTimeout 0) so
   // the pane paints first — on a large doc the pass can stall for hundreds of
   // ms, and without the defer the user sees "(not responding)" until React
@@ -31,9 +76,25 @@ export function MdEditorPreview({ source }: Props) {
   const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (e.target as HTMLElement | null)?.closest?.("a");
     const href = anchor?.getAttribute("href");
-    if (href && /^https?:\/\//i.test(href)) {
+    if (!href) return;
+    if (href.startsWith("#") && scrollToHeading(e.currentTarget, href)) {
+      e.preventDefault();
+      return;
+    }
+    if (/^https?:\/\//i.test(href)) {
       e.preventDefault();
       void openExternal(href).catch(() => undefined);
+      return;
+    }
+    const mdPath = resolveMarkdownHref(href, filePath);
+    if (mdPath) {
+      e.preventDefault();
+      void openMdTab(mdPath).catch((err) => {
+        useToastStore.getState().push({
+          severity: "error",
+          message: `Open failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      });
     }
   };
 
