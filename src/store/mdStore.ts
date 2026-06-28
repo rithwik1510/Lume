@@ -6,6 +6,7 @@ import { immer } from "zustand/middleware/immer";
 import { readTextFile, writeTextFile } from "@/lib/fsClient";
 import { findFileByName } from "@/lib/fileSearch";
 import { tauriPersistStorage } from "@/lib/persistStorage";
+import { useConfirmStore } from "@/store/confirmStore";
 import { useToastStore } from "@/store/toastStore";
 
 export interface MdTab {
@@ -57,7 +58,7 @@ export interface MdStoreState {
   setActiveTab: (id: string) => void;
   setTabContent: (id: string, content: string) => void;
   saveMdTab: (id: string) => Promise<void>;
-  closeMdTab: (id: string) => void;
+  closeMdTab: (id: string) => Promise<boolean>;
 
   setFocusedSurface: (s: FocusedSurface) => void;
 
@@ -210,8 +211,20 @@ export const useMdStore = create<MdStoreState>()(
           });
         }
       },
-      closeMdTab: (id) => {
+      closeMdTab: async (id) => {
         const closing = get().tabs.find((t) => t.id === id);
+        if (!closing) return false;
+        if (closing.dirty) {
+          const fileName = closing.path.split(/[/\\]/).pop() ?? closing.path;
+          const ok = await useConfirmStore.getState().confirm({
+            title: "Discard unsaved changes?",
+            message: `${fileName} has unsaved changes. Close it and discard those edits?`,
+            confirmLabel: "Discard",
+            cancelLabel: "Keep Editing",
+            danger: true,
+          });
+          if (!ok) return false;
+        }
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
           if (idx === -1) return;
@@ -222,12 +235,7 @@ export const useMdStore = create<MdStoreState>()(
           }
           if (s.tabs.length === 0) s.mdEditorMode = "off";
         });
-        if (closing?.dirty) {
-          useToastStore.getState().push({
-            severity: "warn",
-            message: `Closed ${closing.path.split(/[/\\]/).pop() ?? closing.path} with unsaved changes`,
-          });
-        }
+        return true;
       },
 
       setFocusedSurface: (focusedSurface) =>

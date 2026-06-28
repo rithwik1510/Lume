@@ -225,24 +225,36 @@ function closeActiveMdTab(): boolean {
   if (useMdStore.getState().mdEditorMode !== "full") return false;
   const active = useMdStore.getState().activeTabId;
   if (active === null) return false;
-  useMdStore.getState().closeMdTab(active);
+  void useMdStore.getState().closeMdTab(active);
   return true;
 }
 
-// Ctrl+Tab — cycle MD Editor tabs forward. Only fires in Full View; otherwise
+// Ctrl+Tab — cycle MD Editor tabs. Only fires in Full View; otherwise
 // returns false so the keystroke falls through to native tab order.
-function cycleMdTabs(): boolean {
+function cycleMdTabs(delta: 1 | -1 = 1): boolean {
   if (useMdStore.getState().mdEditorMode !== "full") return false;
   const { tabs, activeTabId, setActiveTab } = useMdStore.getState();
   if (tabs.length === 0) return false;
   const idx = tabs.findIndex((t) => t.id === activeTabId);
-  const next = tabs[(idx + 1) % tabs.length];
+  const safeIdx = idx === -1 ? 0 : idx;
+  const next = tabs[(safeIdx + delta + tabs.length) % tabs.length];
   setActiveTab(next.id);
   return true;
 }
 
 function isMdFullMode(): boolean {
   return useMdStore.getState().mdEditorMode === "full";
+}
+
+function shouldHandleMdShortcutFromEditable(e: KeyboardEvent): boolean {
+  if (!isMdFullMode()) return false;
+  if (isCtrlOnly(e) && e.key === "Tab") return true;
+  if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.key === "Tab") return true;
+  if (isCtrlOnly(e)) {
+    const key = e.key.toLowerCase();
+    return key === "e" || key === "s" || key === "w";
+  }
+  return false;
 }
 
 // ---------- Chord state (Ctrl+K-prefixed shortcuts) ----------
@@ -394,7 +406,13 @@ const SHORTCUTS: Shortcut[] = [
   // Ctrl+Tab — cycle MD tabs (gated on Full View)
   {
     match: (e) => isCtrlOnly(e) && e.key === "Tab" && isMdFullMode(),
-    run: () => cycleMdTabs(),
+    run: () => cycleMdTabs(1),
+  },
+  // Ctrl+Shift+Tab — cycle MD tabs backward (gated on Full View)
+  {
+    match: (e) =>
+      e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.key === "Tab" && isMdFullMode(),
+    run: () => cycleMdTabs(-1),
   },
 
   // ---- Session navigation (Phase 7) ----
@@ -440,7 +458,7 @@ const SHORTCUTS: Shortcut[] = [
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (shouldSkipShortcut(e.target)) return;
+      if (shouldSkipShortcut(e.target) && !shouldHandleMdShortcutFromEditable(e)) return;
       for (const s of SHORTCUTS) {
         if (s.match(e)) {
           if (s.run()) {

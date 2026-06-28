@@ -1,6 +1,8 @@
 // src/store/mdStore.test.ts
 import { describe, expect, it, beforeEach, vi } from "vitest";
 
+const confirmMock = vi.hoisted(() => vi.fn(async () => true));
+
 // The persist middleware loads from @tauri-apps/plugin-store on hydrate;
 // mock it so the test runner doesn't try to call into Tauri at module load.
 vi.mock("@tauri-apps/plugin-store", () => ({
@@ -9,6 +11,12 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     set: vi.fn(async () => undefined),
     delete: vi.fn(async () => undefined),
   })),
+}));
+
+vi.mock("@/store/confirmStore", () => ({
+  useConfirmStore: {
+    getState: () => ({ confirm: confirmMock }),
+  },
 }));
 
 import { useMdStore } from "@/store/mdStore";
@@ -36,6 +44,8 @@ describe("mdStore — Quick Viewer", () => {
     useToastStore.getState().reset();
     mockedRead.mockImplementation(async (p: string) => `contents of ${p}`);
     mockedFind.mockResolvedValue(null);
+    confirmMock.mockReset();
+    confirmMock.mockResolvedValue(true);
   });
 
   it("starts with quick viewer closed", () => {
@@ -158,6 +168,8 @@ describe("mdStore — MD Editor tabs", () => {
     useToastStore.getState().reset();
     mockedRead.mockImplementation(async (p: string) => `contents of ${p}`);
     mockedWrite.mockImplementation(async () => undefined);
+    confirmMock.mockReset();
+    confirmMock.mockResolvedValue(true);
   });
 
   it("openMdTab called twice concurrently for the same path results in exactly one tab", async () => {
@@ -180,7 +192,7 @@ describe("mdStore — MD Editor tabs", () => {
     expect(tabs[0].path).toBe("/tmp/same.md");
   });
 
-  it("closeMdTab on a dirty tab pushes a warn toast", async () => {
+  it("closeMdTab keeps a dirty tab open when discard is cancelled", async () => {
     await useMdStore.getState().openMdTab("/tmp/dirty.md");
     const { tabs } = useMdStore.getState();
     const id = tabs[0].id;
@@ -189,24 +201,39 @@ describe("mdStore — MD Editor tabs", () => {
     useMdStore.getState().setTabContent(id, "edited content");
     expect(useMdStore.getState().tabs[0].dirty).toBe(true);
 
-    useMdStore.getState().closeMdTab(id);
+    confirmMock.mockResolvedValueOnce(false);
+    const closed = await useMdStore.getState().closeMdTab(id);
 
-    const toasts = useToastStore.getState().toasts;
-    expect(toasts.length).toBe(1);
-    expect(toasts[0].severity).toBe("warn");
-    expect(toasts[0].message).toContain("dirty.md");
-    expect(toasts[0].message).toContain("unsaved changes");
+    expect(closed).toBe(false);
+    expect(useMdStore.getState().tabs.some((t) => t.id === id)).toBe(true);
+    expect(confirmMock).toHaveBeenCalledOnce();
   });
 
-  it("closeMdTab on a clean tab does NOT push a toast", async () => {
+  it("closeMdTab closes a dirty tab after discard is confirmed", async () => {
+    await useMdStore.getState().openMdTab("/tmp/dirty.md");
+    const { tabs } = useMdStore.getState();
+    const id = tabs[0].id;
+
+    useMdStore.getState().setTabContent(id, "edited content");
+    confirmMock.mockResolvedValueOnce(true);
+    const closed = await useMdStore.getState().closeMdTab(id);
+
+    expect(closed).toBe(true);
+    expect(useMdStore.getState().tabs.some((t) => t.id === id)).toBe(false);
+    expect(confirmMock).toHaveBeenCalledOnce();
+  });
+
+  it("closeMdTab on a clean tab does not prompt or toast", async () => {
     await useMdStore.getState().openMdTab("/tmp/clean.md");
     const { tabs } = useMdStore.getState();
     const id = tabs[0].id;
 
     expect(tabs[0].dirty).toBe(false);
 
-    useMdStore.getState().closeMdTab(id);
+    const closed = await useMdStore.getState().closeMdTab(id);
 
+    expect(closed).toBe(true);
+    expect(confirmMock).not.toHaveBeenCalled();
     const toasts = useToastStore.getState().toasts;
     expect(toasts.length).toBe(0);
   });

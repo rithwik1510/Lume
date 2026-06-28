@@ -14,6 +14,7 @@ import styles from "@/components/QuickViewer.module.css";
 import { IconClose } from "@/components/icons";
 import { MdEditorPreview } from "@/components/MdEditorPreview";
 import { useMdStore } from "@/store/mdStore";
+import { useToastStore } from "@/store/toastStore";
 
 /** Lucide-style pencil icon. currentColor stroke so it follows the
  *  button's color state. Same glyph as MdEditor for visual consistency. */
@@ -55,10 +56,14 @@ export function QuickViewer() {
   // "already-open" case (switches to that tab) and flips the editor
   // mode to "full" so the user lands directly on the file.
   const onEdit = () => {
-    void openMdTab(path).catch((err) => {
-      console.error("openMdTab from QuickViewer failed", err);
-    });
-    close();
+    void openMdTab(path)
+      .then(() => close())
+      .catch((err) => {
+        useToastStore.getState().push({
+          severity: "error",
+          message: `Open failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      });
   };
 
   return (
@@ -89,7 +94,7 @@ export function QuickViewer() {
       {/* Key on path so switching files (clicking a new link while the viewer
           is already open) remounts the body and replays the content fade. */}
       <div className={styles.body} key={path}>
-        <MdEditorPreview source={content} />
+        <MdEditorPreview source={content} filePath={path} />
       </div>
     </div>
   );

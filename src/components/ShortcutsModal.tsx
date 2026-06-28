@@ -59,7 +59,9 @@ const CATALOG: ShortcutGroup[] = [
     name: "MD Editor",
     rows: [
       { label: "Save", keys: ["Ctrl", "S"] },
+      { label: "Close active MD tab", keys: ["Ctrl", "W"] },
       { label: "Cycle MD Editor tabs", keys: ["Ctrl", "Tab"] },
+      { label: "Cycle MD Editor tabs backward", keys: ["Ctrl", "Shift", "Tab"] },
     ],
   },
 ];
