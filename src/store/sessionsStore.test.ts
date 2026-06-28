@@ -23,6 +23,8 @@ import {
   remapSessionPaneIds,
   groupOf,
   planSidebar,
+  getVisibleSessionIds,
+  isSessionVisible,
   type Session,
 } from "@/store/sessionsStore";
 
@@ -225,6 +227,26 @@ describe("sessionsStore — metadata mutations", () => {
     useSessionsStore.getState().activateSession(id);
     useSessionsStore.getState().bumpUnread(id);
     expect(useSessionsStore.getState().sessions[id].unread).toBe(false);
+  });
+
+  it("bumpUnread no-ops for both visible split sessions", () => {
+    const a = useSessionsStore.getState().createSession("/p", "A");
+    const b = useSessionsStore.getState().createSession("/p", "B");
+    const c = useSessionsStore.getState().createSession("/p", "C");
+
+    useSessionsStore.getState().activateSession(a);
+    useSessionsStore.getState().openSplitWith(b);
+
+    expect(getVisibleSessionIds(useSessionsStore.getState())).toEqual([a, b]);
+    expect(isSessionVisible(useSessionsStore.getState(), b)).toBe(true);
+
+    useSessionsStore.getState().bumpUnread(a);
+    useSessionsStore.getState().bumpUnread(b);
+    useSessionsStore.getState().bumpUnread(c);
+
+    expect(useSessionsStore.getState().sessions[a].unread).toBe(false);
+    expect(useSessionsStore.getState().sessions[b].unread).toBe(false);
+    expect(useSessionsStore.getState().sessions[c].unread).toBe(true);
   });
 
   it("updateBranch sets gitBranch", () => {

@@ -289,7 +289,7 @@ export const useSessionsStore = create<SessionsState>()(
             const session = s.sessions[id];
             if (!session) return;
             // Never light up the visible session — you're already looking at it.
-            if (s.activeSessionId === id) return;
+            if (isSessionVisible(s, id)) return;
             session.unread = true;
           }),
 
@@ -825,6 +825,20 @@ export function findSessionForPane(state: SessionsState, paneId: PaneId): Sessio
   return null;
 }
 
+export function getVisibleSessionIds(
+  state: Pick<SessionsState, "splitView" | "activeSessionId">
+): SessionId[] {
+  if (state.splitView) return [...state.splitView];
+  return state.activeSessionId ? [state.activeSessionId] : [];
+}
+
+export function isSessionVisible(
+  state: Pick<SessionsState, "splitView" | "activeSessionId">,
+  id: SessionId
+): boolean {
+  return getVisibleSessionIds(state).includes(id);
+}
+
 /** Union of paneIds across every active session. Used by the orchestrator. */
 export function getActivePaneIds(state: SessionsState): PaneId[] {
   const out: PaneId[] = [];
@@ -839,10 +853,8 @@ export function getActivePaneIds(state: SessionsState): PaneId[] {
  *  panes, or both split-view members' panes when a split is open. Drives the
  *  render governor — only these panes render live + hold a WebGL context. */
 export function getVisiblePaneIds(state: SessionsState): PaneId[] {
-  const sessionIds =
-    state.splitView ?? (state.activeSessionId ? [state.activeSessionId] : []);
   const out: PaneId[] = [];
-  for (const sid of sessionIds) {
+  for (const sid of getVisibleSessionIds(state)) {
     const root = state.sessions[sid]?.layoutRoot;
     if (root) out.push(...treeLeaves(root));
   }

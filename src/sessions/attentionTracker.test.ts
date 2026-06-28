@@ -91,6 +91,27 @@ describe("attentionTracker — cadence fallback (non-integrated panes)", () => {
     expect(unread(fg)).toBe(false);
   });
 
+  it("treats the non-focused split session as visible", () => {
+    const a = sessionWithPane("/a", "pane-a");
+    const b = sessionWithPane("/b", "pane-b");
+    useSessionsStore.getState().activateSession(a);
+    useSessionsStore.getState().openSplitWith(b);
+
+    streamOutput("pane-a");
+    expect(working(a)).toBe(true);
+
+    useSessionsStore.getState().activateSession(b);
+    expect(useSessionsStore.getState().splitView).toEqual([a, b]);
+    expect(working(a)).toBe(true);
+
+    vi.advanceTimersByTime(QUIET_MS);
+    expect(working(a)).toBe(false);
+    expect(unread(a)).toBe(false);
+
+    noteBell("pane-a");
+    expect(unread(a)).toBe(false);
+  });
+
   it("new output clears a stale dot (agent resumed → self-correcting)", () => {
     const bg = sessionWithPane("/bg", "pane-bg");
     const fg = sessionWithPane("/fg", "pane-fg");

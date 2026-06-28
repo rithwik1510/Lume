@@ -2,7 +2,12 @@
 
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionRow.module.css";
-import { useSessionsStore, groupOf, type Session } from "@/store/sessionsStore";
+import {
+  useSessionsStore,
+  groupOf,
+  isSessionVisible,
+  type Session,
+} from "@/store/sessionsStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useContextMenuStore } from "@/store/contextMenuStore";
 import { revealInExplorer } from "@/lib/revealInExplorer";
@@ -21,13 +26,13 @@ export function SessionRow({ session }: Props) {
   const purge = useSessionsStore((s) => s.purgeSession);
   const rename = useSessionsStore((s) => s.renameSession);
   const splitGroups = useSessionsStore((s) => s.splitGroups);
-  const splitView = useSessionsStore((s) => s.splitView);
+  const visible = useSessionsStore((s) => isSessionVisible(s, session.id));
+  const inSplit = useSessionsStore((s) => s.splitView?.includes(session.id) ?? false);
   const isActive = session.id === activeId;
   // Part of a durable split group? (drives the Ungroup menu item.) Visible in
   // the split that's open right now? (faint highlight on the non-focused slot
   // so it reads as on-screen even though the keyboard ring is on its partner.)
   const grouped = groupOf(splitGroups, session.id) !== null;
-  const inSplit = splitView !== null && splitView.includes(session.id);
   const [renaming, setRenaming] = useState(false);
 
   // Two signals (see attentionTracker.ts), needs-you trumping in-progress —
@@ -39,8 +44,8 @@ export function SessionRow({ session }: Props) {
   //   working → tumbling logo square ("agent/command actively running")
   // Otherwise: neutral filled dot for the session you're viewing, hollow for
   // idle ones.
-  const working = !isActive && !session.unread && session.working;
-  const dotClass = isActive
+  const working = !visible && !session.unread && session.working;
+  const dotClass = visible
     ? styles.dotActive
     : session.unread
     ? styles.dotUnread

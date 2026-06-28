@@ -26,14 +26,20 @@
 //      but only used where the shell can't tell us more.
 //
 // Multi-pane sessions OR their panes: working if ANY pane works; one dot per
-// session. bumpUnread no-ops for the active session and activateSession
-// clears the dot, so the session you're looking at never begs for attention.
+// session. bumpUnread no-ops for visible sessions (the foreground session, or
+// both split-view sessions) so a terminal you're looking at never begs for
+// attention.
 //
 // Hot-path discipline: noteOutput is called from the PTY byte sink, so it is
 // throttled per pane (OUTPUT_THROTTLE_MS) and resolves pane→session through a
 // cache instead of walking every session's layout tree per chunk.
 
-import { useSessionsStore, findSessionForPane, type SessionId } from "@/store/sessionsStore";
+import {
+  useSessionsStore,
+  findSessionForPane,
+  getVisibleSessionIds,
+  type SessionId,
+} from "@/store/sessionsStore";
 import { leaves as treeLeaves } from "@/store/layout/tree";
 import {
   onCommandEvent,
@@ -91,7 +97,7 @@ const quietWhileRunning = new Set<PaneId>();
 const quietTimers = new Map<PaneId, number>();
 /** noteOutput throttle stamps. */
 const lastNoteAt = new Map<PaneId, number>();
-/** When each session last went background (activeSessionId moved away). */
+/** When each session last went from visible to hidden. */
 const backgroundedAt = new Map<SessionId, number>();
 /** Per-pane "ignore output until" stamps (resize repaint noise). */
 const mutedUntil = new Map<PaneId, number>();
@@ -102,28 +108,39 @@ const streamCandidateAt = new Map<PaneId, number>();
 // (layout edits are rare next to PTY chunks, so this trades a cheap clear
 // for not tree-walking every session on every output chunk).
 const paneSessionCache = new Map<PaneId, SessionId | null>();
+
+function clearSessionActivity(sid: SessionId, state = useSessionsStore.getState()): void {
+  const sess = state.sessions[sid];
+  if (sess?.layoutRoot) {
+    for (const paneId of treeLeaves(sess.layoutRoot)) {
+      clearQuietTimer(paneId);
+      streamingPanes.delete(paneId);
+      quietWhileRunning.delete(paneId);
+      streamCandidateAt.delete(paneId);
+    }
+  }
+  recomputeWorking(sid);
+}
+
 useSessionsStore.subscribe((state, prev) => {
   if (state.sessions !== prev.sessions) paneSessionCache.clear();
-  if (state.activeSessionId !== prev.activeSessionId) {
-    // Session transition. The one that LOST focus gets a clean slate: every
-    // signal you could have seen while inside it is acknowledged by having
-    // been there — only what happens AFTER you leave should light it up.
-    // The grace stamp then swallows the repaint noise the switch generates.
-    const went = prev.activeSessionId;
-    if (went) {
-      backgroundedAt.set(went, Date.now());
-      const sess = state.sessions[went];
-      if (sess?.layoutRoot) {
-        for (const paneId of treeLeaves(sess.layoutRoot)) {
-          clearQuietTimer(paneId);
-          streamingPanes.delete(paneId);
-          quietWhileRunning.delete(paneId);
-          streamCandidateAt.delete(paneId);
-        }
-      }
-      recomputeWorking(went);
+  const prevVisible = getVisibleSessionIds(prev);
+  const nextVisible = getVisibleSessionIds(state);
+  const nextVisibleSet = new Set(nextVisible);
+  const visibilityChanged =
+    prevVisible.length !== nextVisible.length || prevVisible.some((sid) => !nextVisibleSet.has(sid));
+  if (visibilityChanged) {
+    // View transition. Sessions that just left the screen get a clean slate:
+    // every signal the user could have seen while they were visible is
+    // acknowledged by having been visible. Only what happens after that should
+    // light them up. The grace stamp swallows repaint noise from the switch.
+    const now = Date.now();
+    for (const sid of prevVisible) {
+      if (nextVisibleSet.has(sid)) continue;
+      backgroundedAt.set(sid, now);
+      clearSessionActivity(sid, state);
     }
-    if (state.activeSessionId) backgroundedAt.delete(state.activeSessionId);
+    for (const sid of nextVisible) backgroundedAt.delete(sid);
   }
 });
 
