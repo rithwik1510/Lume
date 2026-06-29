@@ -1,5 +1,6 @@
 // Lume Rust entry point.
 
+pub mod agent_events;
 pub mod config;
 pub mod error;
 pub mod file_watcher;
@@ -10,6 +11,9 @@ pub mod shell_detect;
 pub mod shell_integration;
 
 pub use error::{AppError, AppResult};
+
+// `Manager` brings `App::state` into scope for the setup hook below.
+use tauri::Manager;
 
 /// Build the log plugin with safe defaults.
 ///
@@ -58,6 +62,27 @@ pub fn run() {
         .manage(pty::PtyRegistry::default())
         .manage(file_watcher::FileWatcherState::default())
         .manage(config::ConfigWatcherState::default())
+        .manage(agent_events::AgentEventsState::default())
+        .setup(|app| {
+            // Agent-event pipeline (Plan 008): materialize the hook shim, clear
+            // stale per-pane spool files from a prior run, and start watching
+            // the spool dir. Each step is best-effort — a failure degrades to
+            // today's cadence-only behavior and must never block launch.
+            if let Err(e) = agent_events::materialize_hook_shim() {
+                log::warn!("agent-events: hook shim not materialized: {e}");
+            }
+            if let Err(e) = agent_events::sweep_spool_dir() {
+                log::warn!("agent-events: boot sweep failed: {e}");
+            }
+            match agent_events::start_watcher(app.handle().clone()) {
+                Ok(watcher) => {
+                    let state = app.state::<agent_events::AgentEventsState>();
+                    *state.0.lock() = Some(watcher);
+                }
+                Err(e) => log::warn!("agent-events: watcher not started: {e}"),
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             pty::pty_open,
             pty::pty_write,

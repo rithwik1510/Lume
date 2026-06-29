@@ -198,7 +198,9 @@ fn merge_wslenv(existing: Option<&str>) -> String {
     match existing {
         Some(v) if !v.is_empty() => {
             // Already tagged (a nested Lume shell inheriting our WSLENV)? Leave it.
-            if v.split(':').any(|part| part == ENTRY || part == "LUME_PANE_ID") {
+            if v.split(':')
+                .any(|part| part == ENTRY || part == "LUME_PANE_ID")
+            {
                 v.to_string()
             } else {
                 format!("{v}:{ENTRY}")
@@ -433,6 +435,9 @@ pub fn pty_kill(pane_id: String, state: State<'_, PtyRegistry>) -> AppResult<()>
         // result: a child that already exited returns an error we don't care about.
         let _ = session.killer.lock().kill();
     }
+    // Drop this pane's agent-event spool so a later pane can't inherit its
+    // bytes and a dead pane's file never lingers (Plan 008 §2).
+    crate::agent_events::delete_spool_for_pane(&pane_id);
     Ok(())
 }
 
