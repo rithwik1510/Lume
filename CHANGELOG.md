@@ -4,6 +4,54 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.0-beta.9] — 2026-06-29
+
+A real markdown editor and a terminal you can trust with the clipboard.
+
+### Added
+- **CodeMirror is now a real editor.** The MD Editor gets full keyboard
+  muscle memory: search (Ctrl+F), fold (Ctrl+Shift+[ / ]), bracket-matching
+  highlights, multi-cursor (Alt+Click), syntax highlighting, and a styled
+  gutter with line numbers, active-line highlight, search-panel chrome, and
+  a matching-bracket token. You can edit markdown like code.
+- **MD Editor Save button + per-tab memory.** A save button (and Ctrl+S)
+  writes the current tab. Each open tab remembers its own selection range
+  and scroll position when you switch away and come back.
+- **MD Tabs are accessible and keyboard-navigable.** Full a11y roles on the
+  tab strip, arrow-key navigation between tabs, and a dirty-close confirm
+  before discarding unsaved changes.
+- **MD Preview learns the rest of markdown.** Relative `.md` links navigate
+  inside the preview, heading anchors let you deep-link to a section,
+  GitHub-style callouts (note, tip, warn, danger) render with the right
+  color, task lists check off, and Windows UNC paths (`\\server\share\…`)
+  resolve correctly.
+- **Quick Viewer opens `.md` links from the terminal.** Ctrl+Click any
+  `.md` path in a terminal session and it pops open in the Quick Viewer
+  on the right — read the file the agent just wrote without losing the
+  terminal you launched it from. A toast surfaces failures (path that
+  doesn't resolve, file no longer on disk) so the open doesn't fail
+  silently.
+- **Sessions only light up when hidden.** When you're in a split view, the
+  "needs you" unread indicator on a session only lights up for the
+  sessions you can't currently see — a session that's already in front
+  of you in the split no longer pulses. No more "is it new or did I just
+  look at it?" guessing.
+- **Terminal advertises truecolor and ships a 16-color theme.** xterm.js
+  now tells apps it supports 24-bit color, and the bundled theme maps the
+  standard 16 colors to the Lume palette so anything that uses them
+  (prompt segments, ls --color, diff) looks right.
+
+### Fixed
+- **Terminal clipboard is now reliable.** Clipboard copy goes through a
+  host plugin path, and OSC 52 (`\e]52;c;…\a`) is honored — programs
+  that copy to clipboard through escape sequences actually copy.
+- **Sidebar file tree refreshes on Windows.** The `\\?\` extended-length
+  path prefix that some Windows APIs hand back was preventing the watcher
+  from matching real paths; the prefix is stripped before comparison, so
+  the tree updates when files change on disk.
+
+[0.1.0-beta.9]: https://github.com/rithwik1510/Lume/releases/tag/v0.1.0-beta.9
+
 ## [0.1.0-beta.8] — 2026-06-25
 
 Side-by-side splits you can name, leave, and come back to.
