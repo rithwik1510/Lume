@@ -189,7 +189,26 @@ pub fn shell_spec(shell: &Shell, integration_script: Option<&str>) -> CommandSpe
     }
 }
 
-fn build_command(shell: &Shell) -> CommandBuilder {
+/// Merge `LUME_PANE_ID/u` into an existing `WSLENV` value so the pane tag
+/// crosses the Win32→WSL boundary (Plan 008 §1). `/u` = share the variable
+/// Win32→WSL (uppercased, no path translation). Preserves any value the user
+/// already exported; never double-appends our own entry.
+fn merge_wslenv(existing: Option<&str>) -> String {
+    const ENTRY: &str = "LUME_PANE_ID/u";
+    match existing {
+        Some(v) if !v.is_empty() => {
+            // Already tagged (a nested Lume shell inheriting our WSLENV)? Leave it.
+            if v.split(':').any(|part| part == ENTRY || part == "LUME_PANE_ID") {
+                v.to_string()
+            } else {
+                format!("{v}:{ENTRY}")
+            }
+        }
+        _ => ENTRY.to_string(),
+    }
+}
+
+fn build_command(shell: &Shell, pane_id: &str) -> CommandBuilder {
     let integration = crate::shell_integration::powershell_script_path();
     let spec = shell_spec(shell, integration.as_deref().and_then(|p| p.to_str()));
     let mut cmd = CommandBuilder::new(spec.program);
@@ -199,6 +218,15 @@ fn build_command(shell: &Shell) -> CommandBuilder {
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     cmd.env("FORCE_COLOR", "1");
+    // Pane identity (Plan 008 §1, the linchpin): every descendant — the shell,
+    // `claude`, and each hook process claude spawns — inherits this tag, so an
+    // agent-event hook can name the pane it fired from with zero cwd/PID
+    // guessing. WSLENV carries it across the Win32→WSL boundary for WSL panes.
+    cmd.env("LUME_PANE_ID", pane_id);
+    cmd.env(
+        "WSLENV",
+        merge_wslenv(std::env::var("WSLENV").ok().as_deref()),
+    );
     cmd
 }
 
@@ -229,7 +257,7 @@ pub fn pty_open(
         })
         .map_err(|e| AppError::spawn(format!("openpty: {e}")))?;
 
-    let mut cmd = build_command(&shell);
+    let mut cmd = build_command(&shell, &pane_id);
     // Start the shell in the session's folder when one was provided and it
     // still exists on disk. Guarding on is_dir keeps a deleted/renamed folder
     // from failing the whole spawn — we fall back to the inherited cwd instead.
@@ -561,7 +589,7 @@ mod tests {
         let c = Shell::Cmd {
             path: "cmd.exe".into(),
         };
-        let cmd = build_command(&c);
+        let cmd = build_command(&c, "pane-1");
         assert_eq!(
             cmd.get_env("TERM").unwrap().to_string_lossy(),
             "xterm-256color"
@@ -571,5 +599,43 @@ mod tests {
             "truecolor"
         );
         assert_eq!(cmd.get_env("FORCE_COLOR").unwrap().to_string_lossy(), "1");
+    }
+
+    #[test]
+    fn build_command_tags_pane_id_and_wslenv() {
+        let c = Shell::Cmd {
+            path: "cmd.exe".into(),
+        };
+        let cmd = build_command(&c, "pane-42");
+        assert_eq!(
+            cmd.get_env("LUME_PANE_ID").unwrap().to_string_lossy(),
+            "pane-42"
+        );
+        // WSLENV must always carry our tag (merge tested separately below).
+        assert!(cmd
+            .get_env("WSLENV")
+            .unwrap()
+            .to_string_lossy()
+            .contains("LUME_PANE_ID/u"));
+    }
+
+    #[test]
+    fn merge_wslenv_appends_to_existing_without_clobbering() {
+        assert_eq!(merge_wslenv(Some("PATH/l")), "PATH/l:LUME_PANE_ID/u");
+    }
+
+    #[test]
+    fn merge_wslenv_sets_lone_entry_when_absent_or_empty() {
+        assert_eq!(merge_wslenv(None), "LUME_PANE_ID/u");
+        assert_eq!(merge_wslenv(Some("")), "LUME_PANE_ID/u");
+    }
+
+    #[test]
+    fn merge_wslenv_does_not_double_append_our_tag() {
+        assert_eq!(merge_wslenv(Some("LUME_PANE_ID/u")), "LUME_PANE_ID/u");
+        assert_eq!(
+            merge_wslenv(Some("FOO/u:LUME_PANE_ID/u")),
+            "FOO/u:LUME_PANE_ID/u"
+        );
     }
 }
