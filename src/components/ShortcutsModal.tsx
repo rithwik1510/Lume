@@ -20,6 +20,8 @@ import { useEffect } from "react";
 
 import styles from "@/components/ShortcutsModal.module.css";
 import { IconClose } from "@/components/icons";
+import { SignalIndicator } from "@/components/SignalIndicator";
+import type { SidebarSignal } from "@/sessions/sessionSignal";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import { usePresence } from "@/hooks/usePresence";
 
@@ -64,6 +66,16 @@ const CATALOG: ShortcutGroup[] = [
       { label: "Cycle MD Editor tabs backward", keys: ["Ctrl", "Shift", "Tab"] },
     ],
   },
+];
+
+// The durable answer to "what does this dot mean?" without leaving the app
+// (Plan 008 legibility). Only shown for background sessions — the session you
+// are viewing never signals.
+const LEGEND: { signal: SidebarSignal; name: string; meaning: string }[] = [
+  { signal: "permission", name: "Waiting on permission", meaning: "Agent blocked mid-turn — approve to continue" },
+  { signal: "your-move", name: "Your move", meaning: "Turn complete / waiting at the prompt" },
+  { signal: "working", name: "Working", meaning: "A turn is in progress" },
+  { signal: "idle", name: "Idle", meaning: "Open, nothing running" },
 ];
 
 export function ShortcutsModal() {
@@ -125,6 +137,18 @@ export function ShortcutsModal() {
               ))}
             </div>
           ))}
+          <div className={styles.group}>
+            <div className={styles.groupHeader}>Signals</div>
+            {LEGEND.map((item) => (
+              <div key={item.signal} className={styles.row}>
+                <span className={styles.signalLabel}>
+                  <SignalIndicator signal={item.signal} />
+                  {item.name}
+                </span>
+                <span className={styles.signalMeaning}>{item.meaning}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -41,6 +41,14 @@
   white-space: nowrap;
 }
 
+/* Collapsed-header signal roll-up — a small indicator beside the folder name
+ * so a folded folder still shows its most-urgent hidden child (Plan 008). */
+.rollup {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
 .add {
   width: 24px;
   height: 24px;

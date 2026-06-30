@@ -116,19 +116,32 @@
   }
 }
 
-/* "Needs you" — the ONLY saturated colour in the list, so it pops. A solid
- * accent dot with a soft steady glow; the pulse is an ::after halo animating
- * OPACITY only (compositor-friendly — animating box-shadow itself forced a
- * repaint every frame for as long as any dot was lit). The static glow stays
- * even when the animation is frozen (reduced motion), so it's still
- * distinguishable from the neutral active/idle dots. */
+/* "Your move" — turn complete / waiting at the prompt (Stop + idle_prompt
+ * collapse here), and the heuristic "needs you" dot. The ONLY saturated
+ * colours in the list, so they pop. A solid accent dot with a soft STEADY
+ * glow — calm: your move, no rush. The pulse USED to live here; per Plan 008
+ * it moved to the blocked ring (the urgent state is the one that moves), so
+ * this dot is now steady box-shadow only. The static glow survives reduced
+ * motion, keeping it distinguishable from the neutral active/idle dots. */
 .dotUnread {
   position: relative;
   background: var(--accent, #5fa8ff);
   border: 1.5px solid var(--accent, #5fa8ff);
   box-shadow: 0 0 4px 1px var(--accent-alpha, rgba(95, 168, 255, 0.3));
 }
-.dotUnread::after {
+
+/* "Waiting on permission" — blocked mid-turn, an open question waiting for YOU
+ * to fill. Hollow accent RING (transparent fill, accent border) so shape alone
+ * distinguishes it from the solid your-move dot even under reduced motion. It
+ * carries the animated ::after glow pulse (opacity-only, compositor-friendly):
+ * the urgent state is the one that moves. Reduced motion freezes the pulse via
+ * theme.css; the hollow accent ring still reads. */
+.dotBlocked {
+  position: relative;
+  background: transparent;
+  border: 1.5px solid var(--accent, #5fa8ff);
+}
+.dotBlocked::after {
   content: "";
   position: absolute;
   inset: -2px;
@@ -146,8 +159,18 @@
   }
 }
 
-.name {
+/* Wraps the name + agent glyph as one flex-growing unit so the glyph sits
+ * right after the (ellipsised) name and the trash button stays right-aligned. */
+.nameWrap {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.name {
+  min-width: 0;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -155,6 +178,15 @@
    * so a rename — including the launch migration of legacy "New session"
    * names to "Session N" — replays it and the new name slides in. */
   animation: name-in 0.25s var(--ease-out, ease-out) both;
+}
+
+/* Agent identity glyph after the name — muted, never competes with the left
+ * indicator for attention (colour/motion live there). */
+.glyph {
+  flex: none;
+  color: var(--fg-3, #4a4a4a);
+  font-size: 11px;
+  line-height: 1;
 }
 @keyframes name-in {
   from {

@@ -69,6 +69,21 @@ export function computeSessionSignal(input: {
   return "idle";
 }
 
+/** Roll up several sessions' signals into the single most-urgent one for a
+ *  collapsed group header (Plan 008: permission > turn-complete > working).
+ *  `active`/`idle` sessions contribute nothing, so a collapsed folder shows a
+ *  signal only when a hidden child actually needs attention. Returns null when
+ *  nothing does. */
+export function rollUpSignal(signals: SidebarSignal[]): SidebarSignal | null {
+  let best: SidebarSignal | null = null;
+  for (const s of signals) {
+    if (s === "permission") return "permission"; // top rank — done
+    if (s === "your-move") best = "your-move";
+    else if (s === "working" && best !== "your-move") best = "working";
+  }
+  return best;
+}
+
 /** Human reason shown in tooltips / aria-labels for each signal. */
 export function signalReason(signal: SidebarSignal, agent: AgentName | null): string {
   const who = agent ? agentLabel(agent) : "";

@@ -7,6 +7,7 @@ import {
   computeSessionSignal,
   sessionAgentView,
   signalReason,
+  rollUpSignal,
 } from "@/sessions/sessionSignal";
 
 const agent = (phase: PaneAgent["phase"]): PaneAgent => ({ agent: "claude", phase });
@@ -77,6 +78,22 @@ describe("sessionSignal — computeSessionSignal priority", () => {
 
   it("nothing → idle", () => {
     expect(computeSessionSignal(base)).toBe("idle");
+  });
+});
+
+describe("sessionSignal — rollUpSignal (collapsed group header)", () => {
+  it("permission wins over everything", () => {
+    expect(rollUpSignal(["working", "your-move", "permission", "idle"])).toBe("permission");
+  });
+  it("your-move beats working", () => {
+    expect(rollUpSignal(["working", "your-move", "idle"])).toBe("your-move");
+  });
+  it("working when nothing more urgent", () => {
+    expect(rollUpSignal(["idle", "working", "active"])).toBe("working");
+  });
+  it("null when only active/idle (nothing needs you)", () => {
+    expect(rollUpSignal(["active", "idle", "idle"])).toBeNull();
+    expect(rollUpSignal([])).toBeNull();
   });
 });
 

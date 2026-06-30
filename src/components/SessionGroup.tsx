@@ -3,11 +3,23 @@
 // Phase 3b: caret toggles collapsed state; `+` creates a session in this folder.
 // Phase 3c.3: double-click label to rename group (empty commit reverts to basename).
 
-import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionGroup.module.css";
 import { SessionRow } from "@/components/SessionRow";
 import { SplitPair } from "@/components/SplitPair";
-import { useSessionsStore, type SidebarFolderView } from "@/store/sessionsStore";
+import { SignalIndicator } from "@/components/SignalIndicator";
+import {
+  useSessionsStore,
+  isSessionVisible,
+  type SidebarFolderView,
+} from "@/store/sessionsStore";
+import { useAgentStore } from "@/store/agentStore";
+import {
+  sessionAgentView,
+  computeSessionSignal,
+  rollUpSignal,
+  signalReason,
+} from "@/sessions/sessionSignal";
 import { createAndActivateSession } from "@/lib/sessions/sessionEntryFlows";
 import { InlineRename } from "@/components/InlineRename";
 import { IconChevron, IconPlus } from "@/components/icons";
@@ -24,6 +36,26 @@ export function SessionGroup({ group }: Props) {
   const setLabel = useSessionsStore((s) => s.setGroupLabel);
   const purgeGroup = useSessionsStore((s) => s.purgeGroup);
   const [renaming, setRenaming] = useState(false);
+
+  // Collapsed-header roll-up (Plan 008): nothing needing you is ever hidden.
+  // A collapsed folder inherits its most-urgent child signal; expanded folders
+  // show nothing (the child rows carry their own indicators).
+  const agentPanes = useAgentStore((s) => s.panes);
+  const splitView = useSessionsStore((s) => s.splitView);
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId);
+  const rollUp = useMemo(() => {
+    if (!group.collapsed) return null;
+    const vis = { splitView, activeSessionId };
+    const signals = group.sessions.map((s) =>
+      computeSessionSignal({
+        visible: isSessionVisible(vis, s.id),
+        unread: s.unread,
+        working: s.working,
+        agentSignal: sessionAgentView(agentPanes, s).signal,
+      })
+    );
+    return rollUpSignal(signals);
+  }, [group.collapsed, group.sessions, agentPanes, splitView, activeSessionId]);
 
   const onHeaderClick = () => {
     if (renaming) return;
@@ -80,6 +112,11 @@ export function SessionGroup({ group }: Props) {
         ) : (
           <span className={styles.label} onDoubleClick={onLabelDoubleClick}>
             {group.label}
+          </span>
+        )}
+        {rollUp && (
+          <span className={styles.rollup}>
+            <SignalIndicator signal={rollUp} title={signalReason(rollUp, null)} />
           </span>
         )}
         <button

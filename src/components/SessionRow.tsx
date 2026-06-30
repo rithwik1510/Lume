@@ -1,6 +1,6 @@
 // SessionRow — one session inside a SessionGroup. Spec §6.3.
 
-import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import styles from "@/components/SessionRow.module.css";
 import {
   useSessionsStore,
@@ -10,9 +10,18 @@ import {
 } from "@/store/sessionsStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useContextMenuStore } from "@/store/contextMenuStore";
+import { useAgentStore } from "@/store/agentStore";
+import {
+  sessionAgentView,
+  computeSessionSignal,
+  signalReason,
+  agentLabel,
+  AGENT_GLYPH,
+} from "@/sessions/sessionSignal";
 import { revealInExplorer } from "@/lib/revealInExplorer";
 import { beginInternalSessionDrag } from "@/lib/internalSessionDrag";
 import { InlineRename } from "@/components/InlineRename";
+import { SignalIndicator } from "@/components/SignalIndicator";
 import { IconTrash } from "@/components/icons";
 
 interface Props {
@@ -35,21 +44,32 @@ export function SessionRow({ session }: Props) {
   const grouped = groupOf(splitGroups, session.id) !== null;
   const [renaming, setRenaming] = useState(false);
 
-  // Two signals (see attentionTracker.ts), needs-you trumping in-progress —
-  // and BOTH only for background sessions. The session you're viewing never
-  // signals: you can see the terminal itself, so a spinner/dot there is
-  // noise. (The store still tracks `working` for the active session — that's
-  // a fact; hiding it here is a presentation choice.)
-  //   unread  → accent dot ("finished / needs you")
-  //   working → tumbling logo square ("agent/command actively running")
-  // Otherwise: neutral filled dot for the session you're viewing, hollow for
-  // idle ones.
-  const working = !visible && !session.unread && session.working;
-  const dotClass = visible
-    ? styles.dotActive
-    : session.unread
-    ? styles.dotUnread
-    : styles.dotStopped;
+  // Class A (Plan 008): a live hooked agent in this session speaks its exact
+  // state. sessionAgentView aggregates the session's panes; computeSessionSignal
+  // ranks it against the heuristic working/unread flags. The visible session
+  // never signals (you can see the terminal), so it resolves to "active".
+  const agentPanes = useAgentStore((s) => s.panes);
+  const agentView = useMemo(
+    () => sessionAgentView(agentPanes, session),
+    [agentPanes, session]
+  );
+  const signal = computeSessionSignal({
+    visible,
+    unread: session.unread,
+    working: session.working,
+    agentSignal: agentView.signal,
+  });
+
+  // Indicator grammar (SessionRow.module.css documents the shape/saturation
+  // rules this EXTENDS): working = tumbling logo square; permission = hollow
+  // accent ring with the animated glow pulse (the urgent state is the one that
+  // moves); your-move = solid accent dot with a STATIC glow; idle = hollow
+  // grey; active (the session you're viewing) = neutral filled dot.
+  const reason = signalReason(signal, agentView.agent);
+  // The state name rides on the row's aria-label so the signal isn't
+  // colour/shape-only; the indicator itself stays aria-hidden (decorative).
+  const rowAriaLabel =
+    signal === "active" || signal === "idle" ? session.name : `${session.name} — ${reason}`;
 
   const onClick = () => {
     if (renaming) return;
@@ -112,6 +132,7 @@ export function SessionRow({ session }: Props) {
       }`}
       data-session-id={session.id}
       title={session.name}
+      aria-label={rowAriaLabel}
       onClick={onClick}
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
@@ -119,28 +140,10 @@ export function SessionRow({ session }: Props) {
       {/* Fixed-size slot so every state (circle dots, working box) occupies
         * identical space — the label never shifts when the state changes and
         * the indicator stays optically centred against the session name. */}
-      <span className={styles.indicator} aria-hidden="true">
-        {working ? (
-          /* The Lume mark, animated: logo box outline + the accent pane
-           * tumbling clockwise inside it (see SessionRow.module.css). SVG so
-           * the geometry is exact and crisp at any DPI scale. */
-          <svg className={styles.workingMark} viewBox="0 0 13 13">
-            <rect
-              className={styles.workingBox}
-              x="0.75"
-              y="0.75"
-              width="11.5"
-              height="11.5"
-              rx="3"
-              fill="none"
-              strokeWidth="1.5"
-            />
-            <rect className={styles.workingPane} x="2.25" y="2.25" width="4" height="4" rx="1.25" />
-          </svg>
-        ) : (
-          <span className={`${styles.dot} ${dotClass}`} />
-        )}
-      </span>
+      <SignalIndicator
+        signal={signal}
+        title={signal === "active" || signal === "idle" ? undefined : reason}
+      />
       {renaming ? (
         <InlineRename
           initial={session.name}
@@ -151,11 +154,24 @@ export function SessionRow({ session }: Props) {
           onCancel={() => setRenaming(false)}
         />
       ) : (
-        /* Keyed by name: a rename (manual or the legacy "New session" →
-         * "Session N" migration) remounts the span, replaying the short
-         * fade/slide-in so the new name visibly "arrives". */
-        <span key={session.name} className={styles.name} onDoubleClick={onDoubleClick}>
-          {session.name}
+        <span className={styles.nameWrap}>
+          {/* Keyed by name: a rename (manual or the legacy "New session" →
+           * "Session N" migration) remounts the span, replaying the short
+           * fade/slide-in so the new name visibly "arrives". */}
+          <span key={session.name} className={styles.name} onDoubleClick={onDoubleClick}>
+            {session.name}
+          </span>
+          {/* Agent identity glyph (Plan 008): muted, after the name. Answers
+           * "which agent lives here"; the left indicator keeps all colour/motion. */}
+          {agentView.agent && (
+            <span
+              className={styles.glyph}
+              aria-hidden="true"
+              title={agentLabel(agentView.agent)}
+            >
+              {AGENT_GLYPH[agentView.agent]}
+            </span>
+          )}
         </span>
       )}
       <button

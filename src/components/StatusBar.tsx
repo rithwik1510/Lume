@@ -15,7 +15,9 @@ import styles from "@/components/StatusBar.module.css";
 import { useMdStore } from "@/store/mdStore";
 import { useLayoutStore } from "@/store/layoutStore";
 import { usePtyStore } from "@/store/ptyStore";
-import { useSessionsStore } from "@/store/sessionsStore";
+import { useSessionsStore, isSessionVisible } from "@/store/sessionsStore";
+import { useAgentStore } from "@/store/agentStore";
+import { sessionAgentView, computeSessionSignal } from "@/sessions/sessionSignal";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { basename } from "@/lib/sessions/groupingHelpers";
 import { shellLabel } from "@/lib/shellsClient";
@@ -89,12 +91,41 @@ export function StatusBar() {
   ).length;
   const wsShort = shortName(workspaceFolder);
 
+  // Needs-you roll-up (Plan 008): across BACKGROUND sessions (the visible one
+  // never signals), count those blocked on permission vs waiting for your move.
+  // Informational here; click-to-jump is future routing work.
+  const sessions = useSessionsStore((s) => s.sessions);
+  const splitView = useSessionsStore((s) => s.splitView);
+  const agentPanes = useAgentStore((s) => s.panes);
+  let blockedCount = 0;
+  let yourMoveCount = 0;
+  for (const sess of Object.values(sessions)) {
+    const signal = computeSessionSignal({
+      visible: isSessionVisible({ splitView, activeSessionId }, sess.id),
+      unread: sess.unread,
+      working: sess.working,
+      agentSignal: sessionAgentView(agentPanes, sess).signal,
+    });
+    if (signal === "permission") blockedCount++;
+    else if (signal === "your-move") yourMoveCount++;
+  }
+
   return (
     <div className={styles.root} aria-label="Status Bar">
       <div className={styles.left} title={left}>
         {left}
       </div>
       <div className={styles.right}>
+        {(blockedCount > 0 || yourMoveCount > 0) && (
+          <span
+            className={styles.needsYou}
+            title={`${blockedCount} waiting on permission, ${yourMoveCount} your move`}
+            aria-label={`${blockedCount} blocked on permission, ${yourMoveCount} awaiting your move`}
+          >
+            {blockedCount > 0 && <span className={styles.blocked}>{`◎ ${blockedCount}`}</span>}
+            {yourMoveCount > 0 && <span className={styles.yourMove}>{`● ${yourMoveCount}`}</span>}
+          </span>
+        )}
         <span className={styles.workspace}>{wsShort}</span>
         {runningCount > 0 && (
           <>
