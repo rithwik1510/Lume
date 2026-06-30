@@ -37,6 +37,7 @@ import { ingest, forget as forgetRenderSink } from "@/terminals/renderSink";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
 import { detectShells, configIdMatchesShell } from "@/lib/shellsClient";
 import { noteOutput, forgetPane, disposeAttentionTracker } from "@/sessions/attentionTracker";
+import { forgetPaneAgent } from "@/sessions/agentTracker";
 import { onCommandEvent, paneCommandState } from "@/sessions/commandTracker";
 import { useSettingsStore } from "@/store/settingsStore";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
@@ -66,6 +67,7 @@ export async function changeShell(paneId: PaneId, shell: Shell): Promise<void> {
   // meant for the OLD shell, not whatever the user just switched to.
   cancelStartupAutorun(paneId);
   forgetPane(paneId);
+  forgetPaneAgent(paneId);
   await spawnPane(paneId, shell);
 }
 
@@ -247,6 +249,7 @@ async function killPane(paneId: PaneId): Promise<void> {
   forgetRenderSink(paneId);
   usePtyStore.getState().removePane(paneId);
   forgetPane(paneId);
+  forgetPaneAgent(paneId);
 }
 
 // ---------------------------------------------------------------------------

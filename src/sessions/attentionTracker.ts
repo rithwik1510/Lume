@@ -104,6 +104,24 @@ const mutedUntil = new Map<PaneId, number>();
 /** First-note-of-a-possible-stream stamps (see SUSTAIN_MS). */
 const streamCandidateAt = new Map<PaneId, number>();
 
+// --- Class A: deterministic agent signals (Plan 008) --------------------------
+// A pane with a live hooked agent (SessionStart seen, no SessionEnd) is OWNED by
+// the agentTracker: it announces every state transition exactly, so the cadence
+// heuristic (class C) and OSC 133 (class B) are IGNORED for that pane while the
+// agent lives — no more guessing "working" from output timing. On SessionEnd the
+// pane leaves these sets and the heuristic tiers resume. The needs-you visual for
+// agents is carried by agentStore (the deterministic signal class the sidebar
+// renders with priority); here class A only owns the pane's `working` fact.
+/** Panes with a live hooked agent — cadence + 133 are suppressed for these. */
+const agentOwnedPanes = new Set<PaneId>();
+/** Agent-owned panes whose agent is mid-turn (folded into session `working`). */
+const agentWorkingPanes = new Set<PaneId>();
+
+/** True while a hooked agent lives in this pane (agentTracker is authoritative). */
+export function paneHasLiveAgent(paneId: PaneId): boolean {
+  return agentOwnedPanes.has(paneId);
+}
+
 // pane → owning session cache. Any sessions-slice change invalidates it
 // (layout edits are rare next to PTY chunks, so this trades a cheap clear
 // for not tree-walking every session on every output chunk).
@@ -165,7 +183,8 @@ function recomputeWorking(sid: SessionId): void {
   let working = false;
   if (session.layoutRoot) {
     for (const paneId of treeLeaves(session.layoutRoot)) {
-      if (streamingPanes.has(paneId)) {
+      // OR over cadence-streaming (class C) AND agent-working (class A) panes.
+      if (streamingPanes.has(paneId) || agentWorkingPanes.has(paneId)) {
         working = true;
         break;
       }
@@ -211,6 +230,9 @@ function armQuietTimer(paneId: PaneId, sid: SessionId): void {
 // ---------------------------------------------------------------------------
 
 onCommandEvent((evt) => {
+  // Class A outranks OSC 133 (class B): a hooked agent owns its pane's signals.
+  // (Claude runs as one long command, so 133 C/D can't mark turns inside it.)
+  if (agentOwnedPanes.has(evt.paneId)) return;
   const sid = sessionIdFor(evt.paneId);
   if (!sid) return;
   const store = useSessionsStore.getState();
@@ -277,6 +299,8 @@ export function muteOutput(paneId: PaneId, ms: number = RESIZE_MUTE_MS): void {
 }
 
 export function noteOutput(paneId: PaneId): void {
+  // Class A: a hooked agent owns this pane — cadence noise is ignored entirely.
+  if (agentOwnedPanes.has(paneId)) return;
   const now = Date.now();
 
   // Noise filters first (before the throttle stamp, so the first REAL chunk
@@ -346,6 +370,45 @@ export function noteOutput(paneId: PaneId): void {
 }
 
 // ---------------------------------------------------------------------------
+// Class A — deterministic agent signals (driven by sessions/agentTracker)
+// ---------------------------------------------------------------------------
+
+/** A hooked agent's session began/ended in this pane. While active, class A
+ *  owns the pane: any pending cadence guess is retired so it can't fire a
+ *  stale spinner/dot, and future cadence/133 for the pane is ignored. */
+export function setAgentActive(paneId: PaneId, active: boolean): void {
+  const sid = sessionIdFor(paneId);
+  if (active) {
+    agentOwnedPanes.add(paneId);
+    // Retire cadence state so a pending quiet-timer can't fire a guessed dot.
+    clearQuietTimer(paneId);
+    streamingPanes.delete(paneId);
+    quietWhileRunning.delete(paneId);
+    streamCandidateAt.delete(paneId);
+  } else {
+    agentOwnedPanes.delete(paneId);
+    agentWorkingPanes.delete(paneId);
+  }
+  if (sid) recomputeWorking(sid);
+}
+
+/** The agent in this pane started (true) or ended (false) a turn. Drives the
+ *  session's `working` fact deterministically. A fresh turn clears any stale
+ *  heuristic dot (mirrors OSC 133 command-start). */
+export function noteAgentWorking(paneId: PaneId, isWorking: boolean): void {
+  const sid = sessionIdFor(paneId);
+  if (!sid) return;
+  if (isWorking) {
+    agentWorkingPanes.add(paneId);
+    const store = useSessionsStore.getState();
+    if (store.sessions[sid]?.unread) store.clearUnread(sid);
+  } else {
+    agentWorkingPanes.delete(paneId);
+  }
+  recomputeWorking(sid);
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
@@ -358,6 +421,8 @@ export function forgetPane(paneId: PaneId): void {
   lastNoteAt.delete(paneId);
   mutedUntil.delete(paneId);
   streamCandidateAt.delete(paneId);
+  agentOwnedPanes.delete(paneId);
+  agentWorkingPanes.delete(paneId);
   paneSessionCache.delete(paneId);
   forgetPaneCommandState(paneId);
   if (sid) recomputeWorking(sid);
@@ -372,6 +437,8 @@ export function disposeAttentionTracker(): void {
   lastNoteAt.clear();
   mutedUntil.clear();
   streamCandidateAt.clear();
+  agentOwnedPanes.clear();
+  agentWorkingPanes.clear();
   backgroundedAt.clear();
   paneSessionCache.clear();
 }

@@ -32,6 +32,7 @@ import { Toaster } from "@/components/Toaster";
 import { TopBar } from "@/components/TopBar";
 import { beginResize, endResize } from "@/components/resizeBus";
 import { installBranchPoller } from "@/sessions/branchPoller";
+import { installAgentTracker } from "@/sessions/agentTracker";
 import { onCommandEvent } from "@/sessions/commandTracker";
 import { runMigrationIfNeeded } from "@/sessions/migration";
 import { leaves } from "@/store/layout/tree";
@@ -92,6 +93,10 @@ export default function App() {
     // exist; seeds visibility immediately and tracks it thereafter.
     const disposeGovernor = installRenderGovernor();
     const disposePoller = installBranchPoller();
+    // Deterministic agent-state detection (Plan 008): subscribe to the Rust
+    // `agent-event` stream so hooked Claude Code sessions drive the sidebar's
+    // precise signals instead of the output-cadence guess.
+    const disposeAgentTracker = installAgentTracker();
     let cancelResume: (() => void) | undefined;
 
     const bootstrap = async () => {
@@ -171,6 +176,7 @@ export default function App() {
     return () => {
       if (unsubFinishHydration) unsubFinishHydration();
       cancelResume?.();
+      disposeAgentTracker();
       disposePoller();
       disposeGovernor();
       dispose();

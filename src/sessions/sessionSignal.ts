@@ -1,0 +1,100 @@
+// sessionSignal — the single place that ranks a session's sidebar signal, so
+// SessionRow, SessionGroup's collapsed-header roll-up, and the StatusBar
+// needs-you roll-up all agree (Plan 008 locked Design).
+//
+// Priority (most urgent first): permission > your-move (turn-complete/idle) >
+// working > idle — today's "unread trumps working" generalized. The visible
+// session NEVER signals (you can see the terminal), so it always resolves to
+// "active" regardless of what its agents are doing.
+
+import { leaves as treeLeaves } from "@/store/layout/tree";
+import type { Session } from "@/store/sessionsStore";
+import type { AgentName, AgentPhase, PaneAgent } from "@/store/agentStore";
+import type { PaneId } from "@/types";
+
+/** The agent-derived part of a session's signal (class A). `null` = no live
+ *  agent needs anything (idle or none) — the heuristic tiers show through. */
+export type AgentSignal = "working" | "permission" | "your-move";
+
+export interface SessionAgentView {
+  /** Identity glyph fuel: the agent living in this session, or null if none. */
+  agent: AgentName | null;
+  /** Most-urgent agent signal across the session's panes, or null. */
+  signal: AgentSignal | null;
+}
+
+const PHASE_RANK: Record<AgentPhase, number> = {
+  permission: 3,
+  "your-move": 2,
+  working: 1,
+  idle: 0,
+};
+
+/** Aggregate a session's panes into one agent view. `agent` is set whenever any
+ *  pane has a known agent (even idle — the glyph shows once identity is known);
+ *  `signal` is the most-urgent non-idle phase, or null. */
+export function sessionAgentView(
+  panes: Record<PaneId, PaneAgent>,
+  session: Pick<Session, "layoutRoot">
+): SessionAgentView {
+  if (!session.layoutRoot) return { agent: null, signal: null };
+  let agent: AgentName | null = null;
+  let best: PaneAgent | null = null;
+  for (const paneId of treeLeaves(session.layoutRoot)) {
+    const pa = panes[paneId];
+    if (!pa) continue;
+    agent = pa.agent;
+    if (best === null || PHASE_RANK[pa.phase] > PHASE_RANK[best.phase]) best = pa;
+  }
+  const signal: AgentSignal | null =
+    best && best.phase !== "idle" ? (best.phase as AgentSignal) : null;
+  return { agent, signal };
+}
+
+/** The final indicator a sidebar row/roll-up should render. */
+export type SidebarSignal = "active" | "permission" | "your-move" | "working" | "idle";
+
+/** Rank agent (class A) + heuristic (class B/C) inputs into one indicator.
+ *  Visible sessions never signal. Agent signals outrank the heuristic flags. */
+export function computeSessionSignal(input: {
+  visible: boolean;
+  unread: boolean;
+  working: boolean;
+  agentSignal: AgentSignal | null;
+}): SidebarSignal {
+  if (input.visible) return "active";
+  if (input.agentSignal === "permission") return "permission";
+  if (input.agentSignal === "your-move" || input.unread) return "your-move";
+  if (input.agentSignal === "working" || input.working) return "working";
+  return "idle";
+}
+
+/** Human reason shown in tooltips / aria-labels for each signal. */
+export function signalReason(signal: SidebarSignal, agent: AgentName | null): string {
+  const who = agent ? agentLabel(agent) : "";
+  switch (signal) {
+    case "permission":
+      return who ? `${who} — waiting on permission` : "waiting on permission";
+    case "your-move":
+      return who ? `${who} — turn complete` : "finished — needs you";
+    case "working":
+      return who ? `${who} — working` : "working";
+    case "active":
+      return "viewing";
+    case "idle":
+      return "idle";
+  }
+}
+
+/** Muted glyph shown after the session name once the agent is identified.
+ *  Same glyphs the website/video use. Extends trivially to other agents. */
+export const AGENT_GLYPH: Record<AgentName, string> = {
+  claude: "✻",
+};
+
+export function agentLabel(agent: AgentName): string {
+  switch (agent) {
+    case "claude":
+      return "Claude";
+  }
+}
