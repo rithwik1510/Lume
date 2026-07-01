@@ -94,6 +94,14 @@ _Avoid_: Window (Lume has one Window; Tabs are inside it), session, project.
 The horizontal strip across the top of the Lume that displays one chip per open Tab, plus a "+" button to create a new Tab. Active Tab is highlighted. Click a chip to switch. Click X on a chip to close (with confirm if any of that Tab's Panes have active child processes). **Not in v0.1.**
 _Avoid_: Tab bar, navigation, header.
 
+**Agent Session** (hook-tracked):
+The run of a coding agent (Claude Code in v0.1) inside one Terminal Pane, tracked exactly via agent hooks. When **Precise Claude Code signals** is enabled (Settings → Agents), Lume installs Claude Code hooks into `~/.claude/settings.json`; a `claude` launched in a Lume Terminal then announces every lifecycle transition — SessionStart, UserPromptSubmit, Notification (permission / idle), Stop, SessionEnd — tagged with the pane it runs in (via the `LUME_PANE_ID` env var). Lume turns those into the pane's exact **agent state**: working, waiting on permission, turn complete / your move, or gone. This is deterministic ground truth (the "class A" signal): it outranks the OSC 133 command lifecycle and the output-cadence guess, which remain the fallback for shells and agents without hooks.
+_Avoid_: Chat, conversation, thread (an Agent Session is the agent's run inside a pane, not its transcript).
+
+**Session Signal** (sidebar indicator):
+The single indicator a session row shows for a *background* session, ranked most-urgent first: **waiting on permission** (hollow accent ring with a glow pulse — an open question waiting for YOU to answer), **your move** (solid accent dot with a steady glow — a finished turn / the agent is waiting at its prompt; Stop and idle notifications collapse here), **working** (the tumbling logo square — a turn is in progress), and **idle** (hollow grey dot — open, nothing running). The session you're viewing never signals (you can see the terminal). Priority is `permission > your-move > working > idle`. A collapsed folder header inherits its most-urgent child's signal, and the Status Bar rolls up the blocked (`◎`) + your-move (`●`) counts across background sessions. The full legend lives in the Ctrl+? shortcuts modal. An agent-identity glyph (Claude `✻`) sits after the session name once the agent is known.
+_Avoid_: Badge, notification, alert (the signal is state, not an event); "status dot" (ambiguous with the process indicator).
+
 ## Lume surfaces (top-level UI structure)
 
 ```

@@ -4,6 +4,33 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Lume learns exactly what your agents are doing.
+
+### Added
+- **Precise Claude Code signals (opt-in).** A new Settings → Agents toggle
+  installs Claude Code lifecycle hooks into `~/.claude/settings.json` so Lume
+  knows each agent's *exact* state per pane — working, blocked on a permission
+  prompt, or turn-complete/your-move — instead of guessing from output
+  cadence. The merge is additive (your existing hooks and settings are
+  preserved), atomic, and fully reversible from the same toggle; a canary
+  warning surfaces if the hooks are installed but never fire (older Claude Code
+  versions). Panes are tagged with `LUME_PANE_ID` at spawn (crossing the
+  Win32→WSL boundary via `WSLENV`), and a tiny shim spools each hook event to
+  `%APPDATA%\lume\agent-events` for a Rust watcher to read.
+- **Sidebar signals got precise.** A background session now shows a hollow
+  accent ring with a glow pulse when its agent is *waiting on your permission*,
+  a solid accent dot with a steady glow when it's *your move* (turn complete),
+  the tumbling square while *working*, and a hollow grey dot when idle —
+  ranked `permission > your-move > working > idle`. An agent-identity glyph
+  (Claude `✻`) sits after the session name.
+- **Nothing needing you stays hidden.** Collapsed folder headers inherit their
+  most-urgent child's signal, and the status bar rolls up the blocked (`◎`)
+  and your-move (`●`) counts across background sessions.
+- **A Signals legend** in the `Ctrl+?` shortcuts modal, plus exact-reason
+  tooltips and state-named row labels for screen readers.
+
 ## [0.1.0-beta.9] — 2026-06-29
 
 A real markdown editor and a terminal you can trust with the clipboard.

@@ -77,6 +77,9 @@ One window. Tiled terminals that don't tear when every pane streams at once. A m
 ### 05 · Themes
 **Four palettes. One aesthetic.** Dark, always. Same geometry and motion — only the colour shifts. They all ship in the app.
 
+### 06 · Agent awareness
+**Know exactly what each agent is doing — without guessing.** Turn on **Precise Claude Code signals** (Settings → Agents) and Lume installs Claude Code hooks so every session announces its own state. A background pane's dot then means something exact: a hollow accent ring when the agent is *blocked on a permission prompt*, a steady accent dot when a *turn is complete and it's your move*, the tumbling square while it's *working*. Blocked and your-move counts roll up into the status bar, so nothing needing you is ever hidden. Opt-in, additive, and fully reversible — it merges into `~/.claude/settings.json` and removes itself cleanly.
+
 <p align="center">
   <img src="./assets/themes.svg" alt="Lume theme palettes — Cobalt, Coral, Tokyo Night, Gruvbox" width="100%" />
 </p>
@@ -125,12 +128,14 @@ Press `Ctrl+E` to open the markdown editor, or `Ctrl+Shift+M` for the Quick View
 
 ### 5. Read the attention signals
 
-Each pane shows an honest per-session status dot so you can leave agents running and still know which one needs you:
+Each background session shows one honest signal so you can leave agents running and still know which one needs you:
 
-- **Spinner** while a background agent or command is working
-- **Accent dot** when a turn finishes or the agent blocks for input
+- **Tumbling square** while a background agent or command is working
+- **Solid accent dot** (steady glow) when a turn finishes — your move
+- **Hollow accent ring** (glow pulse) when an agent is blocked on a permission prompt
+- **Hollow grey dot** when idle
 
-This is driven by **shell-reported command lifecycle** (FinalTerm / OSC 133) injected into your shell — not a guess from output silence. Switching or resizing panes won't fake a signal.
+With **Precise Claude Code signals** enabled (Settings → Agents), these come straight from Claude Code's own lifecycle hooks — the exact state, per pane, including the mid-turn *"blocked on permission"* moment no heuristic can see. Without hooks (or for other shells and agents), Lume falls back to **shell-reported command lifecycle** (FinalTerm / OSC 133) and output cadence. Either way, switching or resizing panes won't fake a signal, and the session you're looking at never nags. The full legend is in the `Ctrl+?` shortcuts modal.
 
 ### 6. Close and come back
 
