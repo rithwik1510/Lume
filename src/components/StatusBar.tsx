@@ -11,6 +11,8 @@
 // v0.1 limitation: "running" means "PTY is alive", not "shell is in a
 // foreground program". OSC 7 shell-integration (v0.2) refines this.
 
+import { useMemo } from "react";
+
 import styles from "@/components/StatusBar.module.css";
 import { useMdStore } from "@/store/mdStore";
 import { useLayoutStore } from "@/store/layoutStore";
@@ -97,18 +99,24 @@ export function StatusBar() {
   const sessions = useSessionsStore((s) => s.sessions);
   const splitView = useSessionsStore((s) => s.splitView);
   const agentPanes = useAgentStore((s) => s.panes);
-  let blockedCount = 0;
-  let yourMoveCount = 0;
-  for (const sess of Object.values(sessions)) {
-    const signal = computeSessionSignal({
-      visible: isSessionVisible({ splitView, activeSessionId }, sess.id),
-      unread: sess.unread,
-      working: sess.working,
-      agentSignal: sessionAgentView(agentPanes, sess).signal,
-    });
-    if (signal === "permission") blockedCount++;
-    else if (signal === "your-move") yourMoveCount++;
-  }
+  // Memoized: the StatusBar already re-renders on every ptyStore change (the
+  // audited wide-subscription hot path), and this count only depends on the
+  // session/agent slices — don't recount the fleet for unrelated renders.
+  const [blockedCount, yourMoveCount] = useMemo(() => {
+    let blocked = 0;
+    let yourMove = 0;
+    for (const sess of Object.values(sessions)) {
+      const signal = computeSessionSignal({
+        visible: isSessionVisible({ splitView, activeSessionId }, sess.id),
+        unread: sess.unread,
+        working: sess.working,
+        agentSignal: sessionAgentView(agentPanes, sess).signal,
+      });
+      if (signal === "permission") blocked++;
+      else if (signal === "your-move") yourMove++;
+    }
+    return [blocked, yourMove] as const;
+  }, [sessions, splitView, activeSessionId, agentPanes]);
 
   return (
     <div className={styles.root} aria-label="Status Bar">
