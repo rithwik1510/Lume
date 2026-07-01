@@ -42,6 +42,14 @@ interface AgentStoreState {
   setPaneAgent: (paneId: PaneId, agent: PaneAgent) => void;
   removePaneAgent: (paneId: PaneId) => void;
   markSessionStart: () => void;
+  /** View-acknowledgment (mirrors activateSession's `unread = false`): a
+   *  "your move" you've now seen calms back to idle. Permission is exempt —
+   *  a still-blocked agent is still urgent, so it never acknowledges. */
+  acknowledgeYourMove: (paneIds: PaneId[]) => void;
+  /** Cadence-assisted exit from the blocked state (attentionTracker): the
+   *  approval of a permission prompt fires no hook event until the turn ends,
+   *  so sustained output while "permission" means the block is over. */
+  demotePermissionToWorking: (paneId: PaneId) => void;
   reset: () => void;
 }
 
@@ -60,6 +68,18 @@ export const useAgentStore = create<AgentStoreState>()(
     markSessionStart: () =>
       set((s) => {
         s.sawSessionStart = true;
+      }),
+    acknowledgeYourMove: (paneIds) =>
+      set((s) => {
+        for (const paneId of paneIds) {
+          const pa = s.panes[paneId];
+          if (pa?.phase === "your-move") pa.phase = "idle";
+        }
+      }),
+    demotePermissionToWorking: (paneId) =>
+      set((s) => {
+        const pa = s.panes[paneId];
+        if (pa?.phase === "permission") pa.phase = "working";
       }),
     reset: () =>
       set((s) => {

@@ -156,6 +156,102 @@ describe("agentTracker — tolerance", () => {
   });
 });
 
+describe("agentTracker — your-move acknowledgment (viewing calms the dot)", () => {
+  it("a Stop on the session you're viewing lands idle, not your-move", () => {
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+    applyAgentEvent(ev("pane-fg", "SessionStart"));
+    applyAgentEvent(ev("pane-fg", "UserPromptSubmit"));
+    applyAgentEvent(ev("pane-fg", "Stop"));
+    // You watched the turn complete — no dot debt to carry into the sidebar.
+    expect(phase("pane-fg")).toBe("idle");
+  });
+
+  it("a hidden your-move lights, then calms the moment the session is viewed", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    applyAgentEvent(ev("pane-bg", "Stop"));
+    expect(phase("pane-bg")).toBe("your-move");
+
+    useSessionsStore.getState().activateSession(bg); // view it
+    expect(phase("pane-bg")).toBe("idle"); // acknowledged — won't relight on switch-away
+  });
+
+  it("permission is NOT acknowledgeable by viewing — still blocked, still urgent", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    applyAgentEvent(ev("pane-bg", "UserPromptSubmit"));
+    applyAgentEvent(ev("pane-bg", "Notification", { kind: "permission_prompt" }));
+    expect(phase("pane-bg")).toBe("permission");
+
+    useSessionsStore.getState().activateSession(bg); // viewing doesn't unblock it
+    expect(phase("pane-bg")).toBe("permission");
+  });
+});
+
+describe("agentTracker — permission exits on sustained output", () => {
+  // Approving a permission prompt fires no hook event until the turn ends, so
+  // sustained output is the exit: demote to working, never leave the urgent
+  // ring lying for the rest of the turn.
+  it("two chunks within the sustain window demote permission → working", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    applyAgentEvent(ev("pane-bg", "UserPromptSubmit"));
+    applyAgentEvent(ev("pane-bg", "Notification", { kind: "permission_prompt" }));
+    expect(working(bg)).toBe(false);
+
+    streamOutput("pane-bg"); // the approved tool starts streaming
+    expect(phase("pane-bg")).toBe("working");
+    expect(working(bg)).toBe(true);
+
+    // The exact events still own the pane: the turn's Stop lands normally.
+    applyAgentEvent(ev("pane-bg", "Stop"));
+    expect(phase("pane-bg")).toBe("your-move");
+    expect(working(bg)).toBe(false);
+  });
+
+  it("an isolated chunk (idle repaint) does not unblock the ring", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    applyAgentEvent(ev("pane-bg", "Notification", { kind: "permission_prompt" }));
+
+    noteOutput("pane-bg"); // one lonely repaint
+    expect(phase("pane-bg")).toBe("permission");
+
+    // Another lone chunk far outside the sustain window re-arms, nothing more.
+    vi.advanceTimersByTime(3000);
+    noteOutput("pane-bg");
+    expect(phase("pane-bg")).toBe("permission");
+    expect(working(bg)).toBe(false);
+  });
+
+  it("your-move panes ignore output entirely (no phantom working)", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    applyAgentEvent(ev("pane-bg", "Stop"));
+    expect(phase("pane-bg")).toBe("your-move");
+
+    streamOutput("pane-bg"); // scrollback echoes, repaints — not a turn
+    expect(phase("pane-bg")).toBe("your-move");
+    expect(working(bg)).toBe(false);
+  });
+});
+
 describe("agentTracker — class-A ownership over cadence", () => {
   it("suppresses cadence while the agent lives, resumes it after SessionEnd", () => {
     const bg = sessionWithPane("/bg", "pane-bg");

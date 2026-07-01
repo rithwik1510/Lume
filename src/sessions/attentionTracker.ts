@@ -41,6 +41,7 @@ import {
   type SessionId,
 } from "@/store/sessionsStore";
 import { leaves as treeLeaves } from "@/store/layout/tree";
+import { useAgentStore } from "@/store/agentStore";
 import {
   onCommandEvent,
   paneCommandState,
@@ -116,6 +117,16 @@ const streamCandidateAt = new Map<PaneId, number>();
 const agentOwnedPanes = new Set<PaneId>();
 /** Agent-owned panes whose agent is mid-turn (folded into session `working`). */
 const agentWorkingPanes = new Set<PaneId>();
+/** Agent-owned panes currently blocked on a permission prompt. The ONE case
+ *  where an owned pane still listens to output: approving the prompt fires no
+ *  hook event until the turn ends (Stop), so sustained output is the exit
+ *  signal — demote to working rather than leave the urgent ring lying for the
+ *  rest of the turn. Fails toward the calmer state; the next exact event
+ *  corrects any mistake. */
+const permissionPanes = new Set<PaneId>();
+/** First-note stamps for the permission-exit sustain gate (same two-chunks-
+ *  within-SUSTAIN_MS rule as streaming, so idle repaints can't unblock). */
+const permissionCandidateAt = new Map<PaneId, number>();
 
 /** True while a hooked agent lives in this pane (agentTracker is authoritative). */
 export function paneHasLiveAgent(paneId: PaneId): boolean {
@@ -299,8 +310,11 @@ export function muteOutput(paneId: PaneId, ms: number = RESIZE_MUTE_MS): void {
 }
 
 export function noteOutput(paneId: PaneId): void {
-  // Class A: a hooked agent owns this pane — cadence noise is ignored entirely.
-  if (agentOwnedPanes.has(paneId)) return;
+  // Class A: a hooked agent owns this pane — cadence noise is ignored entirely,
+  // EXCEPT while blocked on permission (see permissionPanes): that state's only
+  // exit before turn-end is output resuming, so those panes fall through to the
+  // shared noise filters + the permission-exit sustain gate below.
+  if (agentOwnedPanes.has(paneId) && !permissionPanes.has(paneId)) return;
   const now = Date.now();
 
   // Noise filters first (before the throttle stamp, so the first REAL chunk
@@ -322,6 +336,23 @@ export function noteOutput(paneId: PaneId): void {
   const prev = lastNoteAt.get(paneId);
   if (prev !== undefined && now - prev < OUTPUT_THROTTLE_MS) return;
   lastNoteAt.set(paneId, now);
+
+  // Permission-exit gate (the only agent-owned path that reaches here): two
+  // chunks within SUSTAIN_MS = the prompt was answered and the turn resumed.
+  // An isolated chunk (idle repaint) arms a candidate and does nothing.
+  if (permissionPanes.has(paneId)) {
+    const candidate = permissionCandidateAt.get(paneId);
+    if (candidate === undefined || now - candidate > SUSTAIN_MS) {
+      permissionCandidateAt.set(paneId, now);
+      return;
+    }
+    permissionCandidateAt.delete(paneId);
+    permissionPanes.delete(paneId);
+    useAgentStore.getState().demotePermissionToWorking(paneId);
+    agentWorkingPanes.add(paneId);
+    recomputeWorking(sid);
+    return;
+  }
 
   const store = useSessionsStore.getState();
 
@@ -388,8 +419,21 @@ export function setAgentActive(paneId: PaneId, active: boolean): void {
   } else {
     agentOwnedPanes.delete(paneId);
     agentWorkingPanes.delete(paneId);
+    permissionPanes.delete(paneId);
+    permissionCandidateAt.delete(paneId);
   }
   if (sid) recomputeWorking(sid);
+}
+
+/** The agent in this pane hit (true) or left (false) a permission block —
+ *  keeps the permission-exit output gate in sync with agentStore's phase. */
+export function noteAgentPermission(paneId: PaneId, blocked: boolean): void {
+  if (blocked) {
+    permissionPanes.add(paneId);
+  } else {
+    permissionPanes.delete(paneId);
+    permissionCandidateAt.delete(paneId);
+  }
 }
 
 /** The agent in this pane started (true) or ended (false) a turn. Drives the
@@ -423,6 +467,8 @@ export function forgetPane(paneId: PaneId): void {
   streamCandidateAt.delete(paneId);
   agentOwnedPanes.delete(paneId);
   agentWorkingPanes.delete(paneId);
+  permissionPanes.delete(paneId);
+  permissionCandidateAt.delete(paneId);
   paneSessionCache.delete(paneId);
   forgetPaneCommandState(paneId);
   if (sid) recomputeWorking(sid);
@@ -439,6 +485,8 @@ export function disposeAttentionTracker(): void {
   streamCandidateAt.clear();
   agentOwnedPanes.clear();
   agentWorkingPanes.clear();
+  permissionPanes.clear();
+  permissionCandidateAt.clear();
   backgroundedAt.clear();
   paneSessionCache.clear();
 }
