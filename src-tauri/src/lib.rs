@@ -1,6 +1,7 @@
 // Lume Rust entry point.
 
 pub mod agent_events;
+pub mod claude_hooks;
 pub mod config;
 pub mod error;
 pub mod file_watcher;
@@ -101,6 +102,9 @@ pub fn run() {
             crate::config::config_file_path,
             crate::config::set_config_value,
             crate::git::git_current_branch,
+            crate::claude_hooks::claude_hooks_status,
+            crate::claude_hooks::install_claude_hooks,
+            crate::claude_hooks::uninstall_claude_hooks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running lume");

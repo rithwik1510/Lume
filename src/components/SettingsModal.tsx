@@ -15,6 +15,13 @@ import { Dropdown } from "@/components/settings/Dropdown";
 import { Segmented } from "@/components/settings/Segmented";
 import { ChipList } from "@/components/settings/ChipList";
 import { configFilePath } from "@/lib/configClient";
+import {
+  claudeHooksStatus,
+  installClaudeHooks,
+  uninstallClaudeHooks,
+} from "@/lib/claudeHooksClient";
+import { useAgentStore } from "@/store/agentStore";
+import { useToastStore } from "@/store/toastStore";
 import { useMdStore } from "@/store/mdStore";
 import { detectShells, shellLabel, shellToConfigId } from "@/lib/shellsClient";
 import type { Shell } from "@/types";
@@ -27,6 +34,7 @@ const CATEGORIES: { id: SettingsCategory; label: string }[] = [
   { id: "terminal", label: "Terminal" },
   { id: "editor", label: "Editor" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "agents", label: "Agents" },
 ];
 
 // Theme presets — the four curated palettes that ship in v0.2. Swatch color
@@ -55,6 +63,38 @@ export function SettingsModal() {
     if (!open) return;
     void detectShells().then(setShells).catch(() => setShells([]));
   }, [open]);
+
+  // "Precise Claude Code signals" toggle (Plan 008 §5). `hooksInstalled` is the
+  // on-disk truth (our shim path is the marker in ~/.claude/settings.json), not
+  // a persisted preference — re-queried each time the modal opens.
+  const [hooksInstalled, setHooksInstalled] = useState<boolean | null>(null);
+  const [hooksBusy, setHooksBusy] = useState(false);
+  const sawSessionStart = useAgentStore((s) => s.sawSessionStart);
+  useEffect(() => {
+    if (!open) return;
+    void claudeHooksStatus()
+      .then(setHooksInstalled)
+      .catch(() => setHooksInstalled(null));
+  }, [open]);
+
+  const toggleHooks = (next: boolean) => {
+    if (hooksBusy) return;
+    setHooksBusy(true);
+    setHooksInstalled(next); // optimistic
+    const op = next ? installClaudeHooks() : uninstallClaudeHooks();
+    void op
+      .then(() => claudeHooksStatus().then(setHooksInstalled))
+      .catch((err) => {
+        setHooksInstalled(!next); // revert
+        useToastStore.getState().push({
+          severity: "error",
+          message: `Couldn't ${next ? "enable" : "disable"} Claude Code signals: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        });
+      })
+      .finally(() => setHooksBusy(false));
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -216,6 +256,32 @@ export function SettingsModal() {
                   <ChipList ariaLabel="Collapsed directories" values={config.sidebar.collapsed_dirs}
                     onChange={(v) => set("sidebar.collapsed_dirs", v)} />
                 } />
+            )}
+
+            {category === "agents" && (
+              <>
+                <SettingRow
+                  label="Precise Claude Code signals"
+                  description="Install Claude Code hooks so Lume knows each agent's exact state (working, blocked on permission, turn complete) instead of guessing from output. Merges additively into ~/.claude/settings.json and can be removed here."
+                  control={
+                    <Toggle
+                      ariaLabel="Precise Claude Code signals"
+                      checked={hooksInstalled === true}
+                      onChange={toggleHooks}
+                    />
+                  }
+                />
+                {hooksInstalled === true &&
+                  (sawSessionStart ? (
+                    <p className={styles.hint}>Active — receiving Claude Code signals.</p>
+                  ) : (
+                    <p className={styles.hintWarn}>
+                      Hooks installed, but no Claude Code session has been detected yet. Launch{" "}
+                      <code>claude</code> in a Lume terminal to confirm — if signals never appear,
+                      your Claude Code version may not support hooks.
+                    </p>
+                  ))}
+              </>
             )}
           </div>
         </div>

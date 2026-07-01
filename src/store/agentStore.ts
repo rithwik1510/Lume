@@ -35,14 +35,20 @@ export interface PaneAgent {
 
 interface AgentStoreState {
   panes: Record<PaneId, PaneAgent>;
+  /** Canary (Plan 008 §5): flips true the first time ANY SessionStart arrives.
+   *  If the hooks are installed but this stays false after a Claude Code launch,
+   *  the settings toggle shows the "hooks not detected" warning. */
+  sawSessionStart: boolean;
   setPaneAgent: (paneId: PaneId, agent: PaneAgent) => void;
   removePaneAgent: (paneId: PaneId) => void;
+  markSessionStart: () => void;
   reset: () => void;
 }
 
 export const useAgentStore = create<AgentStoreState>()(
   immer((set) => ({
     panes: {},
+    sawSessionStart: false,
     setPaneAgent: (paneId, agent) =>
       set((s) => {
         s.panes[paneId] = agent;
@@ -51,9 +57,14 @@ export const useAgentStore = create<AgentStoreState>()(
       set((s) => {
         delete s.panes[paneId];
       }),
+    markSessionStart: () =>
+      set((s) => {
+        s.sawSessionStart = true;
+      }),
     reset: () =>
       set((s) => {
         s.panes = {};
+        s.sawSessionStart = false;
       }),
   }))
 );

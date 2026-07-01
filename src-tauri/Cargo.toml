@@ -20,7 +20,9 @@ tauri-plugin-shell = "2.0"
 tauri-plugin-store = "2.1"
 tauri-plugin-dialog = "2.0"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# preserve_order keeps existing settings.json key order on round-trip so our
+# additive hook merge minimally perturbs a file we don't own (Plan 008 §5).
+serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2.0"
 log = "0.4"
 portable-pty = "0.8"

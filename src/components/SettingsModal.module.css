@@ -49,3 +49,25 @@
 .swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
 .swatchActive { border-color: var(--fg-0); }
 .swatchDisabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Agent-hook canary notes (Plan 008). hint = confirmed active; hintWarn =
+ * installed but not yet observed firing. */
+.hint {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.hintWarn {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  color: var(--accent-amber, #e0a458);
+  line-height: 1.5;
+}
+.hintWarn code,
+.hint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-2);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}

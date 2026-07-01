@@ -76,6 +76,9 @@ export function applyAgentEvent(evt: AgentEvent): void {
     return;
   }
 
+  // Canary: the first SessionStart confirms the hooks actually fire.
+  if (evt.event === "SessionStart") store.markSessionStart();
+
   const prev = store.panes[evt.paneId];
   const next: PaneAgent = {
     // Only Claude is hooked in this plan; keep any previously-known identity.
