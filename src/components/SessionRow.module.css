@@ -196,7 +196,10 @@
   color: #c98a6d;
 }
 .glyphCodex {
-  color: #9aa5b1;
+  /* OpenAI green-teal, brighter than the other tints on purpose: the blossom
+   * is thin-stroked, so it carries less ink than the solid ✻/✦ characters
+   * and needs the extra luminance to read equally. */
+  color: #83c5ab;
 }
 .glyphGemini {
   color: #7d9fd4;
@@ -206,8 +209,8 @@
  * currentColor so the tint classes above colour it. */
 .glyphSvg {
   display: block;
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
 }
 @keyframes name-in {
   from {
