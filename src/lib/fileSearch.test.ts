@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/fsClient", () => ({ listDir: vi.fn() }));
 import * as fsClient from "@/lib/fsClient";
-import { findFileByName } from "@/lib/fileSearch";
+import { findFileByName, searchFiles } from "@/lib/fileSearch";
 import type { DirEntry } from "@/types/fs";
 
 const mockedList = vi.mocked(fsClient.listDir);
@@ -76,5 +76,87 @@ describe("findFileByName", () => {
     for (const d of subdirs) tree[d.path] = [];
     fakeTree(tree);
     expect(await findFileByName("/root", "nope.md", { maxDirs: 5 })).toBeNull();
+  });
+});
+
+describe("searchFiles", () => {
+  it("finds a nested markdown file without relying on expanded tree state", async () => {
+    fakeTree({
+      "/root": [
+        entry("frontend", "/root/frontend", true),
+        entry("backend", "/root/backend", true),
+      ],
+      "/root/frontend": [entry("README.md", "/root/frontend/README.md", false)],
+      "/root/backend": [
+        entry("docs", "/root/backend/docs", true),
+        entry("LEVER_ROADMAP.md", "/root/backend/LEVER_ROADMAP.md", false),
+      ],
+      "/root/backend/docs": [entry("notes.md", "/root/backend/docs/notes.md", false)],
+    });
+
+    const results = await searchFiles("/root", "lever_roadmap.md");
+
+    expect(results[0]).toMatchObject({
+      relativePath: "backend/LEVER_ROADMAP.md",
+      parentRelativePath: "backend",
+    });
+    expect(results[0]?.entry.path).toBe("/root/backend/LEVER_ROADMAP.md");
+  });
+
+  it("ranks exact basename matches before path-only matches", async () => {
+    fakeTree({
+      "/root": [
+        entry("docs", "/root/docs", true),
+        entry("PLAN.md", "/root/PLAN.md", false),
+      ],
+      "/root/docs": [entry("not-plan.md", "/root/docs/not-plan.md", false)],
+    });
+
+    const results = await searchFiles("/root", "PLAN.md");
+
+    expect(results.map((r) => r.relativePath)).toEqual([
+      "PLAN.md",
+      "docs/not-plan.md",
+    ]);
+  });
+
+  it("matches separator-insensitive queries", async () => {
+    fakeTree({
+      "/root": [entry("LEVER_ROADMAP.md", "/root/LEVER_ROADMAP.md", false)],
+    });
+
+    const results = await searchFiles("/root", "lever roadmap");
+
+    expect(results[0]?.entry.path).toBe("/root/LEVER_ROADMAP.md");
+  });
+
+  it("includes matching directories but does not descend into noise folders", async () => {
+    fakeTree({
+      "/root": [
+        entry("docs", "/root/docs", true),
+        entry("node_modules", "/root/node_modules", true),
+      ],
+      "/root/docs": [entry("guide.md", "/root/docs/guide.md", false)],
+      "/root/node_modules": [entry("guide.md", "/root/node_modules/guide.md", false)],
+    });
+
+    const results = await searchFiles("/root", "docs");
+
+    expect(results[0]?.relativePath).toBe("docs");
+    expect(results.map((r) => r.relativePath)).toContain("docs/guide.md");
+    expect(await searchFiles("/root", "guide.md")).toHaveLength(1);
+  });
+
+  it("honors maxResults after ranking", async () => {
+    fakeTree({
+      "/root": [
+        entry("b.md", "/root/b.md", false),
+        entry("a.md", "/root/a.md", false),
+      ],
+    });
+
+    const results = await searchFiles("/root", ".md", { maxResults: 1 });
+
+    expect(results.map((r) => r.relativePath)).toEqual(["a.md"]);
   });
 });

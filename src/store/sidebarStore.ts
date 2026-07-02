@@ -49,6 +49,7 @@ export interface SidebarState {
   setWorkspaceFolder: (path: string) => void;
   storeEntries: (path: string, entries: DirEntry[]) => void;
   toggleExpanded: (path: string) => void;
+  expandPaths: (paths: string[]) => void;
   setFilter: (text: string) => void;
   matchesFilter: (name: string) => boolean;
   toggleSidebar: () => void;
@@ -89,6 +90,11 @@ export const useSidebarStore = create<SidebarState>()(
         set((s) => {
           if (s.expanded.has(path)) s.expanded.delete(path);
           else s.expanded.add(path);
+        }),
+
+      expandPaths: (paths) =>
+        set((s) => {
+          for (const path of paths) s.expanded.add(path);
         }),
 
       setFilter: (text) =>

@@ -11,6 +11,7 @@
 import { useEffect, useRef } from "react";
 
 import styles from "@/components/FileDrawer.module.css";
+import { FileSearchResults } from "@/components/FileSearchResults";
 import { SidebarTree } from "@/components/SidebarTree";
 import { IconPlus, IconSearch } from "@/components/icons";
 import { beginResize, endResize } from "@/components/resizeBus";
@@ -191,7 +192,11 @@ export function FileDrawer() {
           </button>
         </div>
         <div className={styles.tree}>
-          <SidebarTree path={folder} depth={0} />
+          {filterText.trim() === "" ? (
+            <SidebarTree path={folder} depth={0} />
+          ) : (
+            <FileSearchResults root={folder} query={filterText} />
+          )}
         </div>
       </div>
     </div>

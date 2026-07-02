@@ -57,6 +57,16 @@ describe("sidebarStore", () => {
     expect(useSidebarStore.getState().expanded.has("/home/u/folder")).toBe(false);
   });
 
+  it("expandPaths opens every path without closing existing folders", () => {
+    useSidebarStore.getState().toggleExpanded("/home/u/existing");
+    useSidebarStore.getState().expandPaths(["/home/u/a", "/home/u/a/b"]);
+    expect(Array.from(useSidebarStore.getState().expanded).sort()).toEqual([
+      "/home/u/a",
+      "/home/u/a/b",
+      "/home/u/existing",
+    ]);
+  });
+
   it("setFilter records the lowercase filter text", () => {
     useSidebarStore.getState().setFilter("README");
     expect(useSidebarStore.getState().filterText).toBe("readme");
