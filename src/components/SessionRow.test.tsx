@@ -100,6 +100,8 @@ describe("SessionRow — agent signals", () => {
     const session = useSessionsStore.getState().sessions[bg];
     const { container } = render(<SessionRow session={session} />);
     expect(container.textContent).toContain("✻"); // Claude
-    expect(container.textContent).toContain("›"); // Codex
+    // Codex is a drawn glyph (no Unicode mark exists) — assert the titled
+    // span carries the SVG rather than looking for a text character.
+    expect(container.querySelector('span[title="Codex"] svg')).not.toBeNull();
   });
 });

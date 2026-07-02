@@ -138,3 +138,14 @@
   flex-shrink: 1;
   margin-left: var(--space-3);
 }
+/* The drawn Codex glyph inside the legend text line — sized to sit like a
+ * character among the ✻/✦ text glyphs around it. */
+.legendGlyph {
+  display: inline-block;
+  vertical-align: -1px;
+}
+.legendGlyph svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+}

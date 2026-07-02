@@ -9,7 +9,8 @@
 //   idle       → hollow grey dot
 
 import styles from "@/components/SessionRow.module.css";
-import type { SidebarSignal } from "@/sessions/sessionSignal";
+import { AGENT_GLYPH, type SidebarSignal } from "@/sessions/sessionSignal";
+import type { AgentName } from "@/store/agentStore";
 
 export function SignalIndicator({
   signal,
@@ -52,4 +53,31 @@ function dotClassFor(signal: SidebarSignal): string {
     default:
       return styles.dotStopped;
   }
+}
+
+/** The visual for one agent's identity glyph. Claude and Gemini use the text
+ *  characters their own CLIs print (✻, ✦); OpenAI's mark has no Unicode
+ *  character, so Codex is a drawn hexagonal blossom — a ring, deliberately
+ *  hollow-centred so it can't be mistaken for Claude's six-spoke ✻ at 11px.
+ *  Colour comes from the wrapping span's tint class via currentColor. */
+export function AgentGlyph({ agent }: { agent: AgentName }) {
+  if (agent === "codex") {
+    return (
+      <svg className={styles.glyphSvg} viewBox="0 0 24 24" aria-hidden="true">
+        {[0, 60, 120, 180, 240, 300].map((deg) => (
+          <rect
+            key={deg}
+            x="6.8"
+            y="2.8"
+            width="10.4"
+            height="2.8"
+            rx="1.4"
+            fill="currentColor"
+            transform={`rotate(${deg} 12 12)`}
+          />
+        ))}
+      </svg>
+    );
+  }
+  return <>{AGENT_GLYPH[agent]}</>;
 }

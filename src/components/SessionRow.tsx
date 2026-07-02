@@ -16,12 +16,11 @@ import {
   computeSessionSignal,
   signalReason,
   agentLabel,
-  AGENT_GLYPH,
 } from "@/sessions/sessionSignal";
 import { revealInExplorer } from "@/lib/revealInExplorer";
 import { beginInternalSessionDrag } from "@/lib/internalSessionDrag";
 import { InlineRename } from "@/components/InlineRename";
-import { SignalIndicator } from "@/components/SignalIndicator";
+import { SignalIndicator, AgentGlyph } from "@/components/SignalIndicator";
 import { IconTrash } from "@/components/icons";
 
 interface Props {
@@ -181,7 +180,7 @@ export function SessionRow({ session }: Props) {
               aria-hidden="true"
               title={agentLabel(agent)}
             >
-              {AGENT_GLYPH[agent]}
+              <AgentGlyph agent={agent} />
             </span>
           ))}
         </span>

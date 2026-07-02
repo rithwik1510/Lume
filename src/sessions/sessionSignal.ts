@@ -106,11 +106,13 @@ export function signalReason(signal: SidebarSignal, agent: AgentName | null): st
 }
 
 /** Muted glyph shown after the session name once the agent is identified.
- *  Same glyphs the website/video use; per-agent brand tints live in
+ *  Claude/Gemini are the characters their own CLIs print; Codex has no
+ *  Unicode mark, so the UI draws it (SignalIndicator's AgentGlyph) and "▌"
+ *  (its TUI cursor) is only the plain-text fallback. Brand tints live in
  *  SessionRow.module.css. */
 export const AGENT_GLYPH: Record<AgentName, string> = {
   claude: "✻",
-  codex: "›",
+  codex: "▌",
   gemini: "✦",
 };
 

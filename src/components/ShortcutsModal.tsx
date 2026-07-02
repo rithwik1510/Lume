@@ -20,7 +20,7 @@ import { useEffect } from "react";
 
 import styles from "@/components/ShortcutsModal.module.css";
 import { IconClose } from "@/components/icons";
-import { SignalIndicator } from "@/components/SignalIndicator";
+import { SignalIndicator, AgentGlyph } from "@/components/SignalIndicator";
 import type { SidebarSignal } from "@/sessions/sessionSignal";
 import { useShortcutsModalStore } from "@/store/shortcutsModalStore";
 import { usePresence } from "@/hooks/usePresence";
@@ -151,7 +151,11 @@ export function ShortcutsModal() {
             <div className={styles.row}>
               <span className={styles.signalLabel}>Agent glyph</span>
               <span className={styles.signalMeaning}>
-                Identifies the agent: ✻ Claude · › Codex · ✦ Gemini
+                Identifies the agent: ✻ Claude ·{" "}
+                <span className={styles.legendGlyph} aria-hidden="true">
+                  <AgentGlyph agent="codex" />
+                </span>{" "}
+                Codex · ✦ Gemini
               </span>
             </div>
           </div>

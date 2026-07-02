@@ -201,6 +201,14 @@
 .glyphGemini {
   color: #7d9fd4;
 }
+/* Drawn glyphs (Codex — no Unicode character exists for the OpenAI mark).
+ * Sized to sit like an 11px text glyph beside its siblings; fill rides on
+ * currentColor so the tint classes above colour it. */
+.glyphSvg {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
 @keyframes name-in {
   from {
     opacity: 0;
