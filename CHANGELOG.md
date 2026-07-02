@@ -4,7 +4,7 @@ All notable changes to Lume are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0-beta.10] — 2026-07-02
 
 Lume learns exactly what your agents are doing.
 
@@ -24,12 +24,49 @@ Lume learns exactly what your agents are doing.
   a solid accent dot with a steady glow when it's *your move* (turn complete),
   the tumbling square while *working*, and a hollow grey dot when idle —
   ranked `permission > your-move > working > idle`. An agent-identity glyph
-  (Claude `✻`) sits after the session name.
-- **Nothing needing you stays hidden.** Collapsed folder headers inherit their
-  most-urgent child's signal, and the status bar rolls up the blocked (`◎`)
-  and your-move (`●`) counts across background sessions.
+  (Claude `✻`, Codex `▌`, Gemini `✦`) sits after the session name when the
+  pane is known to host that agent.
+- **Multi-agent identity via launch-command detection.** Codex and Gemini
+  panes are identified from the command line that started them, so Lume
+  renders the right glyph and tint even before any hook event lands.
+  Command-sourced identity never takes precedence over a hook-sourced one
+  and never clobbers it; an agent finishing a command clears the
+  command-sourced entry, not the hook-sourced one.
+- **Codex gets a real glyph.** Codex ships a custom blossom SVG (the
+  OpenAI mark) instead of the plain `>` character, so it reads at 11px
+  next to the text glyphs. Tinted OpenAI green-teal, sized to match the
+  other agent glyphs.
+- **Nothing needing you stays hidden.** Collapsed folder headers inherit
+  their most-urgent child's signal, and the status bar rolls up the
+  blocked (`◎`) and your-move (`●`) counts across background sessions.
 - **A Signals legend** in the `Ctrl+?` shortcuts modal, plus exact-reason
   tooltips and state-named row labels for screen readers.
+- **Ranked fuzzy search in the file drawer.** Type in the drawer's filter
+  and the tree is replaced by a ranked BFS over the workspace: exact
+  match, name-prefix, name-substring, path-substring, then a
+  fuzzy-compact fallback, sorted by score and depth. Generated and heavy
+  folders (node_modules, .git, dist, target, …) are skipped; a result is
+  opened with the OS handler, and activating one auto-expands its folder
+  path in the tree.
+
+### Fixed
+- **Your-move calms on view.** A *your-move* signal that lands while its
+  session is visible (or is later brought into view) transitions to idle
+  — the agent-phase mirror of the existing `unread=false` on activate.
+  Permission is exempt: still blocked is still urgent.
+- **Permission exits on sustained output.** A permission-blocked pane is
+  the one agent-owned pane that still listens to output (approving a
+  prompt fires no hook event until Stop), so two output chunks within
+  the sustain window demote it back to *working*. Fails toward the
+  calmer state; the next exact event corrects.
+
+### Performance
+- **Status bar needs-you roll-up is memoized.** The bar subscribes to a
+  wide pty slice for its other fields, but the roll-up only depends on
+  the sessions / agent slices, so the count is computed once per change
+  to those slices and reused for unrelated renders.
+
+[0.1.0-beta.10]: https://github.com/rithwik1510/Lume/releases/tag/v0.1.0-beta.10
 
 ## [0.1.0-beta.9] — 2026-06-29
 

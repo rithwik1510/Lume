@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/rithwik1510/Lume/releases"><img alt="Status" src="https://img.shields.io/badge/status-beta-5fa8ff?style=flat-square&labelColor=0a0a0a" /></a>
-  <a href="https://github.com/rithwik1510/Lume/releases/tag/v0.1.0-beta.7"><img alt="Version" src="https://img.shields.io/badge/version-v0.1.0--beta.7-1a1a1a?style=flat-square&labelColor=0a0a0a&color=222222" /></a>
+  <a href="https://github.com/rithwik1510/Lume/releases/tag/v0.1.0-beta.10"><img alt="Version" src="https://img.shields.io/badge/version-v0.1.0--beta.10-1a1a1a?style=flat-square&labelColor=0a0a0a&color=222222" /></a>
   <a href="https://github.com/rithwik1510/Lume/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-1a1a1a?style=flat-square&labelColor=0a0a0a&color=222222" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows_·_mac/linux_soon-1a1a1a?style=flat-square&labelColor=0a0a0a&color=222222" />
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-1a1a1a?style=flat-square&labelColor=0a0a0a&color=222222" />
