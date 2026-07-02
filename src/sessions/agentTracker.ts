@@ -33,6 +33,8 @@ import {
   noteAgentWorking,
   noteAgentPermission,
 } from "@/sessions/attentionTracker";
+import { onCommandEvent } from "@/sessions/commandTracker";
+import { agentFromCommand } from "@/sessions/agentIdentity";
 import type { PaneId } from "@/types";
 
 export interface AgentEvent {
@@ -100,9 +102,11 @@ export function applyAgentEvent(evt: AgentEvent): void {
 
   const prev = store.panes[evt.paneId];
   const next: PaneAgent = {
-    // Only Claude is hooked in this plan; keep any previously-known identity.
-    agent: prev?.agent ?? "claude",
+    // These ARE Claude's hooks: always claude, always hook-sourced. A command-
+    // derived identity for this pane is upgraded to the authoritative hook one.
+    agent: "claude",
     phase,
+    source: "hook",
     sessionId: evt.sessionId ?? prev?.sessionId,
     transcriptPath: evt.transcriptPath ?? prev?.transcriptPath,
   };
@@ -150,6 +154,31 @@ export function forgetPaneAgent(paneId: PaneId): void {
   useAgentStore.getState().removePaneAgent(paneId);
   setAgentActive(paneId, false);
 }
+
+/** Command-derived (glyph-only) identity from a captured launch command.
+ *  Called by the orchestrator when a pane's launch line finalizes. Registers
+ *  identity ONLY when the pane has no entry yet — a hook entry (class A) is
+ *  never clobbered, and a re-typed command never re-arms class A. Deliberately
+ *  does NOT touch attentionTracker: the phase stays `idle` (no signal) so the
+ *  output heuristics keep driving working/needs-you for these panes. */
+export function noteCommandAgent(paneId: PaneId, command: string): void {
+  const store = useAgentStore.getState();
+  if (store.panes[paneId]) return; // never overwrite hook OR an earlier command
+  const agent = agentFromCommand(command);
+  if (agent === null) return;
+  store.setPaneAgent(paneId, { agent, phase: "idle", source: "command" });
+}
+
+// Command lifecycle: a finished command drops ONLY command-derived identity —
+// the process it named is gone. Hook entries are removed by SessionEnd /
+// forgetPaneAgent, never here (a hooked Claude runs as one long command whose
+// D mark may arrive before or after SessionEnd). Module-scope so it survives
+// disposeAgentTracker like attentionTracker's own command subscription.
+onCommandEvent((evt) => {
+  if (evt.type !== "command-finished") return;
+  const store = useAgentStore.getState();
+  if (store.panes[evt.paneId]?.source === "command") store.removePaneAgent(evt.paneId);
+});
 
 /** Subscribe to the Rust `agent-event` stream. Call once at app boot; returns
  *  an unlistener. Errors wiring the listener are non-fatal (the feature simply

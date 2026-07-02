@@ -15,9 +15,10 @@ import { immer } from "zustand/middleware/immer";
 
 import type { PaneId } from "@/types";
 
-/** The agents Lume can identify by hook. Only Claude Code in this plan; the
- *  glyph map + state machine extend to Codex/Gemini without structural change. */
-export type AgentName = "claude";
+/** The agents Lume can identify. Claude's exact phases come from hooks; Codex
+ *  and Gemini are identified glyph-only from their launch command (no hook
+ *  mechanism wired), so their panes keep the output heuristics for signals. */
+export type AgentName = "claude" | "codex" | "gemini";
 
 /** Per-pane agent phase. `idle` = SessionStart seen, no turn yet (calm, no
  *  signal); `working` = a turn is in progress; `permission` = blocked mid-turn
@@ -25,9 +26,16 @@ export type AgentName = "claude";
  *  (Stop and idle_prompt collapse here). SessionEnd removes the entry. */
 export type AgentPhase = "idle" | "working" | "permission" | "your-move";
 
+/** How the pane's identity was learned. `hook` = a Claude hook event (class A
+ *  owns the pane's exact phase). `command` = inferred from the launch command
+ *  (glyph-only, phase stays `idle`, heuristics keep driving signals). A hook
+ *  event upgrades a command entry; a command event never overwrites a hook. */
+export type AgentSource = "hook" | "command";
+
 export interface PaneAgent {
   agent: AgentName;
   phase: AgentPhase;
+  source: AgentSource;
   /** Recorded from SessionStart — dashboard fuel for later plans. */
   sessionId?: string;
   transcriptPath?: string;

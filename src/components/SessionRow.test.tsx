@@ -17,7 +17,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 import { SessionRow } from "@/components/SessionRow";
 import { useSessionsStore } from "@/store/sessionsStore";
 import { useAgentStore, type AgentPhase } from "@/store/agentStore";
-import { leaf } from "@/store/layout/tree";
+import { leaf, split } from "@/store/layout/tree";
 
 function bgSessionWithPane(paneId: string): string {
   const s = useSessionsStore.getState();
@@ -42,7 +42,9 @@ beforeEach(() => {
 describe("SessionRow — agent signals", () => {
   it("permission: aria-label names the reason and the agent glyph shows", () => {
     const bg = bgSessionWithPane("pane-a");
-    useAgentStore.getState().setPaneAgent("pane-a", { agent: "claude", phase: "permission" });
+    useAgentStore
+      .getState()
+      .setPaneAgent("pane-a", { agent: "claude", phase: "permission", source: "hook" });
     const session = useSessionsStore.getState().sessions[bg];
     const { container } = render(<SessionRow session={session} />);
     expect(rowLabel(container, bg)).toBe("Work — Claude — waiting on permission");
@@ -51,7 +53,9 @@ describe("SessionRow — agent signals", () => {
 
   it("your-move: aria-label reports turn complete", () => {
     const bg = bgSessionWithPane("pane-a");
-    useAgentStore.getState().setPaneAgent("pane-a", { agent: "claude", phase: "your-move" });
+    useAgentStore
+      .getState()
+      .setPaneAgent("pane-a", { agent: "claude", phase: "your-move", source: "hook" });
     const session = useSessionsStore.getState().sessions[bg];
     const { container } = render(<SessionRow session={session} />);
     expect(rowLabel(container, bg)).toBe("Work — Claude — turn complete");
@@ -59,7 +63,9 @@ describe("SessionRow — agent signals", () => {
 
   it("idle agent shows the glyph but no signal in the label", () => {
     const bg = bgSessionWithPane("pane-a");
-    useAgentStore.getState().setPaneAgent("pane-a", { agent: "claude", phase: "idle" as AgentPhase });
+    useAgentStore
+      .getState()
+      .setPaneAgent("pane-a", { agent: "claude", phase: "idle" as AgentPhase, source: "command" });
     const session = useSessionsStore.getState().sessions[bg];
     const { container } = render(<SessionRow session={session} />);
     expect(rowLabel(container, bg)).toBe("Work"); // idle → no reason appended
@@ -71,9 +77,29 @@ describe("SessionRow — agent signals", () => {
     const id = s.createSession("/proj", "Work");
     s.setLayoutRoot(id, leaf("pane-a"));
     s.activateSession(id); // this session IS visible
-    useAgentStore.getState().setPaneAgent("pane-a", { agent: "claude", phase: "permission" });
+    useAgentStore
+      .getState()
+      .setPaneAgent("pane-a", { agent: "claude", phase: "permission", source: "hook" });
     const session = useSessionsStore.getState().sessions[id];
     const { container } = render(<SessionRow session={session} />);
     expect(rowLabel(container, id)).toBe("Work"); // suppressed
+  });
+
+  it("renders one glyph per agent when several run side by side", () => {
+    const s = useSessionsStore.getState();
+    const bg = s.createSession("/proj", "Work");
+    s.setLayoutRoot(bg, split("horizontal", 0.5, leaf("pane-a"), leaf("pane-b")));
+    const fg = s.createSession("/other", "Front");
+    s.activateSession(fg);
+    useAgentStore
+      .getState()
+      .setPaneAgent("pane-a", { agent: "claude", phase: "idle", source: "hook" });
+    useAgentStore
+      .getState()
+      .setPaneAgent("pane-b", { agent: "codex", phase: "idle", source: "command" });
+    const session = useSessionsStore.getState().sessions[bg];
+    const { container } = render(<SessionRow session={session} />);
+    expect(container.textContent).toContain("✻"); // Claude
+    expect(container.textContent).toContain("›"); // Codex
   });
 });

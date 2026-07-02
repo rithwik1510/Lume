@@ -10,7 +10,7 @@ import {
 } from "@/store/sessionsStore";
 import { useConfirmStore } from "@/store/confirmStore";
 import { useContextMenuStore } from "@/store/contextMenuStore";
-import { useAgentStore } from "@/store/agentStore";
+import { useAgentStore, type AgentName } from "@/store/agentStore";
 import {
   sessionAgentView,
   computeSessionSignal,
@@ -27,6 +27,14 @@ import { IconTrash } from "@/components/icons";
 interface Props {
   session: Session;
 }
+
+/** Per-agent brand tint (SessionRow.module.css). Desaturated on purpose — the
+ *  accent stays the only loud colour in the list. */
+const GLYPH_TINT: Record<AgentName, string> = {
+  claude: styles.glyphClaude,
+  codex: styles.glyphCodex,
+  gemini: styles.glyphGemini,
+};
 
 export function SessionRow({ session }: Props) {
   const activeId = useSessionsStore((s) => s.activeSessionId);
@@ -65,7 +73,9 @@ export function SessionRow({ session }: Props) {
   // accent ring with the animated glow pulse (the urgent state is the one that
   // moves); your-move = solid accent dot with a STATIC glow; idle = hollow
   // grey; active (the session you're viewing) = neutral filled dot.
-  const reason = signalReason(signal, agentView.agent);
+  // signalReason names the agent of the MOST-URGENT pane (signalAgent), which
+  // is the one the row's colour/shape signal is about.
+  const reason = signalReason(signal, agentView.signalAgent);
   // The state name rides on the row's aria-label so the signal isn't
   // colour/shape-only; the indicator itself stays aria-hidden (decorative).
   const rowAriaLabel =
@@ -161,17 +171,19 @@ export function SessionRow({ session }: Props) {
           <span key={session.name} className={styles.name} onDoubleClick={onDoubleClick}>
             {session.name}
           </span>
-          {/* Agent identity glyph (Plan 008): muted, after the name. Answers
-           * "which agent lives here"; the left indicator keeps all colour/motion. */}
-          {agentView.agent && (
+          {/* Agent identity glyphs (Plan 008): one muted, brand-tinted glyph per
+           * agent living here, side by side. Answers "which agents live here";
+           * the left indicator keeps all attention colour/motion. */}
+          {agentView.agents.map((agent) => (
             <span
-              className={styles.glyph}
+              key={agent}
+              className={`${styles.glyph} ${GLYPH_TINT[agent]}`}
               aria-hidden="true"
-              title={agentLabel(agentView.agent)}
+              title={agentLabel(agent)}
             >
-              {AGENT_GLYPH[agentView.agent]}
+              {AGENT_GLYPH[agent]}
             </span>
-          )}
+          ))}
         </span>
       )}
       <button

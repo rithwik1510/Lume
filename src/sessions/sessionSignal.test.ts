@@ -10,22 +10,59 @@ import {
   rollUpSignal,
 } from "@/sessions/sessionSignal";
 
-const agent = (phase: PaneAgent["phase"]): PaneAgent => ({ agent: "claude", phase });
+const agent = (phase: PaneAgent["phase"]): PaneAgent => ({
+  agent: "claude",
+  phase,
+  source: "hook",
+});
+const named = (name: PaneAgent["agent"], phase: PaneAgent["phase"]): PaneAgent => ({
+  agent: name,
+  phase,
+  source: "command",
+});
 
 describe("sessionSignal — sessionAgentView aggregation", () => {
   it("returns no agent when the session has none", () => {
     expect(sessionAgentView({}, { layoutRoot: leaf("p1") })).toEqual({
-      agent: null,
+      agents: [],
       signal: null,
+      signalAgent: null,
     });
   });
 
   it("surfaces the glyph agent even when idle, with a null signal", () => {
     const panes: Record<PaneId, PaneAgent> = { p1: agent("idle") };
     expect(sessionAgentView(panes, { layoutRoot: leaf("p1") })).toEqual({
-      agent: "claude",
+      agents: ["claude"],
       signal: null,
+      signalAgent: "claude",
     });
+  });
+
+  it("lists multiple distinct agents in pane-tree order, de-duplicated", () => {
+    const panes: Record<PaneId, PaneAgent> = {
+      pa: named("codex", "idle"),
+      pb: named("claude", "idle"),
+      pc: named("codex", "idle"), // duplicate agent — collapses
+    };
+    const root = split(
+      "horizontal",
+      0.5,
+      leaf("pa"),
+      split("vertical", 0.5, leaf("pb"), leaf("pc"))
+    );
+    expect(sessionAgentView(panes, { layoutRoot: root }).agents).toEqual(["codex", "claude"]);
+  });
+
+  it("signalAgent is the agent of the most-urgent pane", () => {
+    const panes: Record<PaneId, PaneAgent> = {
+      pa: named("codex", "working"),
+      pb: named("claude", "permission"),
+    };
+    const root = split("horizontal", 0.5, leaf("pa"), leaf("pb"));
+    const view = sessionAgentView(panes, { layoutRoot: root });
+    expect(view.signal).toBe("permission");
+    expect(view.signalAgent).toBe("claude");
   });
 
   it("picks the most-urgent phase across panes (permission > your-move > working)", () => {

@@ -181,12 +181,25 @@
 }
 
 /* Agent identity glyph after the name — muted, never competes with the left
- * indicator for attention (colour/motion live there). */
+ * indicator for attention (colour/motion live there). Base carries size/line;
+ * the per-agent tint classes add brand colour on top. */
 .glyph {
   flex: none;
   color: var(--fg-3, #4a4a4a);
   font-size: 11px;
   line-height: 1;
+}
+/* Per-agent brand tints. LITERAL colours (brand identity doesn't theme) and
+ * deliberately DESATURATED — they sit between fg-3 and fg-2 in perceived
+ * intensity so the accent (needs-you) stays the only loud colour in the list. */
+.glyphClaude {
+  color: #c98a6d;
+}
+.glyphCodex {
+  color: #9aa5b1;
+}
+.glyphGemini {
+  color: #7d9fd4;
 }
 @keyframes name-in {
   from {

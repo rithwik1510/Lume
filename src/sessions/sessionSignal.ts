@@ -17,10 +17,13 @@ import type { PaneId } from "@/types";
 export type AgentSignal = "working" | "permission" | "your-move";
 
 export interface SessionAgentView {
-  /** Identity glyph fuel: the agent living in this session, or null if none. */
-  agent: AgentName | null;
+  /** Identity glyph fuel: every distinct agent living in this session, in
+   *  pane-tree order (a session can run several side by side). Empty if none. */
+  agents: AgentName[];
   /** Most-urgent agent signal across the session's panes, or null. */
   signal: AgentSignal | null;
+  /** The agent of the most-urgent pane — feeds signalReason. Null if none. */
+  signalAgent: AgentName | null;
 }
 
 const PHASE_RANK: Record<AgentPhase, number> = {
@@ -30,25 +33,26 @@ const PHASE_RANK: Record<AgentPhase, number> = {
   idle: 0,
 };
 
-/** Aggregate a session's panes into one agent view. `agent` is set whenever any
- *  pane has a known agent (even idle — the glyph shows once identity is known);
- *  `signal` is the most-urgent non-idle phase, or null. */
+/** Aggregate a session's panes into one agent view. `agents` lists each distinct
+ *  agent in pane-tree order (shown as side-by-side glyphs once identity is
+ *  known, even while idle); `signal` is the most-urgent non-idle phase, or null;
+ *  `signalAgent` is the agent of that most-urgent pane. */
 export function sessionAgentView(
   panes: Record<PaneId, PaneAgent>,
   session: Pick<Session, "layoutRoot">
 ): SessionAgentView {
-  if (!session.layoutRoot) return { agent: null, signal: null };
-  let agent: AgentName | null = null;
+  if (!session.layoutRoot) return { agents: [], signal: null, signalAgent: null };
+  const agents: AgentName[] = [];
   let best: PaneAgent | null = null;
   for (const paneId of treeLeaves(session.layoutRoot)) {
     const pa = panes[paneId];
     if (!pa) continue;
-    agent = pa.agent;
+    if (!agents.includes(pa.agent)) agents.push(pa.agent);
     if (best === null || PHASE_RANK[pa.phase] > PHASE_RANK[best.phase]) best = pa;
   }
   const signal: AgentSignal | null =
     best && best.phase !== "idle" ? (best.phase as AgentSignal) : null;
-  return { agent, signal };
+  return { agents, signal, signalAgent: best?.agent ?? null };
 }
 
 /** The final indicator a sidebar row/roll-up should render. */
@@ -102,14 +106,21 @@ export function signalReason(signal: SidebarSignal, agent: AgentName | null): st
 }
 
 /** Muted glyph shown after the session name once the agent is identified.
- *  Same glyphs the website/video use. Extends trivially to other agents. */
+ *  Same glyphs the website/video use; per-agent brand tints live in
+ *  SessionRow.module.css. */
 export const AGENT_GLYPH: Record<AgentName, string> = {
   claude: "✻",
+  codex: "›",
+  gemini: "✦",
 };
 
 export function agentLabel(agent: AgentName): string {
   switch (agent) {
     case "claude":
       return "Claude";
+    case "codex":
+      return "Codex";
+    case "gemini":
+      return "Gemini";
   }
 }

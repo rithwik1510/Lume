@@ -37,7 +37,7 @@ import { ingest, forget as forgetRenderSink } from "@/terminals/renderSink";
 import { openPty, writePty, killPty, isAppError } from "@/terminals/ptyClient";
 import { detectShells, configIdMatchesShell } from "@/lib/shellsClient";
 import { noteOutput, forgetPane, disposeAttentionTracker } from "@/sessions/attentionTracker";
-import { forgetPaneAgent } from "@/sessions/agentTracker";
+import { forgetPaneAgent, noteCommandAgent } from "@/sessions/agentTracker";
 import { onCommandEvent, paneCommandState } from "@/sessions/commandTracker";
 import { useSettingsStore } from "@/store/settingsStore";
 import { formatAppError, type PaneId, type PtyEvent, type Shell } from "@/types";
@@ -153,6 +153,9 @@ export async function spawnPane(
         if (line !== "") {
           const sid = findSessionForPane(useSessionsStore.getState(), paneId)?.id;
           if (sid) useSessionsStore.getState().setPaneStartupCommand(sid, paneId, line);
+          // Glyph-only agent identity from the launch line (Plan 008). No-op
+          // unless the line names a known agent AND the pane has no entry yet.
+          noteCommandAgent(paneId, line);
         }
         capture = makeCommandCapture(); // re-arm for the next prompt line
       }

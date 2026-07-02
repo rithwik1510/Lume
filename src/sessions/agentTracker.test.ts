@@ -22,6 +22,7 @@ import {
   applyAgentEvent,
   transitionFor,
   forgetPaneAgent,
+  noteCommandAgent,
   disposeAgentTracker,
   type AgentEvent,
 } from "@/sessions/agentTracker";
@@ -30,6 +31,7 @@ import {
   disposeAttentionTracker,
   paneHasLiveAgent,
 } from "@/sessions/attentionTracker";
+import { handleOsc133, disposeCommandTracker } from "@/sessions/commandTracker";
 
 function sessionWithPane(folder: string, paneId: string): string {
   const s = useSessionsStore.getState();
@@ -53,15 +55,24 @@ function streamOutput(paneId: string): void {
   noteOutput(paneId);
 }
 
+/** Drive a full OSC 133 command (start → finish) so the command-finished
+ *  subscription fires — the shell-level "the launched process exited" signal. */
+function finishCommand(paneId: string): void {
+  handleOsc133(paneId, "C");
+  handleOsc133(paneId, "D;0");
+}
+
 beforeEach(() => {
   useSessionsStore.setState(useSessionsStore.getInitialState(), true);
   disposeAgentTracker();
   disposeAttentionTracker();
+  disposeCommandTracker();
   vi.useFakeTimers();
 });
 afterEach(() => {
   disposeAgentTracker();
   disposeAttentionTracker();
+  disposeCommandTracker();
   vi.useRealTimers();
 });
 
@@ -288,5 +299,78 @@ describe("agentTracker — class-A ownership over cadence", () => {
     expect(phase("pane-bg")).toBeUndefined();
     expect(paneHasLiveAgent("pane-bg")).toBe(false);
     expect(working(bg)).toBe(false);
+  });
+});
+
+describe("agentTracker — command-derived identity (glyph-only)", () => {
+  it("registers an idle, command-sourced identity from a launch command", () => {
+    sessionWithPane("/bg", "pane-bg");
+    noteCommandAgent("pane-bg", "npx -y @openai/codex");
+    const pa = useAgentStore.getState().panes["pane-bg"];
+    expect(pa).toMatchObject({ agent: "codex", phase: "idle", source: "command" });
+  });
+
+  it("ignores a command that names no known agent", () => {
+    sessionWithPane("/bg", "pane-bg");
+    noteCommandAgent("pane-bg", "git status");
+    expect(useAgentStore.getState().panes["pane-bg"]).toBeUndefined();
+  });
+
+  it("does NOT take class-A ownership — heuristic cadence still drives working", () => {
+    const bg = sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    noteCommandAgent("pane-bg", "codex");
+    expect(paneHasLiveAgent("pane-bg")).toBe(false); // NOT owned
+    expect(working(bg)).toBe(false); // idle phase contributes no signal
+
+    // Cadence is NOT suppressed: streaming output makes the session working,
+    // exactly as it would for any unhooked pane.
+    streamOutput("pane-bg");
+    expect(working(bg)).toBe(true);
+  });
+
+  it("a hook event upgrades a command identity to hook-owned Claude", () => {
+    sessionWithPane("/bg", "pane-bg");
+    const fg = sessionWithPane("/fg", "pane-fg");
+    useSessionsStore.getState().activateSession(fg);
+
+    noteCommandAgent("pane-bg", "claude");
+    expect(useAgentStore.getState().panes["pane-bg"].source).toBe("command");
+
+    applyAgentEvent(ev("pane-bg", "SessionStart", { sessionId: "s1" }));
+    const pa = useAgentStore.getState().panes["pane-bg"];
+    expect(pa).toMatchObject({ agent: "claude", source: "hook", sessionId: "s1" });
+    expect(paneHasLiveAgent("pane-bg")).toBe(true);
+  });
+
+  it("never overwrites an existing hook entry", () => {
+    sessionWithPane("/bg", "pane-bg");
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    applyAgentEvent(ev("pane-bg", "UserPromptSubmit")); // hook says working
+    noteCommandAgent("pane-bg", "codex"); // a re-typed command must not clobber
+    const pa = useAgentStore.getState().panes["pane-bg"];
+    expect(pa).toMatchObject({ agent: "claude", phase: "working", source: "hook" });
+  });
+
+  it("command-finished clears a command identity", () => {
+    sessionWithPane("/bg", "pane-bg");
+    noteCommandAgent("pane-bg", "gemini");
+    expect(useAgentStore.getState().panes["pane-bg"].agent).toBe("gemini");
+    finishCommand("pane-bg");
+    expect(useAgentStore.getState().panes["pane-bg"]).toBeUndefined();
+  });
+
+  it("command-finished does NOT clear a hook identity", () => {
+    sessionWithPane("/bg", "pane-bg");
+    applyAgentEvent(ev("pane-bg", "SessionStart"));
+    // A D mark can arrive before SessionEnd (claude is one long command); the
+    // hook entry must survive it — only SessionEnd/forgetPaneAgent remove it.
+    finishCommand("pane-bg");
+    expect(useAgentStore.getState().panes["pane-bg"]).toMatchObject({
+      agent: "claude",
+      source: "hook",
+    });
   });
 });

@@ -148,6 +148,12 @@ export function ShortcutsModal() {
                 <span className={styles.signalMeaning}>{item.meaning}</span>
               </div>
             ))}
+            <div className={styles.row}>
+              <span className={styles.signalLabel}>Agent glyph</span>
+              <span className={styles.signalMeaning}>
+                Identifies the agent: ✻ Claude · › Codex · ✦ Gemini
+              </span>
+            </div>
           </div>
         </div>
       </div>
